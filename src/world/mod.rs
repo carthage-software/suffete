@@ -97,6 +97,12 @@ pub trait World {
     /// structural narrowing that depends on the backing (e.g. a
     /// `value` property on an `object{...}` shape) is rejected.
     fn enum_backing(&self, enum_name: Atom) -> Option<EnumBacking>;
+
+    /// The recorded body of `class::alias` (a `@type` alias declared on
+    /// the class), or `None` when the alias is unknown. Used by
+    /// [`crate::expand`] to substitute alias bodies in place of
+    /// `Alias` atoms.
+    fn alias_body(&self, class: Atom, alias: Atom) -> Option<TypeId>;
 }
 
 /// What an enum case carries beyond its `name`. PHP enums are either
@@ -153,6 +159,10 @@ impl World for NullWorld {
     }
 
     fn enum_backing(&self, _enum_name: Atom) -> Option<EnumBacking> {
+        None
+    }
+
+    fn alias_body(&self, _class: Atom, _alias: Atom) -> Option<TypeId> {
         None
     }
 }

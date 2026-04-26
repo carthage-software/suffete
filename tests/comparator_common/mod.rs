@@ -59,6 +59,10 @@ pub struct MockWorld {
     properties: HashMap<(Atom, Atom), TypeId>,
     /// `enum -> backing kind` for declared enums.
     enums: HashMap<Atom, EnumBacking>,
+    /// `(class, alias_name) -> alias body type` for declared `@type`
+    /// aliases. Body may itself contain other aliases, references, or
+    /// derived types — expansion is recursive.
+    aliases: HashMap<(Atom, Atom), TypeId>,
 }
 
 impl MockWorld {
@@ -71,6 +75,7 @@ impl MockWorld {
             methods: HashMap::new(),
             properties: HashMap::new(),
             enums: HashMap::new(),
+            aliases: HashMap::new(),
         }
     }
 
@@ -177,6 +182,14 @@ impl MockWorld {
         self
     }
 
+    /// Declare a `@type` alias on `class`: `Class::alias = body`.
+    pub fn with_alias(&mut self, class: &str, alias: &str, body: TypeId) -> &mut Self {
+        let n = atom(class);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.aliases.insert((n, atom(alias)), body);
+        self
+    }
+
     fn recompute_closure(&mut self) {
         loop {
             let mut changed = false;
@@ -252,6 +265,10 @@ impl World for MockWorld {
 
     fn enum_backing(&self, enum_name: Atom) -> Option<EnumBacking> {
         self.enums.get(&enum_name).copied()
+    }
+
+    fn alias_body(&self, class: Atom, alias: Atom) -> Option<TypeId> {
+        self.aliases.get(&(class, alias)).copied()
     }
 }
 
