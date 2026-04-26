@@ -1,6 +1,14 @@
 use std::num::NonZeroU32;
 
 use crate::ElementKind;
+use crate::element::payload::scalar::FloatInfo;
+use crate::element::payload::scalar::IntInfo;
+use crate::element::payload::scalar::IntRange;
+use crate::element::payload::scalar::LiteralFloat;
+use crate::element::payload::scalar::StringCasing;
+use crate::element::payload::scalar::StringInfo;
+use crate::element::payload::scalar::StringLiteral;
+use crate::element::payload::scalar::StringRefinementFlags;
 use crate::handle::define_handle;
 
 /// An interned handle to a single [`Element`](crate::Element).
@@ -100,6 +108,37 @@ impl ElementId {
             ElementKind::Conditional => Element::Conditional(i.get_conditional(self)),
             ElementKind::Derived => Element::Derived(i.get_derived(self)),
         }
+    }
+
+    /// Intern an integer literal element (`IntInfo::Literal(value)`).
+    #[inline]
+    pub fn int_literal(value: i64) -> Self {
+        crate::interner::interner().intern_int(IntInfo::Literal(value))
+    }
+
+    /// Intern a bounded integer range (`IntInfo::Range`). Either bound may be
+    /// `None`, denoting open (`-∞` or `+∞`).
+    pub fn int_range(lower: Option<i64>, upper: Option<i64>) -> Self {
+        let i = crate::interner::interner();
+        let range = i.intern_int_range(IntRange::new(lower, upper));
+        i.intern_int(IntInfo::Range(range))
+    }
+
+    /// Intern a float literal element (`FloatInfo::Literal(value)`).
+    #[inline]
+    pub fn float_literal(value: f64) -> Self {
+        crate::interner::interner().intern_float(FloatInfo::Literal(LiteralFloat::new(value)))
+    }
+
+    /// Intern a string literal element with a known value, no casing
+    /// constraint, no refinement flags.
+    pub fn string_literal(value: &str) -> Self {
+        let info = StringInfo {
+            literal: StringLiteral::Value(mago_atom::atom(value)),
+            casing: StringCasing::Unspecified,
+            flags: StringRefinementFlags::EMPTY,
+        };
+        crate::interner::interner().intern_string(info)
     }
 }
 

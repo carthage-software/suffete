@@ -45,6 +45,45 @@ impl TypeId {
     pub fn as_ref(self) -> &'static crate::Type {
         crate::interner::interner().get_type(self)
     }
+
+    /// Build a singleton union from one element, with empty flow flags.
+    #[inline]
+    pub fn singleton(element: crate::ElementId) -> Self {
+        crate::interner::interner().intern_type(&[element], crate::FlowFlags::EMPTY)
+    }
+
+    /// Build a union from a slice of elements, with empty flow flags.
+    /// Atoms are sorted, deduplicated, and (per the basic canonical form)
+    /// empty input collapses to `never`.
+    #[inline]
+    pub fn union(elements: &[crate::ElementId]) -> Self {
+        crate::interner::interner().intern_type(elements, crate::FlowFlags::EMPTY)
+    }
+
+    /// Singleton type wrapping a literal integer.
+    #[inline]
+    pub fn int_literal(value: i64) -> Self {
+        Self::singleton(crate::ElementId::int_literal(value))
+    }
+
+    /// Singleton type wrapping an integer range. Either bound may be `None`
+    /// for open (`-∞` / `+∞`).
+    #[inline]
+    pub fn int_range(lower: Option<i64>, upper: Option<i64>) -> Self {
+        Self::singleton(crate::ElementId::int_range(lower, upper))
+    }
+
+    /// Singleton type wrapping a literal float.
+    #[inline]
+    pub fn float_literal(value: f64) -> Self {
+        Self::singleton(crate::ElementId::float_literal(value))
+    }
+
+    /// Singleton type wrapping a literal string.
+    #[inline]
+    pub fn string_literal(value: &str) -> Self {
+        Self::singleton(crate::ElementId::string_literal(value))
+    }
 }
 
 define_handle! {
