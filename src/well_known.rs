@@ -115,9 +115,9 @@ pub const CALLABLE: ElementId = ElementId::new(ElementKind::Callable, 0);
 // slot `1`. Two groups: singleton unions (one element + empty flow flags) for
 // every well-known element above, then frequently-seen multi-element unions.
 
-// Singleton-union TypeIds for the trivials and other well-knowns are assigned
-// in lockstep with the elements above; the interner pre-populates them at
-// boot. These constants name the ones that callers reach for most often.
+// Singleton-union TypeIds for the trivial-kind elements and other well-knowns
+// are assigned in lockstep with the elements above; the interner pre-populates
+// them at boot. These constants name the ones that callers reach for most often.
 
 pub const TYPE_NULL: TypeId = TypeId::from_slot(1);
 pub const TYPE_NEVER: TypeId = TypeId::from_slot(2);
