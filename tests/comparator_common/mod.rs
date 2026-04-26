@@ -24,6 +24,8 @@ use mago_atom::atom;
 use suffete::ElementId;
 use suffete::FlowFlags;
 use suffete::TypeId;
+use suffete::element::payload::ArrayKey;
+use suffete::element::payload::KnownItemEntry;
 use suffete::interner::interner;
 use suffete::lattice;
 use suffete::lattice::Codebase;
@@ -366,6 +368,40 @@ pub fn t_enum_case(name: &str, case: &str) -> ElementId {
 
 pub fn t_empty_array() -> ElementId {
     prelude::EMPTY_ARRAY
+}
+
+pub fn t_list(element: TypeId, non_empty: bool) -> ElementId {
+    ElementId::list(element, non_empty)
+}
+
+pub fn t_keyed_unsealed(key: TypeId, value: TypeId, non_empty: bool) -> ElementId {
+    ElementId::keyed_unsealed(key, value, non_empty)
+}
+
+pub fn t_keyed_sealed(items: std::collections::BTreeMap<ArrayKey, (bool, TypeId)>, non_empty: bool) -> ElementId {
+    let entries: Vec<KnownItemEntry> =
+        items.into_iter().map(|(key, (optional, value))| KnownItemEntry { key, value, optional }).collect();
+    ElementId::keyed_sealed(&entries, non_empty)
+}
+
+pub fn t_iterable(key: TypeId, value: TypeId) -> ElementId {
+    ElementId::iterable(key, value)
+}
+
+pub fn t_callable_mixed() -> ElementId {
+    ElementId::callable_mixed()
+}
+
+pub fn t_closure_mixed() -> ElementId {
+    ElementId::closure_mixed()
+}
+
+pub fn ak_int(n: i64) -> ArrayKey {
+    ArrayKey::Int(n)
+}
+
+pub fn ak_str(s: &str) -> ArrayKey {
+    ArrayKey::String(atom(s))
 }
 
 // ---------------------------------------------------------------------------

@@ -123,8 +123,8 @@ fn dispatch_refines<C: Codebase>(
     input: ElementId,
     container: ElementId,
     codebase: &C,
-    _options: LatticeOptions,
-    _report: &mut LatticeReport,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
 ) -> bool {
     match container.kind() {
         ElementKind::Bool => family::bool::refines(input, container),
@@ -142,8 +142,8 @@ fn dispatch_refines<C: Codebase>(
         | ElementKind::ObjectShape
         | ElementKind::HasMethod
         | ElementKind::HasProperty => family::object::refines(input, container, codebase),
-        ElementKind::Array | ElementKind::List => family::array::refines(input, container),
-        ElementKind::Iterable => family::iterable::refines(input, container),
+        ElementKind::Array | ElementKind::List => family::array::refines(input, container, codebase, options, report),
+        ElementKind::Iterable => family::iterable::refines(input, container, codebase, options, report),
         ElementKind::Callable => family::callable::refines(input, container),
         ElementKind::Mixed => family::mixed::refines(input, container),
         ElementKind::GenericParameter => family::generic::refines(input, container),

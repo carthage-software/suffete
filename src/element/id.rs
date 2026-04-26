@@ -1,12 +1,22 @@
 use std::num::NonZeroU32;
 
 use crate::ElementKind;
+use crate::TypeId;
+use crate::element::payload::CallableInfo;
 use crate::element::payload::ClassLikeKind;
 use crate::element::payload::ClassLikeStringInfo;
 use crate::element::payload::ClassLikeStringSpecifier;
 use crate::element::payload::EnumInfo;
+use crate::element::payload::IterableInfo;
+use crate::element::payload::KeyedArrayFlags;
+use crate::element::payload::KeyedArrayInfo;
+use crate::element::payload::KnownItemEntry;
+use crate::element::payload::ListFlags;
+use crate::element::payload::ListInfo;
 use crate::element::payload::ObjectFlags;
 use crate::element::payload::ObjectInfo;
+use crate::element::payload::Signature;
+use crate::element::payload::SignatureFlags;
 use crate::element::payload::scalar::FloatInfo;
 use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::IntRange;
@@ -16,6 +26,7 @@ use crate::element::payload::scalar::StringInfo;
 use crate::element::payload::scalar::StringLiteral;
 use crate::element::payload::scalar::StringRefinementFlags;
 use crate::handle::define_handle;
+use crate::prelude::TYPE_MIXED;
 
 /// An interned handle to a single [`Element`](crate::Element).
 ///
@@ -180,6 +191,81 @@ impl ElementId {
             specifier: ClassLikeStringSpecifier::Literal { value: mago_atom::atom(name) },
         };
         crate::interner::interner().intern_class_like_string(info)
+    }
+
+    /// Intern an `iterable<key, value>` element with no intersections.
+    pub fn iterable(key_type: TypeId, value_type: TypeId) -> Self {
+        let info = IterableInfo { key_type, value_type, intersections: None };
+        crate::interner::interner().intern_iterable(info)
+    }
+
+    /// Intern a `list<element>` (or `non-empty-list<element>`) element with
+    /// no fixed-position elements.
+    pub fn list(element_type: TypeId, non_empty: bool) -> Self {
+        let info = ListInfo {
+            element_type,
+            known_elements: None,
+            known_count: None,
+            flags: ListFlags::default().with_non_empty(non_empty),
+        };
+        crate::interner::interner().intern_list(info)
+    }
+
+    /// Intern an unsealed keyed-array element (`array<K, V>` /
+    /// `non-empty-array<K, V>`) with no known fixed entries.
+    pub fn keyed_unsealed(key_type: TypeId, value_type: TypeId, non_empty: bool) -> Self {
+        let info = KeyedArrayInfo {
+            key_param: Some(key_type),
+            value_param: Some(value_type),
+            known_items: None,
+            flags: KeyedArrayFlags::default().with_non_empty(non_empty),
+        };
+        crate::interner::interner().intern_array(info)
+    }
+
+    /// Intern a sealed keyed-array element (`array{a: int, b: string, ...}`)
+    /// with the given known entries and no rest type.
+    pub fn keyed_sealed(items: &[KnownItemEntry], non_empty: bool) -> Self {
+        let i = crate::interner::interner();
+        let known = i.intern_known_items(items);
+        let info = KeyedArrayInfo {
+            key_param: None,
+            value_param: None,
+            known_items: Some(known),
+            flags: KeyedArrayFlags::default().with_non_empty(non_empty),
+        };
+        i.intern_array(info)
+    }
+
+    /// Intern an `Any` callable (`callable` with no signature info).
+    pub fn callable_any() -> Self {
+        crate::interner::interner().intern_callable(CallableInfo::Any)
+    }
+
+    /// Intern a `callable(...)` with a "mixed" signature: parameters
+    /// unspecified, return type `mixed`, no `throws`. Common test fixture.
+    pub fn callable_mixed() -> Self {
+        let i = crate::interner::interner();
+        let sig = i.intern_signature(Signature {
+            parameters: None,
+            return_type: TYPE_MIXED,
+            throws: None,
+            flags: SignatureFlags::EMPTY,
+        });
+        i.intern_callable(CallableInfo::Signature(sig))
+    }
+
+    /// Intern a `Closure(...)` with the same "mixed" signature as
+    /// [`callable_mixed`](Self::callable_mixed) but tagged as a closure.
+    pub fn closure_mixed() -> Self {
+        let i = crate::interner::interner();
+        let sig = i.intern_signature(Signature {
+            parameters: None,
+            return_type: TYPE_MIXED,
+            throws: None,
+            flags: SignatureFlags::EMPTY,
+        });
+        i.intern_callable(CallableInfo::Closure(sig))
     }
 }
 
