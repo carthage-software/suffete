@@ -75,6 +75,41 @@ pub trait World {
     /// Returns `None` when `child` does not descend from `ancestor`,
     /// or when `position >= template_parameter_arity(ancestor)`.
     fn inherited_template_argument(&self, child: Atom, ancestor: Atom, position: usize) -> Option<TypeId>;
+
+    /// `true` iff `class` declares or inherits a method named `method`.
+    /// Mirrors PHP's `method_exists()` semantics: walks the inheritance
+    /// closure (parent classes, implemented interfaces, used traits).
+    fn class_has_method(&self, class: Atom, method: Atom) -> bool;
+
+    /// The declared type of `property` on `class`, walking the
+    /// inheritance closure. `None` when the property is absent or its
+    /// type is unknown.
+    ///
+    /// Used by [`crate::lattice`] for object-shape compatibility:
+    /// `Named(C) <: object{p: T}` requires `C` to declare `p` with a
+    /// type that refines `T`.
+    fn class_property_type(&self, class: Atom, property: Atom) -> Option<TypeId>;
+
+    /// What kind of enum `enum_name` is.
+    ///
+    /// Returns `None` when the enum is unknown (or `enum_name` does not
+    /// name an enum). The lattice treats `None` conservatively: a
+    /// structural narrowing that depends on the backing (e.g. a
+    /// `value` property on an `object{...}` shape) is rejected.
+    fn enum_backing(&self, enum_name: Atom) -> Option<EnumBacking>;
+}
+
+/// What an enum case carries beyond its `name`. PHP enums are either
+/// pure (only `name`) or backed by `int` / `string` (carrying a `value`
+/// property of that scalar type).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EnumBacking {
+    /// Pure enum (`enum X { case A; }`). Cases expose only `name`.
+    Pure,
+    /// Backed enum (`enum X: string { case A = 'a'; }`). Cases expose
+    /// `name` and `value`. The wrapped [`TypeId`] is the backing type
+    /// — typically `int` or `string`.
+    Backed(TypeId),
 }
 
 /// A no-op [`World`] for queries that don't consult the codebase.
@@ -106,6 +141,18 @@ impl World for NullWorld {
     }
 
     fn inherited_template_argument(&self, _child: Atom, _ancestor: Atom, _position: usize) -> Option<TypeId> {
+        None
+    }
+
+    fn class_has_method(&self, _class: Atom, _method: Atom) -> bool {
+        false
+    }
+
+    fn class_property_type(&self, _class: Atom, _property: Atom) -> Option<TypeId> {
+        None
+    }
+
+    fn enum_backing(&self, _enum_name: Atom) -> Option<EnumBacking> {
         None
     }
 }

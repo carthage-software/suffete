@@ -19,6 +19,7 @@ use suffete::lattice;
 use suffete::lattice::LatticeOptions;
 use suffete::lattice::LatticeReport;
 use suffete::prelude;
+use suffete::world::EnumBacking;
 use suffete::world::NullWorld;
 use suffete::world::TemplateParameter;
 use suffete::world::Variance;
@@ -50,6 +51,14 @@ pub struct MockWorld {
     /// `(child, ancestor) -> [type_argument]` indexed by `ancestor`'s
     /// declaration order, expressed in `child`'s template namespace.
     extended: HashMap<(Atom, Atom), Vec<TypeId>>,
+    /// `class -> {method, method, ...}` for methods declared directly on
+    /// the class. Inheritance is walked via `ancestors` at query time.
+    methods: HashMap<Atom, HashSet<Atom>>,
+    /// `(class, property) -> declared type` for properties declared
+    /// directly on the class. Inheritance walked at query time.
+    properties: HashMap<(Atom, Atom), TypeId>,
+    /// `enum -> backing kind` for declared enums.
+    enums: HashMap<Atom, EnumBacking>,
 }
 
 impl MockWorld {
@@ -59,6 +68,9 @@ impl MockWorld {
             traits_used: HashMap::new(),
             templates: HashMap::new(),
             extended: HashMap::new(),
+            methods: HashMap::new(),
+            properties: HashMap::new(),
+            enums: HashMap::new(),
         }
     }
 
@@ -130,6 +142,41 @@ impl MockWorld {
         self
     }
 
+    /// Declare that `class` has a method `name` (directly; inheritance
+    /// is walked at query time).
+    pub fn with_method(&mut self, class: &str, name: &str) -> &mut Self {
+        let n = atom(class);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.methods.entry(n).or_default().insert(atom(name));
+        self
+    }
+
+    /// Declare that `class` has a property `name: type` (directly;
+    /// inheritance is walked at query time).
+    pub fn with_property(&mut self, class: &str, name: &str, type_: TypeId) -> &mut Self {
+        let n = atom(class);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.properties.insert((n, atom(name)), type_);
+        self
+    }
+
+    /// Declare a pure enum: cases expose only `name`.
+    pub fn with_pure_enum(&mut self, name: &str) -> &mut Self {
+        let n = atom(name);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.enums.insert(n, EnumBacking::Pure);
+        self
+    }
+
+    /// Declare a backed enum: cases expose `name` and `value`, where
+    /// `value` is of `backing` (typically `int` or `string`).
+    pub fn with_backed_enum(&mut self, name: &str, backing: TypeId) -> &mut Self {
+        let n = atom(name);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.enums.insert(n, EnumBacking::Backed(backing));
+        self
+    }
+
     fn recompute_closure(&mut self) {
         loop {
             let mut changed = false;
@@ -189,6 +236,22 @@ impl World for MockWorld {
             return None;
         }
         self.extended.get(&(child, ancestor)).and_then(|args| args.get(position).copied())
+    }
+
+    fn class_has_method(&self, class: Atom, method: Atom) -> bool {
+        let Some(ancestors) = self.ancestors.get(&class) else {
+            return false;
+        };
+        ancestors.iter().any(|a| self.methods.get(a).is_some_and(|m| m.contains(&method)))
+    }
+
+    fn class_property_type(&self, class: Atom, property: Atom) -> Option<TypeId> {
+        let ancestors = self.ancestors.get(&class)?;
+        ancestors.iter().find_map(|a| self.properties.get(&(*a, property)).copied())
+    }
+
+    fn enum_backing(&self, enum_name: Atom) -> Option<EnumBacking> {
+        self.enums.get(&enum_name).copied()
     }
 }
 
@@ -476,6 +539,29 @@ pub fn t_named_static(name: &str) -> ElementId {
         flags: ObjectFlags::default().with_is_static(true),
     };
     i.intern_object(info)
+}
+
+pub fn t_has_method(name: &str) -> ElementId {
+    use suffete::element::payload::HasMethodInfo;
+    interner().intern_has_method(HasMethodInfo { method_name: atom(name) })
+}
+
+pub fn t_has_property(name: &str) -> ElementId {
+    use suffete::element::payload::HasPropertyInfo;
+    interner().intern_has_property(HasPropertyInfo { property_name: atom(name) })
+}
+
+/// `object{p1: T1, p2?: T2, ...}` element. Each entry is `(name, type, optional)`.
+pub fn t_object_shape(props: &[(&str, TypeId, bool)], sealed: bool) -> ElementId {
+    use suffete::element::payload::KnownPropertyEntry;
+    use suffete::element::payload::ObjectShapeFlags;
+    use suffete::element::payload::ObjectShapeInfo;
+    let i = interner();
+    let entries: Vec<KnownPropertyEntry> =
+        props.iter().map(|(n, t, opt)| KnownPropertyEntry { name: atom(n), value: *t, optional: *opt }).collect();
+    let known = if entries.is_empty() { None } else { Some(i.intern_known_properties(&entries)) };
+    let info = ObjectShapeInfo { known_properties: known, flags: ObjectShapeFlags::default().with_sealed(sealed) };
+    i.intern_object_shape(info)
 }
 
 /// Named object marked `$this<C>`.

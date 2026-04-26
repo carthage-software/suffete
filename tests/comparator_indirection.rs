@@ -44,7 +44,12 @@ fn t_alias(class: &str, alias: &str) -> ElementId {
     interner().intern_alias(AliasInfo { class_name: atom(class), alias_name: atom(alias) })
 }
 
-fn t_conditional(subject: suffete::TypeId, target: suffete::TypeId, then: suffete::TypeId, otherwise: suffete::TypeId) -> ElementId {
+fn t_conditional(
+    subject: suffete::TypeId,
+    target: suffete::TypeId,
+    then: suffete::TypeId,
+    otherwise: suffete::TypeId,
+) -> ElementId {
     interner().intern_conditional(ConditionalInfo { subject, target, then, otherwise, negated: false })
 }
 

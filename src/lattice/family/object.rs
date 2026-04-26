@@ -18,21 +18,43 @@
 //! `static` and `$this` modality (comparison.md §1.4.4) is enforced
 //! asymmetrically: a container marked `static` (or `$this`) accepts only
 //! inputs that are at least as constrained on that flag.
+//!
+//! Structural narrowings (comparison.md §1.4.6):
+//!
+//! - `HasMethod(m)`: input is accepted iff it is itself `HasMethod(m)`,
+//!   or a `Named(C)` (or descendant) where `Γ` confirms `C` declares /
+//!   inherits `m`.
+//! - `HasProperty(p)`: symmetric to `HasMethod`.
+//! - `ObjectShape{props_out}`: shape-vs-shape uses the same rules as
+//!   keyed arrays — every required-out key must be present (and
+//!   required) in the input shape with a refining value, and a sealed
+//!   container demands a sealed input. `Named(C)` refines an object
+//!   shape iff every required property of the shape is declared on `C`
+//!   with a refining declared type, queried via `World::class_property_type`.
+
+use mago_atom::Atom;
+use mago_atom::atom;
 
 use crate::ElementId;
 use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
 use crate::element::payload::DefiningEntity;
+use crate::element::payload::EnumInfo;
 use crate::element::payload::GenericParameterInfo;
+use crate::element::payload::KnownPropertyEntry;
 use crate::element::payload::ObjectFlags;
 use crate::element::payload::ObjectInfo;
+use crate::element::payload::ObjectShapeFlags;
+use crate::element::payload::ObjectShapeInfo;
 use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::refines::refines as type_refines;
+use crate::prelude::NON_EMPTY_STRING;
 use crate::prelude::TYPE_MIXED;
 use crate::substitute::substitute;
+use crate::world::EnumBacking;
 use crate::world::TemplateParameter;
 use crate::world::Variance;
 use crate::world::World;
@@ -104,8 +126,195 @@ pub fn refines<W: World>(
         // but those flow as named objects (separate dispatch branch).
         (ElementKind::Object, ElementKind::Enum) | (ElementKind::Enum, ElementKind::Object) => false,
 
+        (_, ElementKind::HasMethod) => {
+            let container_info = i.get_has_method(container);
+            refines_has_method(input, container_info.method_name, world)
+        }
+
+        (_, ElementKind::HasProperty) => {
+            let container_info = i.get_has_property(container);
+            refines_has_property(input, container_info.property_name, world)
+        }
+
+        (_, ElementKind::ObjectShape) => {
+            let container_info = *i.get_object_shape(container);
+            refines_object_shape(input, container_info, world, options, report)
+        }
+
         _ => false,
     }
+}
+
+fn refines_has_method<W: World>(input: ElementId, method: Atom, world: &W) -> bool {
+    let i = interner();
+    match input.kind() {
+        ElementKind::HasMethod => i.get_has_method(input).method_name == method,
+        ElementKind::Object => world.class_has_method(i.get_object(input).name, method),
+        ElementKind::Enum => world.class_has_method(i.get_enum(input).name, method),
+        _ => false,
+    }
+}
+
+fn refines_has_property<W: World>(input: ElementId, property: Atom, world: &W) -> bool {
+    let i = interner();
+    match input.kind() {
+        ElementKind::HasProperty => i.get_has_property(input).property_name == property,
+        ElementKind::Object => world.class_property_type(i.get_object(input).name, property).is_some(),
+        ElementKind::Enum => {
+            let info = i.get_enum(input);
+            enum_property_present(info.name, property, world)
+        }
+        _ => false,
+    }
+}
+
+/// Built-in enum properties: `name` is always present (any enum case has
+/// one); `value` is present only on backed enums.
+fn enum_property_present<W: World>(enum_name: Atom, property: Atom, world: &W) -> bool {
+    if property == atom("name") {
+        return true;
+    }
+    if property == atom("value") {
+        return matches!(world.enum_backing(enum_name), Some(EnumBacking::Backed(_)));
+    }
+    false
+}
+
+fn refines_object_shape<W: World>(
+    input: ElementId,
+    container: ObjectShapeInfo,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    match input.kind() {
+        ElementKind::ObjectShape => {
+            let input_info = *i.get_object_shape(input);
+            shape_refines_shape(input_info, container, world, options, report)
+        }
+        ElementKind::Object => {
+            let input_info = *i.get_object(input);
+            named_refines_shape(input_info.name, container, world, options, report)
+        }
+        ElementKind::Enum => {
+            let info = *i.get_enum(input);
+            match build_enum_shape(info, world) {
+                Some(shape) => shape_refines_shape(shape, container, world, options, report),
+                None => false,
+            }
+        }
+        _ => false,
+    }
+}
+
+/// Synthesize the structural shape of an enum case: `name` is always a
+/// `non-empty-string` (or the literal case name when narrowed to a
+/// specific case), and `value` is the backing type for backed enums.
+/// The shape is sealed because enum cases expose no other properties.
+///
+/// Returns `None` when the world doesn't know the enum's backing — the
+/// caller treats that as "can't prove refinement" and rejects.
+fn build_enum_shape<W: World>(info: EnumInfo, world: &W) -> Option<ObjectShapeInfo> {
+    let i = interner();
+    let backing = world.enum_backing(info.name)?;
+
+    let name_type = match info.case {
+        Some(case_name) => i.intern_type(&[ElementId::string_literal(case_name.as_str())], FlowFlags::EMPTY),
+        None => i.intern_type(&[NON_EMPTY_STRING], FlowFlags::EMPTY),
+    };
+
+    let mut props = Vec::with_capacity(2);
+    props.push(KnownPropertyEntry { name: atom("name"), value: name_type, optional: false });
+    if let EnumBacking::Backed(value_type) = backing {
+        props.push(KnownPropertyEntry { name: atom("value"), value: value_type, optional: false });
+    }
+
+    Some(ObjectShapeInfo {
+        known_properties: Some(i.intern_known_properties(&props)),
+        flags: ObjectShapeFlags::default().with_sealed(true),
+    })
+}
+
+/// Shape-vs-shape rule from comparison.md §1.4.6, mirroring the keyed-
+/// array rule: every required key in the container must be present
+/// (required) in the input with a refining value, a sealed container
+/// demands a sealed input, and the input may not introduce required keys
+/// the container does not list when sealed.
+fn shape_refines_shape<W: World>(
+    input: ObjectShapeInfo,
+    container: ObjectShapeInfo,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    let in_props = input.known_properties.map(|id| i.get_known_properties(id)).unwrap_or(&[]);
+    let out_props = container.known_properties.map(|id| i.get_known_properties(id)).unwrap_or(&[]);
+
+    if container.flags.sealed() && !input.flags.sealed() {
+        return false;
+    }
+
+    for out in out_props {
+        match in_props.iter().find(|p| p.name == out.name) {
+            Some(in_entry) => {
+                if !out.optional && in_entry.optional {
+                    return false;
+                }
+                if !type_refines(in_entry.value, out.value, world, options, report) {
+                    return false;
+                }
+            }
+            None => {
+                if !out.optional {
+                    return false;
+                }
+            }
+        }
+    }
+
+    if container.flags.sealed() {
+        for in_entry in in_props {
+            if !out_props.iter().any(|p| p.name == in_entry.name) {
+                return false;
+            }
+        }
+    }
+
+    true
+}
+
+/// `Named(C) <: object{p1: T1, p2: T2, ...}` iff `Γ` records every
+/// required property `pi` on `C` (or an ancestor) with a declared type
+/// that refines `Ti`. Optional container properties impose no
+/// requirement when missing on `C`.
+fn named_refines_shape<W: World>(
+    class: mago_atom::Atom,
+    container: ObjectShapeInfo,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    let out_props = container.known_properties.map(|id| i.get_known_properties(id)).unwrap_or(&[]);
+
+    for out in out_props {
+        match world.class_property_type(class, out.name) {
+            Some(declared) => {
+                if !type_refines(declared, out.value, world, options, report) {
+                    return false;
+                }
+            }
+            None => {
+                if !out.optional {
+                    return false;
+                }
+            }
+        }
+    }
+
+    true
 }
 
 fn element_refines_via_type<W: World>(
