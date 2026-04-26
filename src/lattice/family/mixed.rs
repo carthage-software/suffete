@@ -63,7 +63,7 @@ pub fn refines(input: ElementId, container: ElementId) -> bool {
 }
 
 /// `true` iff `input` cannot be `null`.
-fn is_non_null(input: ElementId) -> bool {
+pub(crate) fn is_non_null(input: ElementId) -> bool {
     match input.kind() {
         ElementKind::Null | ElementKind::Void => false,
         ElementKind::Mixed => {
@@ -81,7 +81,7 @@ fn is_non_null(input: ElementId) -> bool {
 
 /// Best-known truthiness of `input` as a single value. Returns
 /// [`Truthiness::Undetermined`] when both possibilities remain open.
-fn truthiness_of(input: ElementId) -> Truthiness {
+pub(crate) fn truthiness_of(input: ElementId) -> Truthiness {
     match input.kind() {
         ElementKind::True => Truthiness::Truthy,
         ElementKind::False | ElementKind::Null => Truthiness::Falsy,

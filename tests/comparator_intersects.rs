@@ -190,6 +190,64 @@ fn truthy_mixed_overlaps_int() {
 }
 
 #[test]
+fn nonnull_mixed_disjoint_with_null() {
+    let cb = empty_world();
+    assert!(!atomic_overlaps(mixed_nonnull(), null(), &cb));
+    assert!(!atomic_overlaps(null(), mixed_nonnull(), &cb));
+}
+
+#[test]
+fn truthy_mixed_disjoint_with_null() {
+    let cb = empty_world();
+    assert!(!atomic_overlaps(mixed_truthy(), null(), &cb));
+    assert!(!atomic_overlaps(mixed_truthy(), t_false(), &cb));
+    assert!(!atomic_overlaps(mixed_truthy(), t_lit_int(0), &cb));
+    assert!(!atomic_overlaps(mixed_truthy(), t_lit_string(""), &cb));
+}
+
+#[test]
+fn truthy_mixed_overlaps_truthy_inputs() {
+    let cb = empty_world();
+    assert!(atomic_overlaps(mixed_truthy(), t_true(), &cb));
+    assert!(atomic_overlaps(mixed_truthy(), t_lit_int(42), &cb));
+    assert!(atomic_overlaps(mixed_truthy(), t_named("Foo"), &cb));
+    assert!(atomic_overlaps(mixed_truthy(), t_resource(), &cb));
+}
+
+#[test]
+fn falsy_mixed_disjoint_with_truthy_inputs() {
+    let cb = empty_world();
+    assert!(!atomic_overlaps(mixed_falsy(), t_true(), &cb));
+    assert!(!atomic_overlaps(mixed_falsy(), t_named("Foo"), &cb));
+    assert!(!atomic_overlaps(mixed_falsy(), t_resource(), &cb));
+    assert!(!atomic_overlaps(mixed_falsy(), t_lit_int(42), &cb));
+}
+
+#[test]
+fn falsy_mixed_overlaps_falsy_inputs() {
+    let cb = empty_world();
+    assert!(atomic_overlaps(mixed_falsy(), null(), &cb));
+    assert!(atomic_overlaps(mixed_falsy(), t_false(), &cb));
+    assert!(atomic_overlaps(mixed_falsy(), t_lit_int(0), &cb));
+    assert!(atomic_overlaps(mixed_falsy(), t_lit_string(""), &cb));
+}
+
+#[test]
+fn truthy_mixed_disjoint_with_falsy_mixed() {
+    let cb = empty_world();
+    assert!(!atomic_overlaps(mixed_truthy(), mixed_falsy(), &cb));
+}
+
+#[test]
+fn truthy_mixed_overlaps_undetermined_inputs() {
+    let cb = empty_world();
+    // `int` (general) admits both truthy and falsy values; overlap holds.
+    assert!(atomic_overlaps(mixed_truthy(), t_int(), &cb));
+    assert!(atomic_overlaps(mixed_truthy(), t_string(), &cb));
+    assert!(atomic_overlaps(mixed_truthy(), t_bool(), &cb));
+}
+
+#[test]
 fn class_string_literal_overlaps_lit_class_string() {
     let cb = empty_world();
     assert!(atomic_overlaps(t_lit_class_string("Foo"), t_class_string(), &cb));

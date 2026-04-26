@@ -26,10 +26,13 @@ use crate::ElementId;
 use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
+use crate::element::payload::MixedInfo;
+use crate::element::payload::Truthiness;
 use crate::element::payload::scalar::IntInfo;
 use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
+use crate::lattice::family::mixed as mixed_family;
 use crate::lattice::refines::element_refines;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
@@ -92,16 +95,10 @@ fn family_overlap(a: ElementId, b: ElementId) -> bool {
         return int_overlap(a, b);
     }
 
-    // A narrowed `mixed` (truthy-mixed, non-null-mixed, …) overlaps any
-    // input whose runtime values can satisfy the surviving axes. Without
-    // a structural axis check, conservative: report overlap. Refining
-    // this requires the same machinery as `family/mixed.rs::refines`.
     if a.kind() == ElementKind::Mixed || b.kind() == ElementKind::Mixed {
-        return true;
+        return mixed_overlap(a, b);
     }
 
-    // `class-like-string` is a string refinement; the two always share
-    // inhabitants (every `class-string<C>` is also a `string`).
     let pair = (a.kind(), b.kind());
     if matches!(
         pair,
@@ -111,6 +108,37 @@ fn family_overlap(a: ElementId, b: ElementId) -> bool {
     }
 
     false
+}
+
+/// Narrowed-mixed overlap: each side's axis flags must be jointly
+/// satisfiable by some runtime value the other side admits. Vanilla
+/// `mixed` is already absorbed by the Top axiom, so at least one side
+/// here carries a non-trivial axis.
+fn mixed_overlap(a: ElementId, b: ElementId) -> bool {
+    let (mixed, other) = if a.kind() == ElementKind::Mixed { (a, b) } else { (b, a) };
+    if !mixed_axes_compatible(*interner().get_mixed(mixed), other) {
+        return false;
+    }
+    if other.kind() == ElementKind::Mixed && !mixed_axes_compatible(*interner().get_mixed(other), mixed) {
+        return false;
+    }
+    true
+}
+
+fn mixed_axes_compatible(info: MixedInfo, other: ElementId) -> bool {
+    if info.is_non_null() && !mixed_family::is_non_null(other) {
+        return false;
+    }
+    let other_truth = mixed_family::truthiness_of(other);
+    match info.truthiness() {
+        Truthiness::Truthy if other_truth == Truthiness::Falsy => return false,
+        Truthiness::Falsy if other_truth == Truthiness::Truthy => return false,
+        _ => {}
+    }
+    if info.is_empty() && other_truth == Truthiness::Truthy {
+        return false;
+    }
+    true
 }
 
 /// Intervals (with absorption: `INT` and `LITERAL_INT` are unbounded) on
