@@ -16,7 +16,7 @@ Suffete is a standalone PHP type system written in Rust. It provides a represent
 
 It is **not** a static analyzer, or a typed linter. It is the type-system _core_ that such tools can build on top of.
 
-The driving requirement is **completeness**: every PHP type that PHPStan, Psalm, or Hack can express should be representable here, with the semantics that working PHP analyzers expect.
+The driving requirement is **completeness**: every PHP type that Mago, PHPStan, Psalm, or Hack can express should be representable here, with the semantics that working PHP analyzers expect.
 
 ## Status
 
