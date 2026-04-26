@@ -141,7 +141,7 @@ fn dispatch_refines<W: World>(
         | ElementKind::Enum
         | ElementKind::ObjectShape
         | ElementKind::HasMethod
-        | ElementKind::HasProperty => family::object::refines(input, container, codebase),
+        | ElementKind::HasProperty => family::object::refines(input, container, codebase, options, report),
         ElementKind::Array | ElementKind::List => family::array::refines(input, container, codebase, options, report),
         ElementKind::Iterable => family::iterable::refines(input, container, codebase, options, report),
         ElementKind::Callable => family::callable::refines(input, container),

@@ -424,6 +424,27 @@ pub fn t_enum_case(name: &str, case: &str) -> ElementId {
     ElementId::enum_case(name, case)
 }
 
+/// Construct a generic-named-object element: `Foo<arg1, arg2, ...>`.
+pub fn t_generic_named(name: &str, args: Vec<TypeId>) -> ElementId {
+    use suffete::element::payload::ObjectFlags;
+    use suffete::element::payload::ObjectInfo;
+    let i = interner();
+    let info = ObjectInfo {
+        name: atom(name),
+        type_args: Some(i.intern_type_list(&args)),
+        intersections: None,
+        flags: ObjectFlags::default(),
+    };
+    i.intern_object(info)
+}
+
+/// Construct a template-parameter element referring to `class_name`'s
+/// template parameter `template_name`. Constraint defaults to `mixed`.
+pub fn t_template(class_name: &str, template_name: &str) -> ElementId {
+    use suffete::element::payload::DefiningEntity;
+    ElementId::generic_parameter(template_name, DefiningEntity::ClassLike(atom(class_name)), prelude::TYPE_MIXED)
+}
+
 pub fn t_empty_array() -> ElementId {
     prelude::EMPTY_ARRAY
 }
