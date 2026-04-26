@@ -59,6 +59,6 @@ impl ObjectFlags {
     }
 }
 
-// `mago_atom::Atom` is 8 bytes (it wraps `ustr::Ustr`, a thin pointer), so
+// `Atom` is 8 bytes (it wraps `ustr::Ustr`, a thin pointer), so
 // `ObjectInfo` aligns to 8 and lands at 24 bytes total. That's our budget.
 const _: () = assert!(size_of::<ObjectInfo>() <= 24);

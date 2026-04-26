@@ -26,7 +26,7 @@ pub enum CallableAlias {
 }
 
 // `Method` is the size driver among the name-based variants (16 bytes payload).
-// `Closure(Span)` may match or exceed that depending on `mago_span::Span`'s
-// layout. The whole alias is interned via `CallableAliasId`, so a slightly
-// larger entry costs one allocation per *unique* callable, not per use site.
+// `Closure(Span)` may match or exceed that depending on `Span`'s layout.
+// The whole alias is interned via `CallableAliasId`, so a slightly larger
+// entry costs one allocation per *unique* callable, not per use site.
 const _: () = assert!(size_of::<CallableAlias>() <= 40);

@@ -172,19 +172,19 @@ impl World for MockWorld {
         self.traits_used.get(&class).is_some_and(|set| set.contains(&trait_))
     }
 
-    fn arity(&self, class: Atom) -> usize {
+    fn template_parameter_arity(&self, class: Atom) -> usize {
         self.templates.get(&class).map(Vec::len).unwrap_or(0)
     }
 
-    fn parameter_at(&self, class: Atom, position: usize) -> Option<TemplateParameter> {
+    fn template_parameter_at(&self, class: Atom, position: usize) -> Option<TemplateParameter> {
         self.templates.get(&class).and_then(|params| params.get(position).cloned())
     }
 
-    fn parameter_position(&self, class: Atom, name: Atom) -> Option<usize> {
+    fn template_parameter_index(&self, class: Atom, name: Atom) -> Option<usize> {
         self.templates.get(&class).and_then(|params| params.iter().position(|p| p.name == name))
     }
 
-    fn inherited_argument(&self, child: Atom, ancestor: Atom, position: usize) -> Option<TypeId> {
+    fn inherited_template_argument(&self, child: Atom, ancestor: Atom, position: usize) -> Option<TypeId> {
         if !self.descends_from(child, ancestor) {
             return None;
         }
@@ -197,12 +197,7 @@ pub fn empty_world() -> NullWorld {
     NullWorld
 }
 
-// ---------------------------------------------------------------------------
-// Refinement queries.
-// ---------------------------------------------------------------------------
-
 /// `lattice::refines(input, container, codebase, default options, _)`.
-/// Mirrors mago's `union_comparator::is_contained_by`.
 pub fn is_contained<W: World>(input: TypeId, container: TypeId, codebase: &W) -> bool {
     let mut report = LatticeReport::new();
     lattice::refines(input, container, codebase, LatticeOptions::default(), &mut report)
@@ -252,10 +247,6 @@ pub fn atomic_is_contained_capturing<W: World>(
     is_contained_capturing(it, ct, codebase)
 }
 
-// ---------------------------------------------------------------------------
-// Assertion helpers.
-// ---------------------------------------------------------------------------
-
 #[track_caller]
 pub fn assert_subtype(input: &TypeId, container: &TypeId) {
     let cb = empty_world();
@@ -279,10 +270,6 @@ pub fn assert_atomic_not_subtype(input: &ElementId, container: &ElementId) {
     let cb = empty_world();
     assert!(!atomic_is_contained(*input, *container, &cb), "expected NOT (atomic {input:?} <: {container:?})");
 }
-
-// ---------------------------------------------------------------------------
-// Element constructors. Mirrors mago's `t_*` helpers.
-// ---------------------------------------------------------------------------
 
 pub fn never() -> ElementId {
     prelude::NEVER
@@ -474,10 +461,6 @@ pub fn ak_int(n: i64) -> ArrayKey {
 pub fn ak_str(s: &str) -> ArrayKey {
     ArrayKey::String(atom(s))
 }
-
-// ---------------------------------------------------------------------------
-// Union builders. Mirrors mago's `u`, `u_many`, `ui`, `us`.
-// ---------------------------------------------------------------------------
 
 pub fn u(a: ElementId) -> TypeId {
     interner().intern_type(&[a], FlowFlags::EMPTY)

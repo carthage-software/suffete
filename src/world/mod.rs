@@ -40,10 +40,6 @@ use crate::TypeId;
 /// world knows nothing" implementation should return `false` / `0` /
 /// `None` explicitly (see [`NullWorld`]).
 pub trait World {
-    // -----------------------------------------------------------------
-    // Hierarchy
-    // -----------------------------------------------------------------
-
     /// `true` iff `child` is the same class-like as `ancestor`, or
     /// extends / implements / uses-trait it transitively.
     fn descends_from(&self, child: Atom, ancestor: Atom) -> bool;
@@ -56,37 +52,29 @@ pub trait World {
     /// trait in the chain, but `uses_trait` only for direct usage.
     fn uses_trait(&self, class: Atom, trait_: Atom) -> bool;
 
-    // -----------------------------------------------------------------
-    // Type parameters
-    // -----------------------------------------------------------------
-
     /// How many type parameters `class` declares. `0` for unknown or
     /// non-generic classes.
-    fn arity(&self, class: Atom) -> usize;
+    fn template_parameter_arity(&self, class: Atom) -> usize;
 
     /// The type parameter at `position` in `class`'s declaration, or
-    /// `None` if `position >= arity(class)`.
-    fn parameter_at(&self, class: Atom, position: usize) -> Option<TemplateParameter>;
+    /// `None` if `position >= template_parameter_arity(class)`.
+    fn template_parameter_at(&self, class: Atom, position: usize) -> Option<TemplateParameter>;
 
     /// The position of `class`'s type parameter named `name`, or `None`
     /// if no such parameter exists.
-    fn parameter_position(&self, class: Atom, name: Atom) -> Option<usize>;
-
-    // -----------------------------------------------------------------
-    // Inheritance specialization
-    // -----------------------------------------------------------------
+    fn template_parameter_index(&self, class: Atom, name: Atom) -> Option<usize>;
 
     /// The type `child` passes to `ancestor`'s `position`-th type
     /// parameter, expressed in `child`'s template namespace.
     ///
-    /// For `class B<T> extends A<string>` with `inherited_argument(B,
+    /// For `class B<T> extends A<string>` with `inherited_template_argument(B,
     /// A, 0)`, returns `Some(string)`. For `class B<T> extends
     /// A<List<T>>`, returns `Some(List<T>)` — caller substitutes
     /// `child`'s actual arguments to fully resolve.
     ///
     /// Returns `None` when `child` does not descend from `ancestor`,
-    /// or when `position >= arity(ancestor)`.
-    fn inherited_argument(&self, child: Atom, ancestor: Atom, position: usize) -> Option<TypeId>;
+    /// or when `position >= template_parameter_arity(ancestor)`.
+    fn inherited_template_argument(&self, child: Atom, ancestor: Atom, position: usize) -> Option<TypeId>;
 }
 
 /// A no-op [`World`] for queries that don't consult the codebase.
@@ -105,19 +93,19 @@ impl World for NullWorld {
         false
     }
 
-    fn arity(&self, _class: Atom) -> usize {
+    fn template_parameter_arity(&self, _class: Atom) -> usize {
         0
     }
 
-    fn parameter_at(&self, _class: Atom, _position: usize) -> Option<TemplateParameter> {
+    fn template_parameter_at(&self, _class: Atom, _position: usize) -> Option<TemplateParameter> {
         None
     }
 
-    fn parameter_position(&self, _class: Atom, _name: Atom) -> Option<usize> {
+    fn template_parameter_index(&self, _class: Atom, _name: Atom) -> Option<usize> {
         None
     }
 
-    fn inherited_argument(&self, _child: Atom, _ancestor: Atom, _position: usize) -> Option<TypeId> {
+    fn inherited_template_argument(&self, _child: Atom, _ancestor: Atom, _position: usize) -> Option<TypeId> {
         None
     }
 }
