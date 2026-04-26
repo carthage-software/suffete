@@ -7,6 +7,8 @@ mod comparator_common;
 use comparator_common::*;
 use std::collections::BTreeMap;
 
+use suffete::world::Variance;
+
 #[test]
 fn list_of_lists_reflexive() {
     let inner = u(t_list(u(t_int()), false));
@@ -164,12 +166,26 @@ fn shape_in_unsealed_keyed_array() {
 }
 
 #[test]
-#[ignore = "needs t_generic_named (templated objects)"]
-fn deep_object_with_generic_param() {}
+fn deep_object_with_generic_param() {
+    let mut w = MockWorld::new();
+    w.with_templates("Box", &[("T", Variance::Covariant)]);
+
+    let lit = t_generic_named("Box", vec![ui(42)]);
+    let general = t_generic_named("Box", vec![u(t_int())]);
+    assert!(atomic_is_contained(lit, general, &w));
+}
 
 #[test]
-#[ignore = "needs t_generic_named"]
-fn deep_nested_object_in_box() {}
+fn deep_nested_object_in_box() {
+    let mut w = MockWorld::new();
+    w.with_templates("Box", &[("T", Variance::Covariant)]);
+
+    let inner = t_generic_named("Box", vec![ui(1)]);
+    let outer = t_generic_named("Box", vec![u(inner)]);
+    let inner_general = t_generic_named("Box", vec![u(t_int())]);
+    let outer_general = t_generic_named("Box", vec![u(inner_general)]);
+    assert!(atomic_is_contained(outer, outer_general, &w));
+}
 
 #[test]
 fn list_in_iterable_with_lit_values() {
@@ -211,8 +227,16 @@ fn shape_with_string_in_string_lit() {
 }
 
 #[test]
-#[ignore = "needs t_generic_named (templated objects)"]
-fn list_of_generic_objects() {}
+fn list_of_generic_objects() {
+    let mut w = MockWorld::new();
+    w.with_templates("Box", &[("T", Variance::Covariant)]);
+
+    let inner_lit = t_generic_named("Box", vec![ui(1)]);
+    let inner_int = t_generic_named("Box", vec![u(t_int())]);
+    let outer_lit = t_list(u(inner_lit), false);
+    let outer_int = t_list(u(inner_int), false);
+    assert!(atomic_is_contained(outer_lit, outer_int, &w));
+}
 
 #[test]
 fn keyed_with_object_values() {
