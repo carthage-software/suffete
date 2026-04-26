@@ -7,6 +7,7 @@ pub mod handle;
 pub mod interner;
 pub mod join;
 pub mod lattice;
+pub mod meet;
 pub mod prelude;
 pub mod template;
 pub mod ty;
