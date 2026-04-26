@@ -6,7 +6,9 @@ use crate::element::payload::CallableInfo;
 use crate::element::payload::ClassLikeKind;
 use crate::element::payload::ClassLikeStringInfo;
 use crate::element::payload::ClassLikeStringSpecifier;
+use crate::element::payload::DefiningEntity;
 use crate::element::payload::EnumInfo;
+use crate::element::payload::GenericParameterInfo;
 use crate::element::payload::IterableInfo;
 use crate::element::payload::KeyedArrayFlags;
 use crate::element::payload::KeyedArrayInfo;
@@ -266,6 +268,22 @@ impl ElementId {
             flags: SignatureFlags::EMPTY,
         });
         i.intern_callable(CallableInfo::Closure(sig))
+    }
+
+    /// Intern a generic parameter element (a reference to `@template T`).
+    /// `defining_entity` qualifies the parameter so two `T`s declared in
+    /// different scopes stay distinct. `constraint` is the upper bound;
+    /// pass [`TYPE_MIXED`] for an unbounded parameter.
+    pub fn generic_parameter(name: &str, defining_entity: DefiningEntity, constraint: TypeId) -> Self {
+        let i = crate::interner::interner();
+        let entity_id = i.intern_defining_entity(defining_entity);
+        let info = GenericParameterInfo {
+            name: mago_atom::atom(name),
+            defining_entity: entity_id,
+            constraint,
+            intersections: None,
+        };
+        i.intern_generic_parameter(info)
     }
 }
 
