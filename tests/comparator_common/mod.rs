@@ -529,6 +529,47 @@ pub fn t_closure_mixed() -> ElementId {
     ElementId::closure_mixed()
 }
 
+pub fn t_callable_any() -> ElementId {
+    use suffete::element::payload::CallableInfo;
+    interner().intern_callable(CallableInfo::Any)
+}
+
+/// Build a `callable(params): return_type` element. Each parameter is given as
+/// its type plus a `(has_default, by_reference, variadic)` flag triple.
+pub fn t_callable_sig(params: &[(TypeId, bool, bool, bool)], return_type: TypeId, pure: bool) -> ElementId {
+    use suffete::element::payload::CallableInfo;
+    use suffete::element::payload::ParamFlags;
+    use suffete::element::payload::ParamInfo;
+    use suffete::element::payload::Signature;
+    use suffete::element::payload::SignatureFlags;
+    let i = interner();
+    let info_params: Vec<ParamInfo> = params
+        .iter()
+        .enumerate()
+        .map(|(idx, (ty, has_default, by_ref, variadic))| ParamInfo {
+            name: atom(&format!("p{idx}")),
+            type_: *ty,
+            flags: ParamFlags::EMPTY.with_has_default(*has_default).with_by_reference(*by_ref).with_variadic(*variadic),
+        })
+        .collect();
+    let trailing_variadic = info_params.last().is_some_and(|p| p.flags.variadic());
+    let param_list = if info_params.is_empty() { None } else { Some(i.intern_param_list(&info_params)) };
+    let sig = i.intern_signature(Signature {
+        parameters: param_list,
+        return_type,
+        throws: None,
+        flags: SignatureFlags::EMPTY.with_is_variadic(trailing_variadic).with_is_pure(pure),
+    });
+    i.intern_callable(CallableInfo::Signature(sig))
+}
+
+/// Convenience: `callable(p1, p2, ...): return` with no defaults / variadics
+/// / by-ref / purity.
+pub fn t_callable(params: &[TypeId], return_type: TypeId) -> ElementId {
+    let p: Vec<(TypeId, bool, bool, bool)> = params.iter().map(|t| (*t, false, false, false)).collect();
+    t_callable_sig(&p, return_type, false)
+}
+
 pub fn ak_int(n: i64) -> ArrayKey {
     ArrayKey::Int(n)
 }

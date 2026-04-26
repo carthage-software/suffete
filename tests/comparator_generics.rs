@@ -18,8 +18,6 @@ fn box_int_in_box_int_reflexive() {
 
 #[test]
 fn box_int_not_in_box_scalar_invariant_default() {
-    // Box<T> with no @template-* annotation defaults to Invariant.
-    // This is the soundness fix: Box<int> NOT <: Box<scalar>.
     let mut w = MockWorld::new();
     w.with_templates("Box", &[("T", Variance::Invariant)]);
 

@@ -154,7 +154,7 @@ fn dispatch_refines<W: World>(
         | ElementKind::HasProperty => family::object::refines(input, container, codebase, options, report),
         ElementKind::Array | ElementKind::List => family::array::refines(input, container, codebase, options, report),
         ElementKind::Iterable => family::iterable::refines(input, container, codebase, options, report),
-        ElementKind::Callable => family::callable::refines(input, container),
+        ElementKind::Callable => family::callable::refines(input, container, codebase, options, report),
         ElementKind::Mixed => family::mixed::refines(input, container),
         ElementKind::GenericParameter => family::generic::refines(input, container),
         ElementKind::Variable
