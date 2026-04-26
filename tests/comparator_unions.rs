@@ -5,7 +5,7 @@ use comparator_common::*;
 #[test]
 fn singleton_union_reflexive() {
     for atom in [t_int(), t_string(), t_bool(), t_float(), null(), mixed(), t_object_any()] {
-        let cb = empty_codebase();
+        let cb = empty_world();
         let union = u(atom);
         assert!(is_contained(union, union, &cb));
     }
@@ -128,7 +128,7 @@ fn union_string_lits_subtypes_string() {
 
 #[test]
 fn ignore_null_flag_skips_null_in_input() {
-    let cb = empty_codebase();
+    let cb = empty_world();
     let nullable_int = u_many(vec![t_int(), null()]);
     let int_only = u(t_int());
     assert!(!is_contained_with(nullable_int, int_only, &cb, false, false, false));
@@ -137,7 +137,7 @@ fn ignore_null_flag_skips_null_in_input() {
 
 #[test]
 fn ignore_false_flag_skips_false_in_input() {
-    let cb = empty_codebase();
+    let cb = empty_world();
     let int_or_false = u_many(vec![t_int(), t_false()]);
     let int_only = u(t_int());
     assert!(!is_contained_with(int_or_false, int_only, &cb, false, false, false));

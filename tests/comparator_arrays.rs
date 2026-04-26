@@ -365,7 +365,7 @@ fn keyed_with_value_subtypes_for_many_combos() {
             let inner_in_outer = u(inner_v);
             let outer_uniform = t_keyed_unsealed(u(t_string()), u(outer_v), false);
             let inner_keyed = t_keyed_unsealed(u(t_string()), inner_in_outer, false);
-            let cb = empty_codebase();
+            let cb = empty_world();
             let r = atomic_is_contained(inner_keyed, outer_uniform, &cb);
             let expected = atomic_is_contained(inner_v, outer_v, &cb);
             assert_eq!(r, expected, "keyed<string,{:?}> <: keyed<string,{:?}>", inner_v, outer_v);

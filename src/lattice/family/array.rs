@@ -38,17 +38,17 @@ use crate::TypeId;
 use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::ListInfo;
 use crate::interner::interner;
-use crate::lattice::Codebase;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::refines::refines as type_refines;
 use crate::prelude::EMPTY_ARRAY;
 use crate::prelude::INT;
+use crate::world::World;
 
-pub fn refines<C: Codebase>(
+pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -59,10 +59,10 @@ pub fn refines<C: Codebase>(
     }
 }
 
-fn refines_list<C: Codebase>(
+fn refines_list<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -86,10 +86,10 @@ fn refines_list<C: Codebase>(
     }
 }
 
-fn refines_keyed<C: Codebase>(
+fn refines_keyed<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -130,10 +130,10 @@ fn refines_keyed<C: Codebase>(
     }
 }
 
-fn list_refines_list<C: Codebase>(
+fn list_refines_list<W: World>(
     input: ListInfo,
     container: ListInfo,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -146,10 +146,10 @@ fn list_refines_list<C: Codebase>(
     type_refines(input.element_type, container.element_type, codebase, options, report)
 }
 
-fn keyed_refines_keyed<C: Codebase>(
+fn keyed_refines_keyed<W: World>(
     input: KeyedArrayInfo,
     container: KeyedArrayInfo,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -191,10 +191,10 @@ fn keyed_refines_keyed<C: Codebase>(
     true
 }
 
-fn sealed_refines_sealed<C: Codebase>(
+fn sealed_refines_sealed<W: World>(
     input: KeyedArrayInfo,
     container: KeyedArrayInfo,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {

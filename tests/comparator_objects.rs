@@ -1,13 +1,13 @@
 //! Object hierarchy. Mago tests use `codebase_from_php(php_source)`; we
-//! substitute hand-built [`MockCodebase`] hierarchies declared inline.
+//! substitute hand-built [`MockWorld`] hierarchies declared inline.
 
 mod comparator_common;
 
 use comparator_common::*;
-use suffete::lattice::Codebase;
+use suffete::world::World;
 
-fn animal_hierarchy() -> MockCodebase {
-    let mut cb = MockCodebase::from_edges(&[
+fn animal_hierarchy() -> MockWorld {
+    let mut cb = MockWorld::from_edges(&[
         ("Mammal", "Animal"),
         ("Dog", "Mammal"),
         ("Cat", "Mammal"),
@@ -20,8 +20,8 @@ fn animal_hierarchy() -> MockCodebase {
     cb
 }
 
-fn enums_hierarchy() -> MockCodebase {
-    let mut cb = MockCodebase::new();
+fn enums_hierarchy() -> MockWorld {
+    let mut cb = MockWorld::new();
     cb.declare("Status");
     cb.declare("Color");
     cb
@@ -29,7 +29,7 @@ fn enums_hierarchy() -> MockCodebase {
 
 #[test]
 fn object_any_reflexive() {
-    let cb = empty_codebase();
+    let cb = empty_world();
     assert!(atomic_is_contained(t_object_any(), t_object_any(), &cb));
 }
 
@@ -238,14 +238,14 @@ fn many_class_hierarchy_non_relations() {
     }
 }
 
-// Sanity check that MockCodebase reports the closure correctly.
+// Sanity check that MockWorld reports the closure correctly.
 #[test]
 fn mock_codebase_transitive_closure() {
     let cb = animal_hierarchy();
-    assert!(cb.is_subclass_of(name("Cocker"), name("Animal")));
-    assert!(cb.is_subclass_of(name("Cocker"), name("Mammal")));
-    assert!(cb.is_subclass_of(name("Sloth"), name("Animal")));
-    assert!(cb.is_subclass_of(name("Mammal"), name("Animal")));
-    assert!(!cb.is_subclass_of(name("Animal"), name("Mammal")));
-    assert!(!cb.is_subclass_of(name("Cocker"), name("Cat")));
+    assert!(cb.descends_from(name("Cocker"), name("Animal")));
+    assert!(cb.descends_from(name("Cocker"), name("Mammal")));
+    assert!(cb.descends_from(name("Sloth"), name("Animal")));
+    assert!(cb.descends_from(name("Mammal"), name("Animal")));
+    assert!(!cb.descends_from(name("Animal"), name("Mammal")));
+    assert!(!cb.descends_from(name("Cocker"), name("Cat")));
 }

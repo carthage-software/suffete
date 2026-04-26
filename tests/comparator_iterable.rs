@@ -43,7 +43,7 @@ fn iterable_not_in_keyed() {
 
 #[test]
 fn iterable_value_covariance() {
-    let cb = empty_codebase();
+    let cb = empty_world();
     let lit = t_iterable(u(t_int()), u(t_lit_int(5)));
     let general = t_iterable(u(t_int()), u(t_int()));
     assert!(atomic_is_contained(lit, general, &cb));

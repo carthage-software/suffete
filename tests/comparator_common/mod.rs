@@ -1,19 +1,7 @@
 #![allow(dead_code)]
 
-//! Test helpers mirroring `mago/crates/codex/tests/comparator_common/mod.rs`,
-//! translated to suffete's lattice API. Test files in `tests/comparator_*.rs`
-//! consume these helpers so the porting from mago is mechanical.
-//!
-//! Translation:
-//!
-//! | mago                                   | suffete                                          |
-//! |----------------------------------------|--------------------------------------------------|
-//! | `union_comparator::is_contained_by`    | `lattice::refines`                               |
-//! | `atomic_comparator::is_contained_by`   | `lattice::refines` on singleton unions           |
-//! | `ComparisonResult`                     | `LatticeReport`                                  |
-//! | `is_contained_by(_, _, in, if, ia, _)` | `LatticeOptions { ignore_null, .. }`             |
-//! | `CodebaseMetadata`                     | `dyn lattice::Codebase`                          |
-//! | `codebase_from_php(code)`              | hand-built [`MockCodebase`]                      |
+//! Test helpers translated to suffete's lattice + world APIs. Test files
+//! in `tests/comparator_*.rs` consume these helpers.
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -28,30 +16,54 @@ use suffete::element::payload::ArrayKey;
 use suffete::element::payload::KnownItemEntry;
 use suffete::interner::interner;
 use suffete::lattice;
-use suffete::lattice::Codebase;
 use suffete::lattice::LatticeOptions;
 use suffete::lattice::LatticeReport;
-use suffete::lattice::NullCodebase;
 use suffete::prelude;
+use suffete::world::NullWorld;
+use suffete::world::TemplateParameter;
+use suffete::world::Variance;
+use suffete::world::World;
 
-/// A `Codebase` impl built from explicit `(child, parent)` edges. The
-/// transitive ancestor closure is recomputed on every [`add_edge`] call so
-/// that `is_subclass_of` is O(1) per query (one hash lookup).
+/// A [`World`] backed by hand-built tables: hierarchy edges, trait
+/// usage, per-class type parameters, and per-extension type arguments.
 ///
-/// Stands in for mago's `codebase_from_php(php_source)`: instead of parsing
-/// PHP, the test names the hierarchy directly.
-pub struct MockCodebase {
+/// Builder API:
+///
+/// - [`add_edge`](Self::add_edge): nominal `child extends/implements/uses
+///   parent` edge.
+/// - [`add_trait_use`](Self::add_trait_use): explicit trait usage (also
+///   counts as an edge).
+/// - [`declare`](Self::declare): register a class-like with no ancestors
+///   so reflexive queries work for it.
+/// - [`with_templates`](Self::with_templates): declare a class's type
+///   parameters in order.
+/// - [`with_extended`](Self::with_extended): declare what type arguments
+///   `child` passes to `ancestor`'s type parameters (in `ancestor`'s
+///   declaration order).
+pub struct MockWorld {
     /// `child -> {ancestors including child itself}`.
     ancestors: HashMap<Atom, HashSet<Atom>>,
+    /// `class -> {trait, trait, ...}` for direct trait usage.
+    traits_used: HashMap<Atom, HashSet<Atom>>,
+    /// `class -> [type params in declaration order]`.
+    templates: HashMap<Atom, Vec<TemplateParameter>>,
+    /// `(child, ancestor) -> [type_argument]` indexed by `ancestor`'s
+    /// declaration order, expressed in `child`'s template namespace.
+    extended: HashMap<(Atom, Atom), Vec<TypeId>>,
 }
 
-impl MockCodebase {
+impl MockWorld {
     pub fn new() -> Self {
-        Self { ancestors: HashMap::new() }
+        Self {
+            ancestors: HashMap::new(),
+            traits_used: HashMap::new(),
+            templates: HashMap::new(),
+            extended: HashMap::new(),
+        }
     }
 
     /// Add a single `child extends/implements parent` edge and recompute
-    /// the closure.
+    /// the transitive closure.
     pub fn add_edge(&mut self, child: &str, parent: &str) -> &mut Self {
         let child = atom(child);
         let parent = atom(parent);
@@ -64,23 +76,61 @@ impl MockCodebase {
 
     /// Build from a list of `(child, parent)` pairs in one shot.
     pub fn from_edges(edges: &[(&str, &str)]) -> Self {
-        let mut cb = Self::new();
+        let mut w = Self::new();
         for (c, p) in edges {
-            cb.add_edge(c, p);
+            w.add_edge(c, p);
         }
-        cb
+        w
     }
 
-    /// Register a class-like that has no ancestors (so `is_subclass_of(C, C)`
-    /// still works for it).
+    /// Register a `class uses TraitName;` relation. Also records the
+    /// edge for the ancestor closure (so [`World::descends_from`] answers
+    /// yes) and the direct usage (so [`World::uses_trait`] also answers
+    /// yes).
+    pub fn add_trait_use(&mut self, class: &str, trait_: &str) -> &mut Self {
+        self.add_edge(class, trait_);
+        self.traits_used.entry(atom(class)).or_default().insert(atom(trait_));
+        self
+    }
+
+    /// Register a class-like with no ancestors (so reflexive queries
+    /// like `descends_from(C, C)` still answer yes).
     pub fn declare(&mut self, name: &str) -> &mut Self {
         let n = atom(name);
         self.ancestors.entry(n).or_default().insert(n);
         self
     }
 
+    /// Declare `class_like`'s type parameters in declaration order. Each
+    /// is a `(name, variance)` pair; bounds default to `None`.
+    pub fn with_templates(&mut self, class_like: &str, params: &[(&str, Variance)]) -> &mut Self {
+        let n = atom(class_like);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.templates.insert(
+            n,
+            params
+                .iter()
+                .map(|(name, variance)| TemplateParameter { name: atom(name), variance: *variance, upper_bound: None })
+                .collect(),
+        );
+        self
+    }
+
+    /// Declare what type arguments `child` passes to `ancestor`. The
+    /// list is positional, in `ancestor`'s declaration order. Argument
+    /// type ids may reference `child`'s own templates (via
+    /// [`GenericParameter`](suffete::ElementKind::GenericParameter)
+    /// elements) or be concrete.
+    ///
+    /// Implicitly registers `child extends ancestor` so
+    /// [`World::descends_from`] answers yes.
+    pub fn with_extended(&mut self, child: &str, ancestor: &str, args: Vec<TypeId>) -> &mut Self {
+        self.add_edge(child, ancestor);
+        self.extended.insert((atom(child), atom(ancestor)), args);
+        self
+    }
+
     fn recompute_closure(&mut self) {
-        // Floyd-Warshall-ish: keep adding ancestors of ancestors until fixed.
         loop {
             let mut changed = false;
             let names: Vec<Atom> = self.ancestors.keys().copied().collect();
@@ -104,26 +154,47 @@ impl MockCodebase {
     }
 }
 
-impl Default for MockCodebase {
+impl Default for MockWorld {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Codebase for MockCodebase {
-    fn is_subclass_of(&self, child: Atom, parent: Atom) -> bool {
-        if child == parent {
+impl World for MockWorld {
+    fn descends_from(&self, child: Atom, ancestor: Atom) -> bool {
+        if child == ancestor {
             return true;
         }
+        self.ancestors.get(&child).is_some_and(|set| set.contains(&ancestor))
+    }
 
-        self.ancestors.get(&child).is_some_and(|set| set.contains(&parent))
+    fn uses_trait(&self, class: Atom, trait_: Atom) -> bool {
+        self.traits_used.get(&class).is_some_and(|set| set.contains(&trait_))
+    }
+
+    fn arity(&self, class: Atom) -> usize {
+        self.templates.get(&class).map(Vec::len).unwrap_or(0)
+    }
+
+    fn parameter_at(&self, class: Atom, position: usize) -> Option<TemplateParameter> {
+        self.templates.get(&class).and_then(|params| params.get(position).cloned())
+    }
+
+    fn parameter_position(&self, class: Atom, name: Atom) -> Option<usize> {
+        self.templates.get(&class).and_then(|params| params.iter().position(|p| p.name == name))
+    }
+
+    fn inherited_argument(&self, child: Atom, ancestor: Atom, position: usize) -> Option<TypeId> {
+        if !self.descends_from(child, ancestor) {
+            return None;
+        }
+        self.extended.get(&(child, ancestor)).and_then(|args| args.get(position).copied())
     }
 }
 
-/// An empty codebase: nothing knows about anything. Equivalent to mago's
-/// `empty_codebase()`.
-pub fn empty_codebase() -> NullCodebase {
-    NullCodebase
+/// An empty world: nothing knows about anything.
+pub fn empty_world() -> NullWorld {
+    NullWorld
 }
 
 // ---------------------------------------------------------------------------
@@ -132,14 +203,14 @@ pub fn empty_codebase() -> NullCodebase {
 
 /// `lattice::refines(input, container, codebase, default options, _)`.
 /// Mirrors mago's `union_comparator::is_contained_by`.
-pub fn is_contained<C: Codebase>(input: TypeId, container: TypeId, codebase: &C) -> bool {
+pub fn is_contained<W: World>(input: TypeId, container: TypeId, codebase: &W) -> bool {
     let mut report = LatticeReport::new();
     lattice::refines(input, container, codebase, LatticeOptions::default(), &mut report)
 }
 
 /// As [`is_contained`], but returns the [`LatticeReport`] alongside the
 /// boolean answer so tests can inspect coercion flags.
-pub fn is_contained_capturing<C: Codebase>(input: TypeId, container: TypeId, codebase: &C) -> (bool, LatticeReport) {
+pub fn is_contained_capturing<W: World>(input: TypeId, container: TypeId, codebase: &W) -> (bool, LatticeReport) {
     let mut report = LatticeReport::new();
     let v = lattice::refines(input, container, codebase, LatticeOptions::default(), &mut report);
     (v, report)
@@ -148,10 +219,10 @@ pub fn is_contained_capturing<C: Codebase>(input: TypeId, container: TypeId, cod
 /// `is_contained` with the `ignore_null` / `ignore_false` / `inside_assertion`
 /// option flags. Mirrors mago's
 /// `is_contained_by(..., ignore_null, ignore_false, inside_assertion, _)`.
-pub fn is_contained_with<C: Codebase>(
+pub fn is_contained_with<W: World>(
     input: TypeId,
     container: TypeId,
-    codebase: &C,
+    codebase: &W,
     ignore_null: bool,
     ignore_false: bool,
     inside_assertion: bool,
@@ -163,17 +234,17 @@ pub fn is_contained_with<C: Codebase>(
 
 /// Element-vs-element refinement query: wraps both in singleton unions and
 /// calls [`is_contained`].
-pub fn atomic_is_contained<C: Codebase>(input: ElementId, container: ElementId, codebase: &C) -> bool {
+pub fn atomic_is_contained<W: World>(input: ElementId, container: ElementId, codebase: &W) -> bool {
     let i = interner();
     let it = i.intern_type(&[input], FlowFlags::EMPTY);
     let ct = i.intern_type(&[container], FlowFlags::EMPTY);
     is_contained(it, ct, codebase)
 }
 
-pub fn atomic_is_contained_capturing<C: Codebase>(
+pub fn atomic_is_contained_capturing<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &C,
+    codebase: &W,
 ) -> (bool, LatticeReport) {
     let i = interner();
     let it = i.intern_type(&[input], FlowFlags::EMPTY);
@@ -187,25 +258,25 @@ pub fn atomic_is_contained_capturing<C: Codebase>(
 
 #[track_caller]
 pub fn assert_subtype(input: &TypeId, container: &TypeId) {
-    let cb = empty_codebase();
+    let cb = empty_world();
     assert!(is_contained(*input, *container, &cb), "expected {input:?} <: {container:?} but it is not");
 }
 
 #[track_caller]
 pub fn assert_not_subtype(input: &TypeId, container: &TypeId) {
-    let cb = empty_codebase();
+    let cb = empty_world();
     assert!(!is_contained(*input, *container, &cb), "expected NOT ({input:?} <: {container:?}) but it is");
 }
 
 #[track_caller]
 pub fn assert_atomic_subtype(input: &ElementId, container: &ElementId) {
-    let cb = empty_codebase();
+    let cb = empty_world();
     assert!(atomic_is_contained(*input, *container, &cb), "expected atomic {input:?} <: {container:?}");
 }
 
 #[track_caller]
 pub fn assert_atomic_not_subtype(input: &ElementId, container: &ElementId) {
-    let cb = empty_codebase();
+    let cb = empty_world();
     assert!(!atomic_is_contained(*input, *container, &cb), "expected NOT (atomic {input:?} <: {container:?})");
 }
 

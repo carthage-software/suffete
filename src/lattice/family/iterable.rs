@@ -18,18 +18,18 @@ use crate::ElementId;
 use crate::ElementKind;
 use crate::TypeId;
 use crate::interner::interner;
-use crate::lattice::Codebase;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::refines::refines as type_refines_outer;
 use crate::prelude::ARRAY_KEY;
 use crate::prelude::EMPTY_ARRAY;
 use crate::prelude::INT;
+use crate::world::World;
 
-pub fn refines<C: Codebase>(
+pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -67,10 +67,10 @@ pub fn refines<C: Codebase>(
     }
 }
 
-fn type_refines<C: Codebase>(
+fn type_refines<W: World>(
     a: TypeId,
     b: TypeId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {

@@ -4,7 +4,6 @@
 use crate::ElementId;
 use crate::ElementKind;
 use crate::TypeId;
-use crate::lattice::Codebase;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::family;
@@ -12,6 +11,7 @@ use crate::prelude::FALSE;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
 use crate::prelude::NULL;
+use crate::world::World;
 
 /// `true` iff `a <: b` — every runtime value of type `a` is also a value of
 /// type `b` (i.e. `a` is a refinement / narrowing of `b`).
@@ -23,10 +23,10 @@ use crate::prelude::NULL;
 /// queries flow through `codebase`; callable variance, array shape rules,
 /// mixed-axis refinements, and template machinery layer in family by
 /// family; what isn't implemented returns `false` conservatively.
-pub fn refines<C: Codebase>(
+pub fn refines<W: World>(
     a: TypeId,
     b: TypeId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -54,10 +54,10 @@ pub fn refines<C: Codebase>(
 /// `true` iff `a :> b` — every value of type `b` is also a value of type `a`
 /// (`a` generalizes `b`). Equivalent to `refines(b, a, codebase, options, report)`.
 #[inline]
-pub fn generalizes<C: Codebase>(
+pub fn generalizes<W: World>(
     a: TypeId,
     b: TypeId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -73,10 +73,10 @@ pub fn generalizes<C: Codebase>(
 /// `type_coerced` flag is set to record that the rejection was a narrowing,
 /// not an out-of-family mismatch. `mixed` inputs additionally set
 /// `type_coerced_from_nested_mixed`.
-fn element_refines<C: Codebase>(
+fn element_refines<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -119,10 +119,10 @@ fn is_true_union_kind(kind: ElementKind) -> bool {
     )
 }
 
-fn dispatch_refines<C: Codebase>(
+fn dispatch_refines<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -169,7 +169,6 @@ mod tests {
     use crate::ElementId;
     use crate::FlowFlags;
     use crate::interner::interner;
-    use crate::lattice::NullCodebase;
     use crate::prelude::ARRAY_KEY;
     use crate::prelude::BOOL;
     use crate::prelude::CALLABLE_STRING;
@@ -209,10 +208,11 @@ mod tests {
     use crate::prelude::TYPE_SCALAR;
     use crate::prelude::TYPE_STRING;
     use crate::prelude::UPPERCASE_STRING;
+    use crate::world::NullWorld;
 
     fn check(input: TypeId, container: TypeId) -> bool {
         let mut report = LatticeReport::new();
-        refines(input, container, &NullCodebase, LatticeOptions::default(), &mut report)
+        refines(input, container, &NullWorld, LatticeOptions::default(), &mut report)
     }
 
     fn check_elem(input: ElementId, container: ElementId) -> bool {
@@ -525,8 +525,8 @@ mod tests {
     #[test]
     fn generalizes_is_inverse_of_refines() {
         let mut r = LatticeReport::new();
-        assert!(generalizes(TYPE_MIXED, TYPE_INT, &NullCodebase, LatticeOptions::default(), &mut r));
-        assert!(generalizes(TYPE_INT, TYPE_NEVER, &NullCodebase, LatticeOptions::default(), &mut r));
-        assert!(!generalizes(TYPE_INT, TYPE_FLOAT, &NullCodebase, LatticeOptions::default(), &mut r));
+        assert!(generalizes(TYPE_MIXED, TYPE_INT, &NullWorld, LatticeOptions::default(), &mut r));
+        assert!(generalizes(TYPE_INT, TYPE_NEVER, &NullWorld, LatticeOptions::default(), &mut r));
+        assert!(!generalizes(TYPE_INT, TYPE_FLOAT, &NullWorld, LatticeOptions::default(), &mut r));
     }
 }

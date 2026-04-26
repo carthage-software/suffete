@@ -13,11 +13,11 @@
 //! logic lands.
 
 use crate::TypeId;
-use crate::lattice::Codebase;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::refines::generalizes;
 use crate::lattice::refines::refines;
+use crate::world::World;
 
 /// `true` iff `a` and `b` share at least one runtime value.
 ///
@@ -28,10 +28,10 @@ use crate::lattice::refines::refines;
 ///
 /// Returning `false` is therefore not yet a guarantee of disjointness; only
 /// `true` is sound to act on (modulo the current rule coverage).
-pub fn intersects<C: Codebase>(
+pub fn intersects<W: World>(
     a: TypeId,
     b: TypeId,
-    codebase: &C,
+    codebase: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {

@@ -9,6 +9,7 @@ pub mod join;
 pub mod lattice;
 pub mod prelude;
 pub mod ty;
+pub mod world;
 
 pub use crate::element::Element;
 pub use crate::element::ElementId;

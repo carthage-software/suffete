@@ -3,14 +3,14 @@
 //! narrowings.
 //!
 //! `object` (the `ObjectAny` kind) accepts any object-family element. Named
-//! objects use [`Codebase::is_subclass_of`] for hierarchy queries; enums
+//! objects use [`World::descends_from`] for hierarchy queries; enums
 //! match by name (no enum-vs-enum hierarchy in PHP); enum cases narrow
 //! their owning enum but not other enums or cases.
 
 use crate::ElementId;
 use crate::ElementKind;
 use crate::interner::interner;
-use crate::lattice::Codebase;
+use crate::world::World;
 
 /// Container is `object` (`ObjectAny`): accept anything in the object
 /// family.
@@ -19,8 +19,8 @@ pub fn refines_object_any(input: ElementId, _container: ElementId) -> bool {
 }
 
 /// Refinement for `Object | Enum | ObjectShape | HasMethod | HasProperty`
-/// containers. Hierarchy queries flow through [`Codebase::is_subclass_of`].
-pub fn refines<C: Codebase>(input: ElementId, container: ElementId, codebase: &C) -> bool {
+/// containers. Hierarchy queries flow through [`World::descends_from`].
+pub fn refines<W: World>(input: ElementId, container: ElementId, codebase: &W) -> bool {
     let i = interner();
 
     match (input.kind(), container.kind()) {
@@ -28,7 +28,7 @@ pub fn refines<C: Codebase>(input: ElementId, container: ElementId, codebase: &C
         (ElementKind::Object, ElementKind::Object) => {
             let input_info = i.get_object(input);
             let container_info = i.get_object(container);
-            codebase.is_subclass_of(input_info.name, container_info.name)
+            codebase.descends_from(input_info.name, container_info.name)
         }
 
         // Enum-vs-enum: same enum (refl handled upstream); different enums

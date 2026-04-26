@@ -216,7 +216,7 @@ fn list_of_generic_objects() {}
 
 #[test]
 fn keyed_with_object_values() {
-    let cb = MockCodebase::from_edges(&[("Admin", "User")]);
+    let cb = MockWorld::from_edges(&[("Admin", "User")]);
     let admin_keyed = t_keyed_unsealed(u(t_string()), u(t_named("Admin")), false);
     let user_keyed = t_keyed_unsealed(u(t_string()), u(t_named("User")), false);
     assert!(atomic_is_contained(admin_keyed, user_keyed, &cb));
@@ -225,7 +225,7 @@ fn keyed_with_object_values() {
 
 #[test]
 fn list_with_class_hierarchy() {
-    let cb = MockCodebase::from_edges(&[("B", "A")]);
+    let cb = MockWorld::from_edges(&[("B", "A")]);
     let list_b = t_list(u(t_named("B")), false);
     let list_a = t_list(u(t_named("A")), false);
     assert!(atomic_is_contained(list_b, list_a, &cb));
