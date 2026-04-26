@@ -1,0 +1,43 @@
+name: "Bug Report"
+description: "Report a bug or unexpected behavior in Suffete."
+labels: ["t-bug", "needs-triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide a clear description and a small Rust snippet that reproduces the problem.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: "What happened? What did you expect?"
+      placeholder: "Suffete reports the wrong subtype relationship for..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: "Reproduction"
+      description: "A minimal Rust snippet using the suffete API that demonstrates the bug."
+      render: rust
+      placeholder: |
+        use suffete::*;
+
+        // ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment"
+      description: "Suffete version (or commit), OS, and Rust toolchain."
+      placeholder: |
+        - Suffete: 0.1.0 (or git sha)
+        - OS: macOS / Linux / Windows
+        - Rust: 1.95.0
+    validations:
+      required: true

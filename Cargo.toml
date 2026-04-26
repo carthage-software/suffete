@@ -1,0 +1,52 @@
+[package]
+name = "suffete"
+version = "0.1.0"
+edition = "2024"
+authors = ["Seifeddine Gmati <azjezz@carthage.software>"]
+license = "MIT OR Apache-2.0"
+description = "A standalone PHP type system: representation, comparison, and type checking primitives for static analysis tools."
+homepage = "https://github.com/carthage-software/suffete"
+repository = "https://github.com/carthage-software/suffete"
+rust-version = "1.95.0"
+readme = "README.md"
+keywords = ["php", "type-system", "type-checker", "static-analysis"]
+categories = ["development-tools", "compilers"]
+
+[lints.clippy]
+large_enum_variant = { level = "forbid" }
+print_stdout = { level = "forbid" }
+print_stderr = { level = "forbid" }
+dbg_macro = { level = "forbid" }
+let_underscore_lock = { level = "forbid" }
+
+[dependencies]
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "compute"
+harness = false
+
+[profile.release]
+opt-level = 3
+debug = false
+strip = 'symbols'
+debug-assertions = false
+overflow-checks = false
+lto = 'fat'
+panic = 'abort'
+incremental = false
+codegen-units = 1
+rpath = true
+
+[profile.memory-debug]
+inherits = 'release'
+debug = true
+strip = 'none'
+
+[profile.dev]
+debug = 'full'
+opt-level = 0
+lto = 'off'
+panic = 'unwind'

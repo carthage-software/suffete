@@ -1,0 +1,12 @@
+* text=auto eol=lf
+.envrc export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+.rustfmt.toml export-ignore
+.typos.toml export-ignore
+.github/ export-ignore
+Justfile export-ignore
+flake.nix export-ignore
+flake.lock export-ignore
+benches/ export-ignore
+tests/ export-ignore

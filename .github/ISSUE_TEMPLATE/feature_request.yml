@@ -1,0 +1,26 @@
+name: "Feature Request"
+description: "Suggest a new feature or improvement for Suffete."
+labels: ["t-enhancement", "needs-triage"]
+assignees: []
+body:
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: "Feature"
+      description: "What feature would you like? What problem does it solve?"
+      placeholder: "I'd like Suffete to support..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: "Example"
+      description: "Show what the feature looks like in PHP, and (if relevant) how it should appear in the suffete API."
+      render: php
+      placeholder: |
+        <?php
+
+        // Example PHP code that the type system would need to handle.
+    validations:
+      required: false
