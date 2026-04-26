@@ -200,22 +200,22 @@ mod tests {
     #[test]
     fn type_int_resolves_to_singleton_int_union() {
         let t = TYPE_INT.as_ref();
-        assert_eq!(t.atoms, &[INT]);
+        assert_eq!(t.elements, &[INT]);
         assert_eq!(t.flags, FlowFlags::EMPTY);
     }
 
     #[test]
-    fn type_null_or_string_atoms_are_in_canonical_order() {
+    fn type_null_or_string_elements_are_in_canonical_order() {
         let t = TYPE_NULL_OR_STRING.as_ref();
-        assert_eq!(t.atoms.len(), 2);
-        assert_eq!(t.atoms[0], NULL);
-        assert_eq!(t.atoms[1], STRING);
+        assert_eq!(t.elements.len(), 2);
+        assert_eq!(t.elements[0], NULL);
+        assert_eq!(t.elements[1], STRING);
     }
 
     #[test]
-    fn type_minus_one_zero_one_atoms_are_sorted_by_int_slot() {
+    fn type_minus_one_zero_one_elements_are_sorted_by_int_slot() {
         let t = TYPE_MINUS_ONE_ZERO_ONE.as_ref();
-        assert_eq!(t.atoms, &[INT_ZERO, INT_ONE, INT_MINUS_ONE]);
+        assert_eq!(t.elements, &[INT_ZERO, INT_ONE, INT_MINUS_ONE]);
     }
 
     #[test]

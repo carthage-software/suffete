@@ -73,16 +73,16 @@ fn type_union_of_int_and_float_dedupes_against_well_known() {
 fn type_int_literal_builds_singleton_with_correct_atom() {
     let t = TypeId::int_literal(42);
     let view = t.as_ref();
-    assert_eq!(view.atoms.len(), 1);
-    assert!(matches!(view.atoms[0].view(), Element::Int(IntInfo::Literal(42))));
+    assert_eq!(view.elements.len(), 1);
+    assert!(matches!(view.elements[0].view(), Element::Int(IntInfo::Literal(42))));
 }
 
 #[test]
 fn type_string_literal_builds_singleton_with_correct_atom() {
     let t = TypeId::string_literal("hello");
     let view = t.as_ref();
-    assert_eq!(view.atoms.len(), 1);
-    let Element::String(info) = view.atoms[0].view() else {
+    assert_eq!(view.elements.len(), 1);
+    let Element::String(info) = view.elements[0].view() else {
         panic!("expected String variant");
     };
     use suffete::element::payload::scalar::StringLiteral;

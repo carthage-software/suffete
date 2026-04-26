@@ -10,7 +10,7 @@ use crate::handle::define_handle;
 /// canonical type.
 ///
 /// Two `TypeId`s compare equal iff they refer to the same canonical
-/// (atom-set, flow-flags) pair.
+/// (element-set, flow-flags) pair.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TypeId(NonZeroU32);
 

@@ -6,7 +6,7 @@ use crate::TypeId;
 /// `iterable<K, V>`, optionally narrowed by intersection (e.g.
 /// `iterable<int, string>&Countable`).
 ///
-/// `iterable` is its own atom because `array <: iterable` and
+/// `iterable` is its own element because `array <: iterable` and
 /// `Traversable <: iterable` both hold, but `iterable` does not commute with
 /// arbitrary `Foo<K, V>` containers, so it can't be reduced to a union of
 /// the two and must be tracked explicitly.

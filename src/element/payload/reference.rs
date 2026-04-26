@@ -9,8 +9,8 @@ use crate::TypeListId;
 /// optional type arguments and intersection partners.
 ///
 /// Payload of `ElementKind::Reference`. By far the most common indirection
-/// atom, which is why it has its own per-kind arena rather than sharing one
-/// with the rarer member/global references.
+/// element, which is why it has its own per-kind arena rather than sharing
+/// one with the rarer member/global references.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SymbolReference {
     pub name: Atom,

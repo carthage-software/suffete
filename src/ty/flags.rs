@@ -1,11 +1,12 @@
 /// Provenance and analysis-state bits attached to a [`Type`](crate::Type).
 ///
 /// Per spec §1, flow flags do not participate in the denotational meaning of
-/// a type: two unions with identical atoms but different flags inhabit the
-/// same set of values. They affect diagnostics, narrowing, and substitution.
+/// a type: two unions with identical elements but different flags inhabit
+/// the same set of values. They affect diagnostics, narrowing, and
+/// substitution.
 ///
 /// Flow flags **do** participate in the [`TypeId`](crate::TypeId) interner
-/// key: two unions with identical atoms but different flags get different
+/// key: two unions with identical elements but different flags get different
 /// `TypeId`s.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct FlowFlags(u16);

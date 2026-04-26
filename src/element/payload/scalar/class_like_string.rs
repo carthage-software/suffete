@@ -29,7 +29,7 @@ pub enum ClassLikeKind {
 /// What is known about the value of this class-like-string beyond its kind.
 ///
 /// `Generic` carries just a constraint type. The constraint itself contains
-/// a [`GenericParameterInfo`](crate::payload::GenericParameterInfo) atom that
+/// a [`GenericParameterInfo`](crate::payload::GenericParameterInfo) element that
 /// names the template parameter and its scope, so we don't repeat that
 /// information here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
