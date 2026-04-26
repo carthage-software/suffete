@@ -57,44 +57,33 @@ use crate::interner::SliceArena;
 /// Its arenas are append-only, so a slot once assigned never moves; that is
 /// what lets the lookup methods hand out plain `&'static T` references.
 pub struct Interner {
-    // ---- Element-payload arenas (one per non-trivial ElementKind). --------
     mixed: Arena<MixedInfo>,
     int: Arena<IntInfo>,
     float: Arena<FloatInfo>,
     string: Arena<StringInfo>,
     class_like_string: Arena<ClassLikeStringInfo>,
-
     object: Arena<ObjectInfo>,
     enumeration: Arena<EnumInfo>,
     object_shape: Arena<ObjectShapeInfo>,
     has_method: Arena<HasMethodInfo>,
     has_property: Arena<HasPropertyInfo>,
-
     array: Arena<KeyedArrayInfo>,
     list: Arena<ListInfo>,
-
     iterable: Arena<IterableInfo>,
     callable: Arena<CallableInfo>,
     resource: Arena<ResourceInfo>,
-
     generic_parameter: Arena<GenericParameterInfo>,
     variable: Arena<VariableInfo>,
-
     reference: Arena<SymbolReference>,
     member_reference: Arena<MemberReference>,
     global_reference: Arena<GlobalReference>,
     alias: Arena<AliasInfo>,
-
     conditional: Arena<ConditionalInfo>,
     derived: Arena<DerivedInfo>,
-
-    // ---- Side-table arenas (heavy data pulled out of payloads). -----------
     int_range: Arena<IntRange>,
     defining_entity: Arena<DefiningEntity>,
     signature: Arena<Signature>,
     callable_alias: Arena<CallableAlias>,
-
-    // ---- Slice arenas (interned `&'static [T]` for the list handles). -----
     type_list: SliceArena<crate::TypeId>,
     element_list: SliceArena<ElementId>,
     known_items: SliceArena<KnownItemEntry>,
@@ -151,18 +140,6 @@ impl Default for Interner {
         Self::new()
     }
 }
-
-// ---- intern_* / get_* for element-payload arenas. -------------------------
-//
-// Convention:
-//
-// - `Arena.intern` returns a 1-based slot. `ElementId` packs a 0-based slot in
-//   its low bits, so we subtract 1 when wrapping into `ElementId`.
-// - `Arena.get` takes a 1-based slot. We add 1 to the `ElementId.slot()` value
-//   when looking up.
-// - `get_*` panics on a wrong-kind `ElementId` (debug only) or a missing slot
-//   (release: returns `None` would be the alternative; we choose panic since a
-//   valid handle always resolves and a panicking accessor is more ergonomic).
 
 macro_rules! element_arena_methods {
     (
@@ -232,12 +209,6 @@ element_arena_methods! {
     Derived,          derived,           DerivedInfo,          intern_derived,           get_derived;
 }
 
-// ---- intern_* / get_* for side-table arenas. ------------------------------
-//
-// These return typed handles (IntRangeId, DefiningEntityId, etc.) directly,
-// not ElementId, because the payloads they wrap are referenced from inside
-// other payloads (they are not themselves elements of a union).
-
 macro_rules! side_table_methods {
     (
         $(
@@ -271,8 +242,6 @@ side_table_methods! {
     signature,       Signature,      SignatureId,      intern_signature,       get_signature;
     callable_alias,  CallableAlias,  CallableAliasId,  intern_callable_alias,  get_callable_alias;
 }
-
-// ---- intern_* / get_* for slice arenas. -----------------------------------
 
 macro_rules! slice_arena_methods {
     (
@@ -309,8 +278,6 @@ slice_arena_methods! {
     known_properties, KnownPropertyEntry,    KnownPropertiesId, intern_known_properties, get_known_properties;
     param_list,       ParamInfo,             ParamListId,       intern_param_list,       get_param_list;
 }
-
-// ---- The process-global accessor. -----------------------------------------
 
 static INTERNER: OnceLock<Interner> = OnceLock::new();
 
