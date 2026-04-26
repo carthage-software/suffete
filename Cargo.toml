@@ -21,9 +21,6 @@ let_underscore_lock = { level = "forbid" }
 
 [dependencies]
 
-[dev-dependencies]
-criterion = "0.5"
-
 [[bench]]
 name = "compute"
 harness = false
@@ -50,3 +47,6 @@ debug = 'full'
 opt-level = 0
 lto = 'off'
 panic = 'unwind'
+
+[dev-dependencies]
+criterion = { version = "4.5.0", package = "codspeed-criterion-compat" }
