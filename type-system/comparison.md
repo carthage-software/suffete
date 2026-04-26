@@ -13,27 +13,27 @@ The relation is defined inductively. The rules below are presented in the order 
 ### 1.1 Universal axioms
 
 $$
-\frac{}{\bot \mathrel{<:} \tau} \;\text{(Bot)}
+\frac{}{\bot \mathrel{<:} \tau} \\;\text{(Bot)}
 \qquad
-\frac{}{\tau \mathrel{<:} \top} \;\text{(Top)}
+\frac{}{\tau \mathrel{<:} \top} \\;\text{(Top)}
 \qquad
-\frac{}{\tau \mathrel{<:} \tau} \;\text{(Refl)}
+\frac{}{\tau \mathrel{<:} \tau} \\;\text{(Refl)}
 $$
 
 $$
-\frac{\tau \mathrel{<:} \sigma \quad \sigma \mathrel{<:} \rho}{\tau \mathrel{<:} \rho} \;\text{(Trans)}
+\frac{\tau \mathrel{<:} \sigma \quad \sigma \mathrel{<:} \rho}{\tau \mathrel{<:} \rho} \\;\text{(Trans)}
 $$
 
-$\top$ denotes vanilla `mixed`. A constrained `mixed(c)` is *not* a universal supertype: $\text{mixed}(\text{non\_null})$ does not admit `null`, so $\text{null} \mathrel{\not<:} \text{mixed}(\text{non\_null})$.
+$\top$ denotes vanilla `mixed`. A constrained `mixed(c)` is *not* a universal supertype: $\text{mixed}(\text{non\\_null})$ does not admit `null`, so $\text{null} \mathrel{\not<:} \text{mixed}(\text{non\\_null})$.
 
 ### 1.2 Unions
 
 A union is a least upper bound; subtyping distributes:
 
 $$
-\frac{\forall i.\; \alpha_i \mathrel{<:} \sigma}{\alpha_1 \lor \dots \lor \alpha_n \mathrel{<:} \sigma} \;\text{(Union-L)}
+\frac{\forall i.\\; \alpha_i \mathrel{<:} \sigma}{\alpha_1 \lor \dots \lor \alpha_n \mathrel{<:} \sigma} \\;\text{(Union-L)}
 \qquad
-\frac{\exists i.\; \tau \mathrel{<:} \alpha_i}{\tau \mathrel{<:} \alpha_1 \lor \dots \lor \alpha_n} \;\text{(Union-R)}
+\frac{\exists i.\\; \tau \mathrel{<:} \alpha_i}{\tau \mathrel{<:} \alpha_1 \lor \dots \lor \alpha_n} \\;\text{(Union-R)}
 $$
 
 (Union-L) reads "every input atom must be admissible by the container". (Union-R) reads "the input must fit some container atom". When both sides are non-atomic, both rules apply: every input atom must fit some container atom.
@@ -46,7 +46,7 @@ The scalar atoms form the lattice in §2 of **types.md**:
 - $\text{int}, \text{float}, \text{numeric-string} \mathrel{<:} \text{numeric}$.
 - $\text{int}, \text{string}, \text{class-like-string} \mathrel{<:} \text{array-key}$.
 - $\text{class-like-string} \mathrel{<:} \text{string}$ whenever the container `string` has no refinement requirement that the input does not satisfy.
-- $\text{true} \mathrel{<:} \text{bool}$, $\text{false} \mathrel{<:} \text{bool}$. $\text{true} \mathrel{\#} \text{false}$.
+- $\text{true} \mathrel{<:} \text{bool}$, $\text{false} \mathrel{<:} \text{bool}$. $\text{true} \mathrel{\\#} \text{false}$.
 
 Inside *strict* positions (assertions, identity, type-guard contexts), $\text{int} \mathrel{\not<:} \text{float}$. Inside *flow* positions, $\text{int} \Rightarrow \text{float}$ is admitted as a coercion (see §3).
 
@@ -61,7 +61,7 @@ $$
 $$
 \frac{n = m}{\text{Literal}(n) \mathrel{<:} \text{Literal}(m)}
 \qquad
-\frac{}{\text{Literal}(\_) \mathrel{<:} \text{UnspecifiedLiteral}}
+\frac{}{\text{Literal}(\\_) \mathrel{<:} \text{UnspecifiedLiteral}}
 \qquad
 \frac{}{\text{UnspecifiedLiteral} \mathrel{<:} \text{Unspecified}}
 $$
@@ -85,13 +85,13 @@ Combining the axes gives the named refinements as points in a 5-dimensional spac
 
 Kinds (`Class`, `Interface`, `Enum`, `Trait`) are pairwise disjoint. Within a kind:
 
-- $\text{Any}\{k\} \supseteq \text{Generic}\{k, \dots\} \supseteq \text{OfType}\{k, T\} \supseteq \text{Literal}\{value\}$.
+- $\text{Any}\\{k\\} \supseteq \text{Generic}\\{k, \dots\\} \supseteq \text{OfType}\\{k, T\\} \supseteq \text{Literal}\\{value\\}$.
 
 $$
-\frac{T \mathrel{<:} U}{\text{class-like-string}\langle k\rangle\{T\} \mathrel{<:} \text{class-like-string}\langle k\rangle\{U\}} \;\text{(CLS-OfType)}
+\frac{T \mathrel{<:} U}{\text{class-like-string}\langle k\rangle\\{T\\} \mathrel{<:} \text{class-like-string}\langle k\rangle\\{U\\}} \\;\text{(CLS-OfType)}
 $$
 
-$\text{Literal}\{C\}$ is $\mathrel{<:} \text{OfType}\{k, U\}$ iff $\Gamma$ confirms the class denoted by $C$ is itself $\mathrel{<:} U$.
+$\text{Literal}\\{C\\}$ is $\mathrel{<:} \text{OfType}\\{k, U\\}$ iff $\Gamma$ confirms the class denoted by $C$ is itself $\mathrel{<:} U$.
 
 $\text{class-like-string} \mathrel{<:} \text{string}$ (modulo container refinements), $\text{class-like-string} \mathrel{<:} \text{array-key}$, $\text{class-like-string} \mathrel{<:} \text{scalar}$.
 
@@ -102,7 +102,7 @@ Object subtyping combines four orthogonal axes: nominal hierarchy, generic param
 #### 1.4.1 Nominal
 
 $$
-\frac{\Gamma \vdash C \preceq D \quad \mathrm{arity}(C) = \mathrm{arity}(D) = 0}{\text{Named}(C) \mathrel{<:} \text{Named}(D)} \;\text{(Nom)}
+\frac{\Gamma \vdash C \preceq D \quad \mathrm{arity}(C) = \mathrm{arity}(D) = 0}{\text{Named}(C) \mathrel{<:} \text{Named}(D)} \\;\text{(Nom)}
 $$
 
 $\preceq$ is the reflexive transitive closure of `extends`, `implements`, and `use trait`.
@@ -110,21 +110,21 @@ $\preceq$ is the reflexive transitive closure of `extends`, `implements`, and `u
 #### 1.4.2 Parametric
 
 $$
-\frac{\Gamma \vdash C \preceq D \quad \forall i.\; \mathrm{variance}(D, i) \models A_i \;\mathrm{vs}\; B_i}{\text{Named}(C, [\bar{A}]) \mathrel{<:} \text{Named}(D, [\bar{B}])} \;\text{(Gen)}
+\frac{\Gamma \vdash C \preceq D \quad \forall i.\\; \mathrm{variance}(D, i) \models A_i \\;\mathrm{vs}\\; B_i}{\text{Named}(C, [\bar{A}]) \mathrel{<:} \text{Named}(D, [\bar{B}])} \\;\text{(Gen)}
 $$
 
-where $\mathrm{variance}(D, i) \models A \;\mathrm{vs}\; B$ is $A \equiv B$ for invariant, $A \mathrel{<:} B$ for covariant, $B \mathrel{<:} A$ for contravariant. A *readonly* parameter is sound to be covariant regardless of its placement.
+where $\mathrm{variance}(D, i) \models A \\;\mathrm{vs}\\; B$ is $A \equiv B$ for invariant, $A \mathrel{<:} B$ for covariant, $B \mathrel{<:} A$ for contravariant. A *readonly* parameter is sound to be covariant regardless of its placement.
 
 When `class C extends D<X̄>`, instantiating $C\langle\bar{A}\rangle$ substitutes $\bar{A}$ for $C$'s own templates wherever they appear in $\bar{X}$, producing a binding to $D$ that subtyping consults.
 
 #### 1.4.3 Intersection
 
 $$
-\frac{\text{input} \mathrel{<:} \mathrm{head}(\text{out}) \quad \forall J \in \text{out.intersections}.\; \text{input} \mathrel{<:} J}{\text{input} \mathrel{<:} \text{out.head} \mathrel{\&} \text{out.intersections}} \;\text{(Int-R)}
+\frac{\text{input} \mathrel{<:} \mathrm{head}(\text{out}) \quad \forall J \in \text{out.intersections}.\\; \text{input} \mathrel{<:} J}{\text{input} \mathrel{<:} \text{out.head} \mathrel{\\&} \text{out.intersections}} \\;\text{(Int-R)}
 $$
 
 $$
-\frac{\exists h' \in \{\text{input.head}\} \cup \text{input.intersections}.\; h' \mathrel{<:} \text{out}}{\text{input.head} \mathrel{\&} \text{input.intersections} \mathrel{<:} \text{out}} \;\text{(Int-L)}
+\frac{\exists h' \in \\{\text{input.head}\\} \cup \text{input.intersections}.\\; h' \mathrel{<:} \text{out}}{\text{input.head} \mathrel{\\&} \text{input.intersections} \mathrel{<:} \text{out}} \\;\text{(Int-L)}
 $$
 
 #### 1.4.4 `static` and `$this`
@@ -134,7 +134,7 @@ $$
 #### 1.4.5 Enums
 
 $$
-\frac{\Gamma \vdash E \preceq E' \quad \text{case}_C \subseteq \text{case}_D \;\;(\text{case}_D = \text{None admits any case})}{\text{Enum}(E, \text{case}_C) \mathrel{<:} \text{Enum}(E', \text{case}_D)} \;\text{(Enum)}
+\frac{\Gamma \vdash E \preceq E' \quad \text{case}_C \subseteq \text{case}_D \\;\\;(\text{case}_D = \text{None admits any case})}{\text{Enum}(E, \text{case}_C) \mathrel{<:} \text{Enum}(E', \text{case}_D)} \\;\text{(Enum)}
 $$
 
 A $\text{Named}(C)$ is $\mathrel{<:} \text{Enum}(E, \text{None})$ iff $\Gamma$ confirms $C$ extends an enum interface for $E$.
@@ -145,22 +145,22 @@ $$
 \frac{
 \substack{
 \text{sealed}_{\text{in}} \Rightarrow \text{sealed}_{\text{out}} \\
-\forall (k, v_o)\;\text{required in out:}\; \exists (k, v_i)\;\text{in in with}\; v_i \mathrel{<:} v_o \\
+\forall (k, v_o)\\;\text{required in out:}\\; \exists (k, v_i)\\;\text{in in with}\\; v_i \mathrel{<:} v_o \\
 \text{required-out} \Rightarrow \text{required-in}
 }
-}{\text{WithProperties}\{\text{in}\} \mathrel{<:} \text{WithProperties}\{\text{out}\}} \;\text{(Shape)}
+}{\text{WithProperties}\\{\text{in}\\} \mathrel{<:} \text{WithProperties}\\{\text{out}\\}} \\;\text{(Shape)}
 $$
 
-A $\text{Named}(C)$ is $\mathrel{<:} \text{WithProperties}\{\text{props}_{\text{out}}\}$ iff $\Gamma$ records each required property on $C$ with a compatible declared type.
+A $\text{Named}(C)$ is $\mathrel{<:} \text{WithProperties}\\{\text{props}_{\text{out}}\\}$ iff $\Gamma$ records each required property on $C$ with a compatible declared type.
 
 $\text{HasMethod}(m) \mathrel{<:} \text{Named}(C)$ iff $\Gamma$ records that $C$ has method $m$. Analogously for $\text{HasProperty}$.
 
 ### 1.5 Array atoms
 
 $$
-\frac{T_i \mathrel{<:} T_o}{\text{List}(T_i) \mathrel{<:} \text{List}(T_o)} \;\text{(List)}
+\frac{T_i \mathrel{<:} T_o}{\text{List}(T_i) \mathrel{<:} \text{List}(T_o)} \\;\text{(List)}
 \qquad
-\frac{T_i \mathrel{<:} T_o}{\text{List}(T_i) \mathrel{<:} \text{Keyed}(\text{int} \to T_o, \dots)} \;\text{(List-To-Keyed)}
+\frac{T_i \mathrel{<:} T_o}{\text{List}(T_i) \mathrel{<:} \text{Keyed}(\text{int} \to T_o, \dots)} \\;\text{(List-To-Keyed)}
 $$
 
 For keyed arrays:
@@ -168,12 +168,12 @@ For keyed arrays:
 $$
 \frac{
 \substack{
-\text{in.params} \mathrel{<:} \text{out.params} \;\;\text{(covariant on key, on value)} \\
-\forall k\;\text{required in out:}\; \text{present in in (required, with covariant value)} \\
-\text{non\_empty}_{\text{in}} \Rightarrow \text{non\_empty}_{\text{out}} \\
+\text{in.params} \mathrel{<:} \text{out.params} \\;\\;\text{(covariant on key, on value)} \\
+\forall k\\;\text{required in out:}\\; \text{present in in (required, with covariant value)} \\
+\text{non\\_empty}_{\text{in}} \Rightarrow \text{non\\_empty}_{\text{out}} \\
 \text{sealed}_{\text{in}} \Rightarrow \text{sealed}_{\text{out}}
 }
-}{\text{Keyed}(\text{in}) \mathrel{<:} \text{Keyed}(\text{out})} \;\text{(Keyed)}
+}{\text{Keyed}(\text{in}) \mathrel{<:} \text{Keyed}(\text{out})} \\;\text{(Keyed)}
 $$
 
 The empty sealed `array{}` is a subtype of every keyed array that does not require fields.
@@ -181,13 +181,13 @@ The empty sealed `array{}` is a subtype of every keyed array that does not requi
 ### 1.6 Iterable atoms
 
 $$
-\frac{K_i \mathrel{<:} K_o \quad V_i \mathrel{<:} V_o}{\text{Iterable}(K_i, V_i) \mathrel{<:} \text{Iterable}(K_o, V_o)} \;\text{(Iter)}
+\frac{K_i \mathrel{<:} K_o \quad V_i \mathrel{<:} V_o}{\text{Iterable}(K_i, V_i) \mathrel{<:} \text{Iterable}(K_o, V_o)} \\;\text{(Iter)}
 $$
 
 $$
-\frac{}{\text{Array} \mathrel{<:} \text{Iterable}} \;\text{(Array-Iter)}
+\frac{}{\text{Array} \mathrel{<:} \text{Iterable}} \\;\text{(Array-Iter)}
 \qquad
-\frac{\Gamma \vdash C\;\text{implements}\;\text{Traversable}\langle K, V\rangle}{\text{Named}(C) \mathrel{<:} \text{Iterable}(K, V)} \;\text{(Object-Iter)}
+\frac{\Gamma \vdash C\\;\text{implements}\\;\text{Traversable}\langle K, V\rangle}{\text{Named}(C) \mathrel{<:} \text{Iterable}(K, V)} \\;\text{(Object-Iter)}
 $$
 
 When the container is $\text{iterable}\langle V\rangle$ (key elided), it desugars to $\text{iterable}\langle\text{mixed}, V\rangle$; on narrowing to an array branch, the key auto-coerces to `array-key`.
@@ -199,12 +199,12 @@ Function-type subtyping is contravariant in parameters and covariant in return:
 $$
 \frac{
 \substack{
-\forall i.\; P_{\text{out},i} \mathrel{<:} P_{\text{in},i} \\
+\forall i.\\; P_{\text{out},i} \mathrel{<:} P_{\text{in},i} \\
 R_{\text{in}} \mathrel{<:} R_{\text{out}} \\
-\text{input.is\_pure} \geq \text{output.is\_pure} \\
+\text{input.is\\_pure} \geq \text{output.is\\_pure} \\
 \text{input.throws} \subseteq \text{output.throws}
 }
-}{\text{Signature}(\bar{P}_{\text{in}}, R_{\text{in}}, \dots) \mathrel{<:} \text{Signature}(\bar{P}_{\text{out}}, R_{\text{out}}, \dots)} \;\text{(Sig)}
+}{\text{Signature}(\bar{P}_{\text{in}}, R_{\text{in}}, \dots) \mathrel{<:} \text{Signature}(\bar{P}_{\text{out}}, R_{\text{out}}, \dots)} \\;\text{(Sig)}
 $$
 
 Several non-callable atoms admit $\mathrel{<:} \text{Callable}(\text{Any})$ and, with signature compatibility, $\mathrel{<:} \text{Callable}(\text{Signature})$:
@@ -221,7 +221,7 @@ A `Closure` is $\mathrel{<:} \text{Callable}(\text{Signature})$ and $\mathrel{<:
 Resources are isolated:
 
 $$
-\frac{\text{closed}_{\text{in}}\;\text{matches}\;\text{closed}_{\text{out}}\;\;(\text{or out is None})}{\text{Resource}(\text{closed}_{\text{in}}) \mathrel{<:} \text{Resource}(\text{closed}_{\text{out}})} \;\text{(Resource)}
+\frac{\text{closed}_{\text{in}}\\;\text{matches}\\;\text{closed}_{\text{out}}\\;\\;(\text{or out is None})}{\text{Resource}(\text{closed}_{\text{in}}) \mathrel{<:} \text{Resource}(\text{closed}_{\text{out}})} \\;\text{(Resource)}
 $$
 
 Subtyping between `Resource` and any non-resource atom holds only via `mixed`, generic parameters with constraint admitting resources, or `placeholder`.
@@ -229,15 +229,15 @@ Subtyping between `Resource` and any non-resource atom holds only via `mixed`, g
 ### 1.9 Generic parameters
 
 $$
-\frac{\text{input} \equiv \text{output (same name, same defining scope)}}{T \mathrel{<:} T} \;\text{(Same-T)}
+\frac{\text{input} \equiv \text{output (same name, same defining scope)}}{T \mathrel{<:} T} \\;\text{(Same-T)}
 $$
 
 $$
-\frac{C\;\text{extends}\;D\;\text{with the same parameter transferred}}{T_C \mathrel{<:} T_D} \;\text{(Inherited-T)}
+\frac{C\\;\text{extends}\\;D\\;\text{with the same parameter transferred}}{T_C \mathrel{<:} T_D} \\;\text{(Inherited-T)}
 $$
 
 $$
-\frac{\text{input.constraint} \mathrel{<:} \text{output} \quad \text{(output is not itself a generic parameter)}}{T \mathrel{<:} \text{output}} \;\text{(Constraint)}
+\frac{\text{input.constraint} \mathrel{<:} \text{output} \quad \text{(output is not itself a generic parameter)}}{T \mathrel{<:} \text{output}} \\;\text{(Constraint)}
 $$
 
 When the output is a different generic parameter, subtyping fails outside template inference. Inside inference, a comparison between two parameters emits a *bound*: $T \mathrel{<:} U$ is recorded as an upper bound on $T$ for resolution by the inference algorithm.
@@ -252,7 +252,7 @@ $$
 \text{subject} \mathrel{\not<:} \text{target} \Rightarrow \text{result} = \text{otherwise} \\
 \text{result} \mathrel{<:} \sigma
 }
-}{(\text{subject is target ? then : otherwise}) \mathrel{<:} \sigma} \;\text{(Cond-Eval)}
+}{(\text{subject is target ? then : otherwise}) \mathrel{<:} \sigma} \\;\text{(Cond-Eval)}
 $$
 
 When `subject` contains free templates, the conditional remains an atom and admits $\mathrel{<:}$ only by structural equivalence on each component.
@@ -267,7 +267,7 @@ Subtyping does not exhaust the relations between types. Two types may fail to be
 
 - **Subsumption**: $\tau \mathrel{<:} \sigma$. Every $\tau$-value is a $\sigma$-value.
 - **Overlap**: $\tau \land \sigma \mathrel{\not\equiv} \bot$, but neither subsumes the other. Some values inhabit both.
-- **Disjointness**: $\tau \mathrel{\#} \sigma$. No value inhabits both.
+- **Disjointness**: $\tau \mathrel{\\#} \sigma$. No value inhabits both.
 
 ### 2.1 Categorical disjointness
 
@@ -285,7 +285,7 @@ The principal disjointness axes in PHP are categorical:
 
 (⊓ denotes a non-empty overlap with the type itself; # denotes disjointness.)
 
-\* $\text{int} \mathrel{\#} \text{float}$ strictly; $\text{int} \Rightarrow \text{float}$ as a coercion in flow positions (see §3).
+\* $\text{int} \mathrel{\\#} \text{float}$ strictly; $\text{int} \Rightarrow \text{float}$ as a coercion in flow positions (see §3).
 
 `null` is disjoint from every type other than itself, `mixed` (without `non_null`), `placeholder`, and any generic parameter whose constraint admits null. `void` is disjoint from every type other than itself.
 
@@ -315,11 +315,11 @@ The principal coercion edges:
 | $\text{int}$ | $\text{float}$ | PHP arithmetic widens implicitly. |
 | $\text{Object::Any}$ | $\text{Named}(C)$ | Downcast: only safe if confirmed at run time. |
 | $\text{bool}$ | $\text{true}$ or $\text{false}$ | Downcast within the bool lattice. |
-| $\text{string}\;(\text{boring})$ | a string refinement | Downcast from a less-specified string. |
+| $\text{string}\\;(\text{boring})$ | a string refinement | Downcast from a less-specified string. |
 | $\text{non-empty-string}$ | $\text{class-like-string}$ | Permitted with verification that the value names a class. |
 | $\text{array-key}$ | $\text{int}$ or $\text{string}$ | Downcast to a specific branch. |
-| $\text{static}\langle C\rangle$ | $\text{Named}(C, \text{is\_static}=\text{false})$ | The static reference flattens to its declaration class. |
-| $\textdollar\text{this}\langle C\rangle$ | $\text{Named}(C, \text{is\_this}=\text{false})$ | Analogously. |
+| $\text{static}\langle C\rangle$ | $\text{Named}(C, \text{is\\_static}=\text{false})$ | The static reference flattens to its declaration class. |
+| $\textdollar\text{this}\langle C\rangle$ | $\text{Named}(C, \text{is\\_this}=\text{false})$ | Analogously. |
 
 Coercion is asymmetric: each edge above is $\text{From} \Rightarrow \text{To}$, not $\text{To} \Rightarrow \text{From}$. Strict positions reject every coercion edge; flow positions accept them. The diagnostic severity attached to a particular coercion is the analyser's concern, not the type system's.
 
@@ -330,7 +330,7 @@ A comparison $\tau \mathrel{<:} \sigma$ produces, in addition to a boolean, stru
 - whether the answer required a coercion,
 - the cause of any failure (e.g. nested `mixed`),
 - any template bounds discovered during the recursion ($T \mathrel{<:} \dots$, $T \mathrel{:>} \dots$, $T = \dots$),
-- a more specific replacement type when one can be inferred (e.g. comparing $\text{array}\{a: 1, b: 2\}$ against $\text{array}\langle\text{string}, \text{int}\rangle$ produces a replacement $\text{array}\{a: \text{int}, b: \text{int}\}$ for diagnostics).
+- a more specific replacement type when one can be inferred (e.g. comparing $\text{array}\\{a: 1, b: 2\\}$ against $\text{array}\langle\text{string}, \text{int}\rangle$ produces a replacement $\text{array}\\{a: \text{int}, b: \text{int}\\}$ for diagnostics).
 
 The boolean answer alone is rarely sufficient; the side information is what allows downstream operations to refine, suggest, and explain.
 

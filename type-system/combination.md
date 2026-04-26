@@ -15,7 +15,7 @@ $$
 $$
 
 $$
-\forall \rho.\; (\tau \mathrel{<:} \rho \land \sigma \mathrel{<:} \rho) \implies (\tau \lor \sigma) \mathrel{<:} \rho \qquad \text{(least upper bound)}
+\forall \rho.\\; (\tau \mathrel{<:} \rho \land \sigma \mathrel{<:} \rho) \implies (\tau \lor \sigma) \mathrel{<:} \rho \qquad \text{(least upper bound)}
 $$
 
 The union of $\tau$ and $\sigma$ is the smallest type that contains both as subtypes. It is unique up to equivalence.
@@ -39,7 +39,7 @@ Union is the join of the subtyping lattice.
 Every type is the union of its atoms (a type is a finite multiset of atoms). The combination of two types is therefore the canonical form of the multiset union of their atoms.
 
 $$
-\frac{\tau = \alpha_1 \lor \dots \lor \alpha_n \qquad \sigma = \beta_1 \lor \dots \lor \beta_m}{\tau \lor \sigma = \mathrm{canonical}(\alpha_1, \dots, \alpha_n, \beta_1, \dots, \beta_m)} \;\text{(Atom-Union)}
+\frac{\tau = \alpha_1 \lor \dots \lor \alpha_n \qquad \sigma = \beta_1 \lor \dots \lor \beta_m}{\tau \lor \sigma = \mathrm{canonical}(\alpha_1, \dots, \alpha_n, \beta_1, \dots, \beta_m)} \\;\text{(Atom-Union)}
 $$
 
 The canonical form is what gives the union meaning: without it, $\tau \lor \sigma$ would be syntactically distinct for every permutation of inputs. Canonicalisation is the apparatus that recovers a unique representative.
@@ -58,7 +58,7 @@ Structurally equal atoms collapse: $\alpha \lor \alpha \equiv \alpha$.
 
 ### 3.3 Drop `never`
 
-If the multiset contains atoms other than `never`, every `never` atom is dropped. The empty multiset becomes $\{\text{never}\}$, since a union always has at least one atom.
+If the multiset contains atoms other than `never`, every `never` atom is dropped. The empty multiset becomes $\\{\text{never}\\}$, since a union always has at least one atom.
 
 ### 3.4 Apply absorptions
 
@@ -76,7 +76,7 @@ This is the principal absorption. Most concrete absorptions are instances of it:
 - $\text{Range}(0, 10) \lor \text{Literal}(5) \equiv \text{Range}(0, 10)$.
 - $\text{mixed} \lor \tau \equiv \text{mixed}$ for every $\tau$.
 
-Absorption is not symmetric: $\text{mixed}(\text{non\_null}) \lor \text{null} \equiv \text{mixed}$, *not* $\text{mixed}(\text{non\_null})$, because $\text{null} \mathrel{\not<:} \text{mixed}(\text{non\_null})$.
+Absorption is not symmetric: $\text{mixed}(\text{non\\_null}) \lor \text{null} \equiv \text{mixed}$, *not* $\text{mixed}(\text{non\\_null})$, because $\text{null} \mathrel{\not<:} \text{mixed}(\text{non\\_null})$.
 
 ### 3.5 Merge family-specific structures
 
@@ -97,7 +97,7 @@ $$
 $$
 
 $$
-\text{Range}(a, b) \lor \text{Literal}(b+1) \equiv \text{Range}(a, b+1) \quad \text{when}\; b+1 \leq +\infty
+\text{Range}(a, b) \lor \text{Literal}(b+1) \equiv \text{Range}(a, b+1) \quad \text{when}\\; b+1 \leq +\infty
 $$
 
 $$
@@ -117,7 +117,7 @@ When a $\text{mixed}(c_1)$ and a $\text{mixed}(c_2)$ both appear in the multiset
 When $\text{mixed}(c)$ appears alongside an atom $\tau$ not admitted by $c$, the constraint relaxes:
 
 $$
-\text{mixed}(\text{non\_null}) \lor \text{null} \equiv \text{mixed}
+\text{mixed}(\text{non\\_null}) \lor \text{null} \equiv \text{mixed}
 \qquad
 \text{mixed}(\text{truthy}) \lor \text{false} \equiv \text{mixed}
 $$
@@ -128,7 +128,7 @@ If the multiset contains $\text{Named}(C_1), \text{Named}(C_2), \dots, \text{Nam
 
 #### 3.5.5 Array / list
 
-$\text{List}(T)$ and $\text{Keyed}(\text{parameters}=(\text{int}, T), \text{known\_items}=\text{None})$ are equivalent and collapse into one atom (the list form, which carries additional structural information). Two lists $\text{List}(T)$ and $\text{List}(U)$ combine into $\text{List}(T \lor U)$. Two keyed arrays with the same shape but different value types combine pointwise on their values.
+$\text{List}(T)$ and $\text{Keyed}(\text{parameters}=(\text{int}, T), \text{known\\_items}=\text{None})$ are equivalent and collapse into one atom (the list form, which carries additional structural information). Two lists $\text{List}(T)$ and $\text{List}(U)$ combine into $\text{List}(T \lor U)$. Two keyed arrays with the same shape but different value types combine pointwise on their values.
 
 When a sealed array shape is unioned with an unsealed one for the same set of keys, the result is unsealed.
 
@@ -141,7 +141,7 @@ The type system therefore admits *generalisation thresholds*. When the count of 
 - many $\text{Literal}(n)$ atoms past the threshold $\to \text{int}$.
 - many $\text{Literal}(x)$ atoms past the threshold $\to \text{float}$.
 - many $\text{Literal}(\text{"…"})$ atoms past the threshold $\to \text{string}$.
-- many sealed $\text{array}\{\dots\}$ shapes past the threshold $\to \text{array}\langle K, V\rangle$ with $K$ the join of all keys' types and $V$ the join of all values' types.
+- many sealed $\text{array}\\{\dots\\}$ shapes past the threshold $\to \text{array}\langle K, V\rangle$ with $K$ the join of all keys' types and $V$ the join of all values' types.
 
 Generalisation is a soundness-preserving approximation: the generalised type is a true supertype of every input atom. It is *not* invertible; once an atom is generalised, its origin is forgotten. This is the design choice that keeps unions tractable.
 
@@ -191,8 +191,8 @@ Every one of these is the same operation, applied uniformly: the least upper bou
 | $\text{Named}(C) \lor \text{Named}(D)$, $D \preceq C$ | $\text{Named}(C)$ | absorption |
 | $\text{Named}(C) \lor \text{Named}(D)$, unrelated | $\text{Named}(C) \lor \text{Named}(D)$ | kept |
 | $\text{list}\langle\text{int}\rangle \lor \text{list}\langle\text{string}\rangle$ | $\text{list}\langle\text{int} \lor \text{string}\rangle$ | covariant pointwise |
-| $\text{array}\{a: \text{int}\} \lor \text{array}\{a: \text{string}\}$ | $\text{array}\{a: \text{int} \lor \text{string}\}$ | pointwise on shared keys |
-| $\text{mixed}(\text{non\_null}) \lor \text{null}$ | $\text{mixed}$ | constraint relaxation |
+| $\text{array}\\{a: \text{int}\\} \lor \text{array}\\{a: \text{string}\\}$ | $\text{array}\\{a: \text{int} \lor \text{string}\\}$ | pointwise on shared keys |
+| $\text{mixed}(\text{non\\_null}) \lor \text{null}$ | $\text{mixed}$ | constraint relaxation |
 | $\text{Literal}(1) \lor \dots \lor \text{Literal}(200)$ | $\text{int}$ | past threshold |
 
 ## 7. What combination does not do

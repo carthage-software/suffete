@@ -15,7 +15,7 @@ $$
 $$
 
 $$
-\forall \rho.\; (\rho \mathrel{<:} \tau \land \rho \mathrel{<:} \sigma) \implies \rho \mathrel{<:} \tau \land \sigma \qquad \text{(greatest lower bound)}
+\forall \rho.\\; (\rho \mathrel{<:} \tau \land \rho \mathrel{<:} \sigma) \implies \rho \mathrel{<:} \tau \land \sigma \qquad \text{(greatest lower bound)}
 $$
 
 The intersection of $\tau$ and $\sigma$ is the largest type whose values are both $\tau$-values and $\sigma$-values. It is unique up to equivalence.
@@ -52,7 +52,7 @@ Computing $\tau \land \sigma$ therefore reduces to computing pairwise atom inter
 
 For atoms $\alpha$, $\beta$, the intersection is one of:
 
-- **$\bot$**: the atoms are disjoint ($\alpha \mathrel{\#} \beta$). They share no values.
+- **$\bot$**: the atoms are disjoint ($\alpha \mathrel{\\#} \beta$). They share no values.
 - **$\alpha$**: $\alpha \mathrel{<:} \beta$. The intersection is the more specific atom.
 - **$\beta$**: $\beta \mathrel{<:} \alpha$. Symmetric.
 - **A new atom**: neither subsumes the other, but they overlap, and the overlap is itself representable. This is the structurally interesting case.
@@ -74,7 +74,7 @@ The disjointness rules (when intersection is $\bot$) are catalogued in **[compar
 | $\text{numeric} \land \text{string}$ | $\text{numeric-string}$ |
 | $\text{array-key} \land \text{string}$ | $\text{string}$ |
 | $\text{class-like-string} \land \text{string}$ | $\text{class-like-string}$ (when string allows it) |
-| $\text{class-like-string} \land \text{Literal}\{value\}$ | $\text{class-like-string}$ with that value, if compatible |
+| $\text{class-like-string} \land \text{Literal}\\{value\\}$ | $\text{class-like-string}$ with that value, if compatible |
 
 For string refinements: the intersection takes the conjunction of refinement bits. $\text{non-empty-string} \land \text{truthy-string} \equiv \text{non-empty-truthy-string}$ (a string with both refinement bits set). Casing intersections: $\text{lowercase-string} \land \text{uppercase-string} \equiv \bot$ if both are required and non-empty.
 
@@ -91,9 +91,9 @@ For string refinements: the intersection takes the conjunction of refinement bit
 | $\text{Enum}(E, c_1) \land \text{Enum}(E, c_2)$ | $\text{Enum}(E, c_1)$ if $c_1 = c_2$; else $\bot$ |
 | $\text{Named}(C) \land \text{Enum}(E, \text{None})$ | $\text{Named}(C)$ if $C \preceq E$ |
 | $\text{HasMethod}(m) \land \text{Named}(C)$ | $\text{Named}(C)$ if $\Gamma$ confirms $C$ declares $m$; else $\text{Named}(C, \text{intersections}=[\text{HasMethod}(m)])$ |
-| $\text{WithProperties}\{\dots\} \land \text{Named}(C)$ | shape narrowed by $C$'s declared property types |
-| $\text{WithProperties}\{a: \tau_a\} \land \text{WithProperties}\{b: \tau_b\}$ | $\text{WithProperties}\{a: \tau_a, b: \tau_b\}$ |
-| $\text{WithProperties}\{a: \tau\} \land \text{WithProperties}\{a: \sigma\}$ | $\text{WithProperties}\{a: \tau \land \sigma\}$ |
+| $\text{WithProperties}\\{\dots\\} \land \text{Named}(C)$ | shape narrowed by $C$'s declared property types |
+| $\text{WithProperties}\\{a: \tau_a\\} \land \text{WithProperties}\\{b: \tau_b\\}$ | $\text{WithProperties}\\{a: \tau_a, b: \tau_b\\}$ |
+| $\text{WithProperties}\\{a: \tau\\} \land \text{WithProperties}\\{a: \sigma\\}$ | $\text{WithProperties}\\{a: \tau \land \sigma\\}$ |
 
 Object intersection is *compositional*: when neither side absorbs the other, the result accumulates additional constraints in the intersection list of $\text{Named}$. Two object types intersected are sound to coexist as long as no constraint is contradicted.
 
@@ -104,10 +104,10 @@ Object intersection is *compositional*: when neither side absorbs the other, the
 | $\text{List}(T) \land \text{List}(U)$ | $\text{List}(T \land U)$ |
 | $\text{List}(T) \land \text{Keyed}(\text{parameters}=(\text{int}, U))$ | $\text{List}(T \land U)$ |
 | $\text{Keyed}(\text{in}) \land \text{Keyed}(\text{out})$ | pointwise intersection on shared keys, plus union of unshared keys, with optional flags promoted by either side |
-| $\text{non\_empty} \land \text{any}$ | $\text{non\_empty}$ |
+| $\text{non\\_empty} \land \text{any}$ | $\text{non\\_empty}$ |
 | $\text{sealed}_{\text{in}} \land \text{sealed}_{\text{out}}$ | $\text{sealed}$ (with both shapes' keys; if any key type intersects to $\bot$, the whole intersection is $\bot$) |
 
-Shape intersection is the operation that gives $\text{array}\{a: \text{int}\} \land \text{array}\{b: \text{string}\} \equiv \text{array}\{a: \text{int}, b: \text{string}\}$. When two shapes share a key, their value types intersect.
+Shape intersection is the operation that gives $\text{array}\\{a: \text{int}\\} \land \text{array}\\{b: \text{string}\\} \equiv \text{array}\\{a: \text{int}, b: \text{string}\\}$. When two shapes share a key, their value types intersect.
 
 #### 2.3.4 Iterable atoms
 
@@ -158,7 +158,7 @@ $$
 $$
 
 $$
-\forall \rho.\; (\rho \mathrel{<:} \tau \land \rho \land \sigma \equiv \bot) \implies \rho \mathrel{<:} (\tau \setminus \sigma) \qquad \text{(greatest such type)}
+\forall \rho.\\; (\rho \mathrel{<:} \tau \land \rho \land \sigma \equiv \bot) \implies \rho \mathrel{<:} (\tau \setminus \sigma) \qquad \text{(greatest such type)}
 $$
 
 The difference is the largest type contained in $\tau$ whose intersection with $\sigma$ is empty.
@@ -182,7 +182,7 @@ Computing $\tau \setminus \sigma$ therefore reduces to computing per-atom differ
 For atoms $\alpha$, $\beta$:
 
 - If $\alpha \mathrel{<:} \beta$: $\alpha \setminus \beta \equiv \bot$. Every $\alpha$-value is a $\beta$-value.
-- If $\alpha \mathrel{\#} \beta$: $\alpha \setminus \beta \equiv \alpha$. The atoms are disjoint; subtraction is identity.
+- If $\alpha \mathrel{\\#} \beta$: $\alpha \setminus \beta \equiv \alpha$. The atoms are disjoint; subtraction is identity.
 - Otherwise, the difference depends on the atom family.
 
 #### 3.3.1 Concrete differences
@@ -195,12 +195,12 @@ For atoms $\alpha$, $\beta$:
 | $\text{non-empty-string} \setminus \text{Literal}(\text{""})$ | $\text{non-empty-string}$ | already excluded |
 | $\text{bool} \setminus \text{true}$ | $\text{false}$ | |
 | $\text{bool} \setminus \text{false}$ | $\text{true}$ | |
-| $\text{mixed} \setminus \text{null}$ | $\text{mixed}(\text{non\_null})$ | |
+| $\text{mixed} \setminus \text{null}$ | $\text{mixed}(\text{non\\_null})$ | |
 | $\text{mixed} \setminus \text{false}$ | $\text{mixed}(\text{truthy})$ | modulo other falsy values |
 | $\text{mixed}(\text{truthy}) \setminus \text{true}$ | $\text{mixed}(\text{truthy})$ | still truthy |
 | $\text{Range}(a, b) \setminus \text{Range}(c, d)$ | one or two output ranges | the part of $[a, b]$ not in $[c, d]$ |
 | $\text{List}(T) \setminus \text{Empty}$ | $\text{non-empty-list}\langle T\rangle$ | |
-| $\text{Keyed}\{a: \tau \lor \text{null}\} \setminus \text{Keyed}\{a: \text{null}\}$ | $\text{Keyed}\{a: \tau\}$ | |
+| $\text{Keyed}\\{a: \tau \lor \text{null}\\} \setminus \text{Keyed}\\{a: \text{null}\\}$ | $\text{Keyed}\\{a: \tau\\}$ | |
 | $\text{Named}(C) \setminus \text{Named}(D)$, $D \preceq C$ | $\text{Named}(C)$ | conservative, open world |
 
 The general rule is: difference computes precisely when one of the atoms is a closed enumeration (`bool`, sealed enums, finite literal sets, sealed shapes) and conservatively otherwise. For open-world types like $\text{Named}(C) \setminus \text{Named}(D)$ where $D$ is a subclass of $C$, the type system cannot rule out the existence of a third subclass that extends $C$ but not $D$, so the difference returns $\text{Named}(C)$ unchanged.
@@ -249,7 +249,7 @@ Common assertions express *predicates* that translate into types before narrowin
 | `$x === ""` | $\text{Literal}(\text{""})$ |
 | `count($x) > 0` | $\text{non-empty-array}\langle\dots\rangle$ |
 | `$x instanceof C` | $\text{Named}(C)$ |
-| `array_key_exists('a', $x)` | $\text{array}\{a: \dots\}$ shape with $a$ required |
+| `array_key_exists('a', $x)` | $\text{array}\\{a: \dots\\}$ shape with $a$ required |
 | empty / falsy check | $\text{mixed}(\text{falsy}) \lor \bot$ of type-specific falsy values |
 
 The negation of each of these translates directly into a difference. The set of supported predicates is open: the type system only specifies the operations of intersection and difference; the analyser supplies the translation from program-level predicates to types.
@@ -323,11 +323,11 @@ Together with combination, intersection forms the *lattice* on types: combinatio
 | $\text{int} \land \text{Range}(0, 10)$ | $\text{Range}(0, 10)$ |
 | $\text{non-empty-string} \land \text{lowercase-string}$ | $\text{non-empty-lowercase-string}$ |
 | $\text{class-like-string} \land \text{non-empty-string}$ | $\text{class-like-string}$ |
-| $\text{array}\{a: \text{int} \lor \text{null}\} \land \text{array}\{a: \text{int}\}$ | $\text{array}\{a: \text{int}\}$ |
-| $\text{array}\{a: \text{int}\} \land \text{array}\{b: \text{string}\}$ | $\text{array}\{a: \text{int}, b: \text{string}\}$ |
+| $\text{array}\\{a: \text{int} \lor \text{null}\\} \land \text{array}\\{a: \text{int}\\}$ | $\text{array}\\{a: \text{int}\\}$ |
+| $\text{array}\\{a: \text{int}\\} \land \text{array}\\{b: \text{string}\\}$ | $\text{array}\\{a: \text{int}, b: \text{string}\\}$ |
 | $\text{Named}(\text{Iterator}) \land \text{Named}(\text{Countable})$ | $\text{Named}(\text{Iterator}, \text{intersections}=[\text{Countable}])$ |
 | $\text{true} \land \text{false}$ | $\bot$ |
-| $\text{mixed} \setminus \text{null}$ | $\text{mixed}(\text{non\_null})$ |
+| $\text{mixed} \setminus \text{null}$ | $\text{mixed}(\text{non\\_null})$ |
 | $\text{int} \lor \text{null} \setminus \text{null}$ | $\text{int}$ |
 | $\text{list}\langle\text{int} \lor \text{string}\rangle \setminus \text{list}\langle\text{int}\rangle$ | $\text{list}\langle\text{int} \lor \text{string}\rangle$ (conservative) |
 | $\text{bool} \setminus \text{true}$ | $\text{false}$ |

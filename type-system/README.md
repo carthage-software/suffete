@@ -23,7 +23,7 @@ Used uniformly across the chapters:
 | $\tau \lor \sigma$ | least upper bound (union) |
 | $\tau \land \sigma$ | greatest lower bound (intersection) |
 | $\tau \setminus \sigma$ | difference: values in $\tau$ that are not in $\sigma$ |
-| $\tau \mathrel{\#} \sigma$ | disjoint: $\tau \land \sigma \equiv \bot$ |
+| $\tau \mathrel{\\#} \sigma$ | disjoint: $\tau \land \sigma \equiv \bot$ |
 | $\tau \Rightarrow \sigma$ | coercion: an admissible non-subtype edge in non-strict positions |
 | $\bot$ | the empty type (`never`) |
 | $\top$ | the universal type (vanilla `mixed`) |

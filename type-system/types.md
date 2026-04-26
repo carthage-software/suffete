@@ -7,13 +7,13 @@ A *type* is a finite union of *atoms*. The empty union is $\bot$ (`never`). Each
 ## 1. Universal atoms
 
 - **`never`**: the empty type. Inhabits no value. Equivalent to $\bot$.
-- **`null`**: the singleton set $\{\mathrm{NULL}\}$.
+- **`null`**: the singleton set $\\{\mathrm{NULL}\\}$.
 - **`void`**: a function-return-only sentinel. Treated as $\bot$ for value-flow purposes, but distinguished from `null` for return-position checking: a function declared to return `void` may not return any value.
 - **`mixed(c)`**: the universal type, optionally narrowed by a constraint $c$ over four orthogonal axes:
-  - $\mathit{non\_null}$: admits all values except `null`.
+  - $\mathit{non\\_null}$: admits all values except `null`.
   - $\mathit{truthy}$ / $\mathit{falsy}$: admits only values that coerce to `true` / `false` in boolean context.
   - $\mathit{empty}$: admits values for which `empty($v)` returns true.
-  - $\mathit{isset\_from\_loop}$: provenance, this `mixed` came from `isset` narrowing inside a loop, so the analyser should not assume the property exists on later iterations.
+  - $\mathit{isset\\_from\\_loop}$: provenance, this `mixed` came from `isset` narrowing inside a loop, so the analyser should not assume the property exists on later iterations.
   - Vanilla `mixed` is the unconstrained form and corresponds to $\top$.
 - **`placeholder`**: the wildcard. Equivalent to `mixed` for substitution purposes; appears only at intermediate stages of analysis where the resolver has not yet filled it in.
 
@@ -67,7 +67,7 @@ graph TD
 ### 2.2 Bool
 
 - **`bool`**, **`true`**, **`false`**.
-- $\text{true} \lor \text{false} \equiv \text{bool}$. $\text{true} \mathrel{\#} \text{false}$.
+- $\text{true} \lor \text{false} \equiv \text{bool}$. $\text{true} \mathrel{\\#} \text{false}$.
 
 ### 2.3 Integer
 
@@ -76,7 +76,7 @@ The integer atom carries one of:
 - **`Unspecified`**: any integer.
 - **`UnspecifiedLiteral`**: provenance, came from a literal, value erased.
 - **`Literal(n)`** for $n \in \mathbb{Z}$.
-- **`Range(lo, hi)`** with $lo, hi \in \mathbb{Z} \cup \{-\infty, +\infty\}$.
+- **`Range(lo, hi)`** with $lo, hi \in \mathbb{Z} \cup \\{-\infty, +\infty\\}$.
 
 Range subsumes the named refinements:
 
@@ -107,7 +107,7 @@ These axes combine multiplicatively. The unrefined `string` has every refinement
 
 A specialised string atom for strings naming classes, interfaces, enums, or traits.
 
-- **`kind`** $\in \{\text{Class}, \text{Interface}, \text{Enum}, \text{Trait}\}$. Kinds are pairwise disjoint.
+- **`kind`** $\in \\{\text{Class}, \text{Interface}, \text{Enum}, \text{Trait}\\}$. Kinds are pairwise disjoint.
 - Refinement variants:
   - **`Any{kind}`**: any string naming a thing of that kind.
   - **`OfType{kind, τ}`**: any class-like-string whose value names something $\mathrel{<:} \tau$.
@@ -234,9 +234,9 @@ These atoms denote things parsed but not yet bound to their meaning in the progr
 
 Each derived atom is a deferred computation over other types, evaluated against $\Gamma$:
 
-- **`KeyOf(τ)`**: the key type of $\tau$ if $\tau$ is array-like or iterable. $\text{array}\langle K, V\rangle \to K$. $\text{list}\langle T\rangle \to \text{int}$. $\text{array}\{a, b\} \to \text{'a'} \lor \text{'b'}$.
+- **`KeyOf(τ)`**: the key type of $\tau$ if $\tau$ is array-like or iterable. $\text{array}\langle K, V\rangle \to K$. $\text{list}\langle T\rangle \to \text{int}$. $\text{array}\\{a, b\\} \to \text{'a'} \lor \text{'b'}$.
 - **`ValueOf(τ)`**: the value type. For backed enums, the union of backing-value types.
-- **`PropertiesOf(τ, vis?)`**: $\text{array}\{\text{prop\_name}: \text{prop\_type}, \dots\}$, optionally filtered by visibility. For non-final classes, the result is unsealed (subclasses may add properties).
+- **`PropertiesOf(τ, vis?)`**: $\text{array}\\{\text{prop\\_name}: \text{prop\\_type}, \dots\\}$, optionally filtered by visibility. For non-final classes, the result is unsealed (subclasses may add properties).
 - **`IndexAccess(τ, k)`**: element access at the type level. $\tau[k]$.
 - **`IntMask(values)`**: the set of integers obtainable by bitwise-OR-ing subsets of the constituent literal-int values.
 - **`IntMaskOf(τ)`**: `IntMask` over a wildcard family of integer constants.
@@ -275,10 +275,10 @@ object|string|positive-int|3.5|array{
 decomposes into these atoms:
 
 1. $\text{Object::Any}$.
-2. $\text{String}\{\text{literal}=\text{None}, \text{casing}=\text{Unspecified}, \text{all-refinement-bits}=\text{false}\}$.
+2. $\text{String}\\{\text{literal}=\text{None}, \text{casing}=\text{Unspecified}, \text{all-refinement-bits}=\text{false}\\}$.
 3. $\text{Int}(\text{Range}(1, +\infty))$.
 4. $\text{Float}(\text{Literal}(3.5))$.
-5. A keyed array, $\text{non\_empty}=\text{true}$, $\text{parameters}=\text{Some}((\text{string}, \text{bool}))$, with known items: $a \to (\text{required}, \text{non-empty-string})$, $b \to (\text{required}, \text{truthy-string})$, $c \to (\text{required}, \text{int}\langle -100, 2\rangle)$, $d \to (\text{required}, \text{float} \lor \text{Literal}(2) \lor \text{Literal}(\text{"hello, world"}))$.
+5. A keyed array, $\text{non\\_empty}=\text{true}$, $\text{parameters}=\text{Some}((\text{string}, \text{bool}))$, with known items: $a \to (\text{required}, \text{non-empty-string})$, $b \to (\text{required}, \text{truthy-string})$, $c \to (\text{required}, \text{int}\langle -100, 2\rangle)$, $d \to (\text{required}, \text{float} \lor \text{Literal}(2) \lor \text{Literal}(\text{"hello, world"}))$.
 6. A list with element type $\text{bool}(\text{true}) \lor \text{int}$.
 7. An object shape, sealed, with property $a$ of type $\text{GenericParameter}(T)$.
 
