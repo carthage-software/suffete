@@ -28,6 +28,7 @@
 //! mechanism.
 
 mod arena;
+mod boot;
 mod store;
 
 pub use self::arena::Arena;

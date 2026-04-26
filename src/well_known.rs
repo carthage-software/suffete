@@ -44,9 +44,9 @@ pub const TRUTHY_MIXED: ElementId = ElementId::new(ElementKind::Mixed, 2);
 pub const FALSY_MIXED: ElementId = ElementId::new(ElementKind::Mixed, 3);
 pub const ISSET_FROM_LOOP: ElementId = ElementId::new(ElementKind::Mixed, 4);
 
-pub const BOOL: ElementId = ElementId::new(ElementKind::Bool, 0);
+pub const BOOL: ElementId = ElementId::new(ElementKind::Bool, TRIVIAL_SLOT);
 
-pub const OBJECT: ElementId = ElementId::new(ElementKind::Object, 0);
+pub const OBJECT: ElementId = ElementId::new(ElementKind::ObjectAny, TRIVIAL_SLOT);
 
 pub const INT: ElementId = ElementId::new(ElementKind::Int, 0);
 pub const POSITIVE_INT: ElementId = ElementId::new(ElementKind::Int, 1);

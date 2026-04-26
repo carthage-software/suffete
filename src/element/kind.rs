@@ -52,6 +52,7 @@ pub enum ElementKind {
     Alias,
     Conditional,
     Derived,
+    ObjectAny,
 }
 
 impl ElementKind {
@@ -65,11 +66,13 @@ impl ElementKind {
                 | Self::Never
                 | Self::Void
                 | Self::Placeholder
+                | Self::Bool
                 | Self::True
                 | Self::False
                 | Self::Scalar
                 | Self::Numeric
                 | Self::ArrayKey
+                | Self::ObjectAny
         )
     }
 }

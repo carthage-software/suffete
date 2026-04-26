@@ -320,12 +320,12 @@ static INTERNER: OnceLock<Interner> = OnceLock::new();
 
 /// The process-global [`Interner`].
 ///
-/// First call constructs an empty interner. Subsequent calls return the same
-/// instance. Future work (the boot routine) will replace the constructor with
-/// one that pre-populates the well-known slots.
+/// First call runs [`Interner::boot`], which pre-populates every well-known
+/// element and type at the slot the matching `pub const` constant claims.
+/// Subsequent calls return the same instance.
 #[inline]
 pub fn interner() -> &'static Interner {
-    INTERNER.get_or_init(Interner::new)
+    INTERNER.get_or_init(Interner::boot)
 }
 
 #[cfg(test)]
