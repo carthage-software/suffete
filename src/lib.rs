@@ -8,7 +8,7 @@ pub mod interner;
 pub mod join;
 pub mod lattice;
 pub mod prelude;
-pub mod substitute;
+pub mod template;
 pub mod ty;
 pub mod world;
 

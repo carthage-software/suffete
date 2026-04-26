@@ -53,7 +53,7 @@ use crate::lattice::LatticeReport;
 use crate::lattice::refines::refines as type_refines;
 use crate::prelude::NON_EMPTY_STRING;
 use crate::prelude::TYPE_MIXED;
-use crate::substitute::substitute;
+use crate::template::substitute;
 use crate::world::EnumBacking;
 use crate::world::TemplateParameter;
 use crate::world::Variance;
