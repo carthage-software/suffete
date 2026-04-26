@@ -3,7 +3,9 @@
 
 use crate::ElementId;
 use crate::ElementKind;
+use crate::FlowFlags;
 use crate::TypeId;
+use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::family;
@@ -90,6 +92,14 @@ fn element_refines<W: World>(
 
     if container == MIXED {
         return true;
+    }
+
+    // Constraint rule (comparison.md §1.9). The mirror case (container is
+    // a template) flows through `family::generic` via the dispatch below.
+    if input.kind() == ElementKind::GenericParameter && container.kind() != ElementKind::GenericParameter {
+        let constraint = interner().get_generic_parameter(input).constraint;
+        let container_type = interner().intern_type(&[container], FlowFlags::EMPTY);
+        return refines(constraint, container_type, codebase, options, report);
     }
 
     let result = dispatch_refines(input, container, codebase, options, report);

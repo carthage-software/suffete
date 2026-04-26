@@ -438,6 +438,48 @@ pub fn t_generic_named(name: &str, args: Vec<TypeId>) -> ElementId {
     i.intern_object(info)
 }
 
+/// Construct a named-object element with `head & conjunct1 & conjunct2 …`.
+pub fn t_named_intersected(head: &str, conjuncts: &[ElementId]) -> ElementId {
+    use suffete::element::payload::ObjectFlags;
+    use suffete::element::payload::ObjectInfo;
+    let i = interner();
+    let info = ObjectInfo {
+        name: atom(head),
+        type_args: None,
+        intersections: Some(i.intern_element_list(conjuncts)),
+        flags: ObjectFlags::default(),
+    };
+    i.intern_object(info)
+}
+
+/// Named object marked `static<C>` (late-static-bound modality).
+pub fn t_named_static(name: &str) -> ElementId {
+    use suffete::element::payload::ObjectFlags;
+    use suffete::element::payload::ObjectInfo;
+    let i = interner();
+    let info = ObjectInfo {
+        name: atom(name),
+        type_args: None,
+        intersections: None,
+        flags: ObjectFlags::default().with_is_static(true),
+    };
+    i.intern_object(info)
+}
+
+/// Named object marked `$this<C>`.
+pub fn t_named_this(name: &str) -> ElementId {
+    use suffete::element::payload::ObjectFlags;
+    use suffete::element::payload::ObjectInfo;
+    let i = interner();
+    let info = ObjectInfo {
+        name: atom(name),
+        type_args: None,
+        intersections: None,
+        flags: ObjectFlags::default().with_is_static(true).with_is_this(true),
+    };
+    i.intern_object(info)
+}
+
 /// Construct a template-parameter element referring to `class_name`'s
 /// template parameter `template_name`. Constraint defaults to `mixed`.
 pub fn t_template(class_name: &str, template_name: &str) -> ElementId {

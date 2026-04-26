@@ -9,12 +9,24 @@
 //! arguments via [`World::inherited_template_argument`], substitute
 //! `child`'s actual arguments through them, and then compare positionally
 //! with the container's variance.
+//!
+//! Intersection types (`Foo&Bar`) are handled by the Int-L / Int-R rules
+//! from comparison.md §1.4.3: container intersections require the input
+//! to refine every conjunct; input intersections require some conjunct to
+//! refine the container.
+//!
+//! `static` and `$this` modality (comparison.md §1.4.4) is enforced
+//! asymmetrically: a container marked `static` (or `$this`) accepts only
+//! inputs that are at least as constrained on that flag.
 
 use crate::ElementId;
 use crate::ElementKind;
+use crate::FlowFlags;
 use crate::TypeId;
 use crate::element::payload::DefiningEntity;
 use crate::element::payload::GenericParameterInfo;
+use crate::element::payload::ObjectFlags;
+use crate::element::payload::ObjectInfo;
 use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
@@ -42,6 +54,38 @@ pub fn refines<W: World>(
 ) -> bool {
     let i = interner();
 
+    if input.kind() == ElementKind::Object {
+        let input_info = *i.get_object(input);
+        if let Some(intersections_id) = input_info.intersections {
+            let head = i.intern_object(ObjectInfo { intersections: None, ..input_info });
+            if element_refines_via_type(head, container, world, options, report) {
+                return true;
+            }
+            for &conjunct in i.get_element_list(intersections_id) {
+                if element_refines_via_type(conjunct, container, world, options, report) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    if container.kind() == ElementKind::Object {
+        let container_info = *i.get_object(container);
+        if let Some(intersections_id) = container_info.intersections {
+            let head = i.intern_object(ObjectInfo { intersections: None, ..container_info });
+            if !element_refines_via_type(input, head, world, options, report) {
+                return false;
+            }
+            for &conjunct in i.get_element_list(intersections_id) {
+                if !element_refines_via_type(input, conjunct, world, options, report) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
     match (input.kind(), container.kind()) {
         (ElementKind::Object, ElementKind::Object) => {
             let input_info = *i.get_object(input);
@@ -64,14 +108,31 @@ pub fn refines<W: World>(
     }
 }
 
+fn element_refines_via_type<W: World>(
+    input: ElementId,
+    container: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    let it = i.intern_type(&[input], FlowFlags::EMPTY);
+    let ct = i.intern_type(&[container], FlowFlags::EMPTY);
+    type_refines(it, ct, world, options, report)
+}
+
 fn refines_named_named<W: World>(
-    input: crate::element::payload::ObjectInfo,
-    container: crate::element::payload::ObjectInfo,
+    input: ObjectInfo,
+    container: ObjectInfo,
     world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
     if !world.descends_from(input.name, container.name) {
+        return false;
+    }
+
+    if !modality_satisfied(input.flags, container.flags) {
         return false;
     }
 
@@ -171,6 +232,20 @@ fn compare_with_variance<W: World>(
                 && type_refines(container, input, world, options, report)
         }
     }
+}
+
+/// `static<C>` accepts only `static` or `$this`; `$this<C>` accepts only
+/// `$this`. A plain `Named(C)` refines neither, because the late-static
+/// modality is a stronger guarantee than nominal identity. Inputs more
+/// specific than the container's modality are accepted (`$this <: static`).
+fn modality_satisfied(input: ObjectFlags, container: ObjectFlags) -> bool {
+    if container.is_this() && !input.is_this() {
+        return false;
+    }
+    if container.is_static() && !(input.is_static() || input.is_this()) {
+        return false;
+    }
+    true
 }
 
 pub(crate) fn is_object_family_kind(kind: ElementKind) -> bool {

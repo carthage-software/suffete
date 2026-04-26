@@ -35,6 +35,7 @@ use crate::ElementId;
 use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
+use crate::element::payload::ArrayKey;
 use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::ListInfo;
 use crate::interner::interner;
@@ -252,8 +253,7 @@ fn has_required_known_item(info: KeyedArrayInfo) -> bool {
     }
 }
 
-fn key_to_type(key: crate::element::payload::ArrayKey) -> TypeId {
-    use crate::element::payload::ArrayKey;
+fn key_to_type(key: ArrayKey) -> TypeId {
     match key {
         ArrayKey::Int(n) => single_type(ElementId::int_literal(n)),
         ArrayKey::String(atom) => single_type(ElementId::string_literal(atom.as_str())),
