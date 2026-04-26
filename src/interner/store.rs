@@ -3,6 +3,9 @@ use std::sync::OnceLock;
 use crate::ElementId;
 use crate::ElementKind;
 use crate::ElementListId;
+use crate::FlowFlags;
+use crate::Type;
+use crate::TypeId;
 use crate::TypeListId;
 use crate::element::payload::AliasInfo;
 use crate::element::payload::CallableAlias;
@@ -45,6 +48,7 @@ use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::StringInfo;
 use crate::interner::Arena;
 use crate::interner::SliceArena;
+use crate::well_known::NEVER;
 
 /// Process-global interner that owns one storage backend per payload family.
 ///
@@ -84,12 +88,13 @@ pub struct Interner {
     defining_entity: Arena<DefiningEntity>,
     signature: Arena<Signature>,
     callable_alias: Arena<CallableAlias>,
-    type_list: SliceArena<crate::TypeId>,
+    type_list: SliceArena<TypeId>,
     element_list: SliceArena<ElementId>,
     known_items: SliceArena<KnownItemEntry>,
     known_elements: SliceArena<KnownElementEntry>,
     known_properties: SliceArena<KnownPropertyEntry>,
     param_list: SliceArena<ParamInfo>,
+    types: Arena<Type>,
 }
 
 impl Interner {
@@ -131,7 +136,39 @@ impl Interner {
             known_elements: SliceArena::new(),
             known_properties: SliceArena::new(),
             param_list: SliceArena::new(),
+            types: Arena::new(),
         }
+    }
+
+    /// Intern a [`Type`] from a slice of atoms and a set of flow flags.
+    ///
+    /// Atoms are sorted and deduplicated (basic canonical form). Empty input
+    /// is treated as `[NEVER]`, since the empty union has no meaning at
+    /// runtime and the spec collapses it to `never`.
+    ///
+    /// Higher-order canonicalization (absorption rules, range merging,
+    /// `true ∨ false → bool`) lives in the comparator and is not applied
+    /// here.
+    pub fn intern_type(&self, atoms: &[ElementId], flags: FlowFlags) -> TypeId {
+        let mut sorted: Vec<ElementId> = if atoms.is_empty() { vec![NEVER] } else { atoms.to_vec() };
+        sorted.sort_unstable();
+        sorted.dedup();
+
+        let atoms_id = self.element_list.intern(&sorted);
+        let atoms_static = self.element_list.get(atoms_id).expect("just-interned slice resolves");
+        let value = Type { atoms: atoms_static, flags };
+        TypeId::from_slot(self.types.intern(value))
+    }
+
+    /// Look up the [`Type`] behind a [`TypeId`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the slot is not present (forged handle, or constructed
+    /// before the boot routine ran for a well-known constant).
+    #[inline]
+    pub fn get_type(&self, id: TypeId) -> &Type {
+        self.types.get(id.slot()).expect("invalid TypeId slot")
     }
 }
 
@@ -271,7 +308,7 @@ macro_rules! slice_arena_methods {
 }
 
 slice_arena_methods! {
-    type_list,        crate::TypeId,         TypeListId,        intern_type_list,        get_type_list;
+    type_list,        TypeId,                TypeListId,        intern_type_list,        get_type_list;
     element_list,     ElementId,             ElementListId,     intern_element_list,     get_element_list;
     known_items,      KnownItemEntry,        KnownItemsId,      intern_known_items,      get_known_items;
     known_elements,   KnownElementEntry,     KnownElementsId,   intern_known_elements,   get_known_elements;
@@ -362,5 +399,50 @@ mod tests {
         let a = interner() as *const Interner;
         let b = interner() as *const Interner;
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn intern_type_sorts_and_dedupes_atoms() {
+        let i = Interner::new();
+        let a = i.intern_int(IntInfo::Literal(1));
+        let b = i.intern_int(IntInfo::Literal(2));
+
+        let t1 = i.intern_type(&[a, b], FlowFlags::EMPTY);
+        let t2 = i.intern_type(&[b, a], FlowFlags::EMPTY);
+        let t3 = i.intern_type(&[a, b, a, b, a], FlowFlags::EMPTY);
+
+        assert_eq!(t1, t2, "atom order does not matter");
+        assert_eq!(t1, t3, "duplicate atoms collapse");
+        assert_eq!(i.get_type(t1).atoms.len(), 2);
+    }
+
+    #[test]
+    fn intern_type_distinguishes_flow_flags() {
+        let i = Interner::new();
+        let a = i.intern_int(IntInfo::Unspecified);
+
+        let no_flags = i.intern_type(&[a], FlowFlags::EMPTY);
+        let with_flag = i.intern_type(&[a], FlowFlags::EMPTY.with_possibly_undefined(true));
+
+        assert_ne!(no_flags, with_flag, "flow flags participate in TypeId interning");
+    }
+
+    #[test]
+    fn intern_type_empty_input_collapses_to_never() {
+        let i = Interner::new();
+
+        let empty = i.intern_type(&[], FlowFlags::EMPTY);
+        let just_never = i.intern_type(&[NEVER], FlowFlags::EMPTY);
+
+        assert_eq!(empty, just_never, "empty input is interned as a never-only union");
+        assert_eq!(i.get_type(empty).atoms, &[NEVER]);
+    }
+
+    #[test]
+    fn type_id_as_ref_round_trips_through_global_interner() {
+        let id = interner().intern_type(&[interner().intern_int(IntInfo::Literal(1729))], FlowFlags::EMPTY);
+        let t: &'static Type = id.as_ref();
+        assert_eq!(t.atoms.len(), 1);
+        assert_eq!(t.flags, FlowFlags::EMPTY);
     }
 }

@@ -22,6 +22,29 @@ impl TypeId {
         // SAFETY: caller is responsible for `slot != 0`. Used only by the interner.
         unsafe { Self(NonZeroU32::new_unchecked(slot)) }
     }
+
+    #[inline]
+    pub(crate) const fn slot(self) -> u32 {
+        self.0.get()
+    }
+
+    /// Resolve this handle to its [`Type`](crate::Type) value via the
+    /// process-global interner.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the slot is not present, which can only happen when the
+    /// handle was forged or constructed before the boot routine ran.
+    //
+    // Not implemented as `std::convert::AsRef<Type>` because the trait
+    // narrows the return lifetime to `&self`'s borrow, defeating the whole
+    // point: the underlying storage is genuinely process-global and the
+    // `&'static` return is part of the API contract callers depend on.
+    #[allow(clippy::should_implement_trait)]
+    #[inline]
+    pub fn as_ref(self) -> &'static crate::Type {
+        crate::interner::interner().get_type(self)
+    }
 }
 
 define_handle! {
