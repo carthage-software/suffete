@@ -4,6 +4,7 @@
 
 pub mod element;
 pub mod handle;
+pub mod interner;
 pub mod ty;
 pub mod well_known;
 

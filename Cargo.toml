@@ -23,6 +23,8 @@ let_underscore_lock = { level = "forbid" }
 mago-atom = "1.24"
 mago-span = "1.24"
 ordered-float = { version = "5.0", default-features = false }
+boxcar = "0.2"
+dashmap = "6"
 
 [[bench]]
 name = "id"
