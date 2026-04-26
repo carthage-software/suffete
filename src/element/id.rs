@@ -46,6 +46,61 @@ impl ElementId {
     pub const fn slot(self) -> u32 {
         self.0.get() & Self::SLOT_MASK
     }
+
+    /// Resolve this handle to a borrowed [`Element`](crate::Element) view via
+    /// the process-global interner.
+    ///
+    /// Trivial-kind elements (no arena entry) return their tag-only variant
+    /// directly; payload-bearing kinds return the variant wrapping a
+    /// `&'static` reference into the matching per-kind arena.
+    ///
+    /// # Panics
+    ///
+    /// Panics for a payload-bearing kind whose slot is unset (which can only
+    /// happen if the handle was forged or constructed before boot ran for the
+    /// well-known constants in question).
+    #[inline]
+    pub fn view(self) -> crate::Element {
+        use crate::Element;
+        let i = crate::interner::interner();
+        match self.kind() {
+            ElementKind::Null => Element::Null,
+            ElementKind::Never => Element::Never,
+            ElementKind::Void => Element::Void,
+            ElementKind::Placeholder => Element::Placeholder,
+            ElementKind::Bool => Element::Bool,
+            ElementKind::True => Element::True,
+            ElementKind::False => Element::False,
+            ElementKind::Scalar => Element::Scalar,
+            ElementKind::Numeric => Element::Numeric,
+            ElementKind::ArrayKey => Element::ArrayKey,
+            ElementKind::ObjectAny => Element::ObjectAny,
+
+            ElementKind::Mixed => Element::Mixed(i.get_mixed(self)),
+            ElementKind::Int => Element::Int(i.get_int(self)),
+            ElementKind::Float => Element::Float(i.get_float(self)),
+            ElementKind::String => Element::String(i.get_string(self)),
+            ElementKind::ClassLikeString => Element::ClassLikeString(i.get_class_like_string(self)),
+            ElementKind::Object => Element::Object(i.get_object(self)),
+            ElementKind::Enum => Element::Enum(i.get_enum(self)),
+            ElementKind::ObjectShape => Element::ObjectShape(i.get_object_shape(self)),
+            ElementKind::HasMethod => Element::HasMethod(i.get_has_method(self)),
+            ElementKind::HasProperty => Element::HasProperty(i.get_has_property(self)),
+            ElementKind::Array => Element::Array(i.get_array(self)),
+            ElementKind::List => Element::List(i.get_list(self)),
+            ElementKind::Iterable => Element::Iterable(i.get_iterable(self)),
+            ElementKind::Callable => Element::Callable(i.get_callable(self)),
+            ElementKind::Resource => Element::Resource(i.get_resource(self)),
+            ElementKind::GenericParameter => Element::GenericParameter(i.get_generic_parameter(self)),
+            ElementKind::Variable => Element::Variable(i.get_variable(self)),
+            ElementKind::Reference => Element::Reference(i.get_reference(self)),
+            ElementKind::MemberReference => Element::MemberReference(i.get_member_reference(self)),
+            ElementKind::GlobalReference => Element::GlobalReference(i.get_global_reference(self)),
+            ElementKind::Alias => Element::Alias(i.get_alias(self)),
+            ElementKind::Conditional => Element::Conditional(i.get_conditional(self)),
+            ElementKind::Derived => Element::Derived(i.get_derived(self)),
+        }
+    }
 }
 
 define_handle! {
