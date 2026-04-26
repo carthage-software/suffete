@@ -48,11 +48,7 @@ use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::StringInfo;
 use crate::interner::Arena;
 use crate::interner::SliceArena;
-use crate::well_known::BOOL;
-use crate::well_known::FALSE;
-use crate::well_known::MIXED;
 use crate::well_known::NEVER;
-use crate::well_known::TRUE;
 
 /// Process-global interner that owns one storage backend per payload family.
 ///
@@ -146,19 +142,20 @@ impl Interner {
 
     /// Intern a [`Type`] from a slice of elements and a set of flow flags.
     ///
-    /// Elements are sorted, deduplicated, and put through the structural
-    /// canonicalization pass (drop `never` when other elements exist; merge
-    /// `true ∨ false → bool`; vanilla `mixed` absorbs everything). Empty
-    /// input collapses to `[NEVER]`.
+    /// Elements are sorted and deduplicated; empty input collapses to
+    /// `[NEVER]`. No structural canonicalization is applied: this method
+    /// stores whatever multiset the caller hands in.
     ///
-    /// Subtype-driven absorptions (`int ∨ Literal(N) → int`, range merging,
-    /// object hierarchy collapse, etc.) require the comparator and the
-    /// codebase, and are not applied here.
+    /// Callers that want a canonical union should run the input through
+    /// [`combiner::combine`](crate::combiner::combine) first, or use the
+    /// sugar constructors on [`TypeId`] which do that for you. The interner
+    /// stays decoupled from canonicalization because the subtype lattice is
+    /// preserved under combination, so the comparator answers the same
+    /// questions either way.
     pub fn intern_type(&self, elements: &[ElementId], flags: FlowFlags) -> TypeId {
         let mut sorted: Vec<ElementId> = if elements.is_empty() { vec![NEVER] } else { elements.to_vec() };
         sorted.sort_unstable();
         sorted.dedup();
-        canonicalize(&mut sorted);
 
         let list_id = self.element_list.intern(&sorted);
         let static_slice = self.element_list.get(list_id).expect("just-interned slice resolves");
@@ -181,41 +178,6 @@ impl Interner {
 impl Default for Interner {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Apply the structural canonicalization rules that don't require the
-/// comparator or the codebase:
-///
-/// - vanilla `mixed` absorbs every other element (becomes the only element),
-/// - `bool` absorbs `true` and `false` when present together,
-/// - `true ∨ false` merge to `bool` (when `bool` itself is absent),
-/// - `never` is dropped when at least one non-`never` element exists; a
-///   `never`-only union keeps its single `never` element.
-///
-/// `elements` must be sorted and deduplicated on entry. Sorted order is
-/// preserved on exit.
-fn canonicalize(elements: &mut Vec<ElementId>) {
-    if elements.contains(&MIXED) {
-        elements.clear();
-        elements.push(MIXED);
-        return;
-    }
-
-    if elements.len() > 1 {
-        elements.retain(|e| *e != NEVER);
-    }
-
-    let has_bool = elements.contains(&BOOL);
-    let has_true = elements.contains(&TRUE);
-    let has_false = elements.contains(&FALSE);
-
-    if has_bool {
-        elements.retain(|e| *e != TRUE && *e != FALSE);
-    } else if has_true && has_false {
-        elements.retain(|e| *e != TRUE && *e != FALSE);
-        let pos = elements.binary_search(&BOOL).unwrap_or_else(|p| p);
-        elements.insert(pos, BOOL);
     }
 }
 
@@ -373,11 +335,11 @@ pub fn interner() -> &'static Interner {
 mod tests {
     use super::*;
     use crate::element::payload::scalar::IntInfo;
+    use crate::well_known::FALSE;
     use crate::well_known::INT;
     use crate::well_known::STRING;
-    use crate::well_known::TYPE_BOOL;
+    use crate::well_known::TRUE;
     use crate::well_known::TYPE_INT_OR_STRING;
-    use crate::well_known::TYPE_MIXED;
 
     #[test]
     fn intern_int_dedupes_and_packs_kind() {
@@ -449,9 +411,9 @@ mod tests {
 
     #[test]
     fn intern_type_sorts_and_dedupes_elements() {
-        let i = Interner::new();
-        let a = i.intern_int(IntInfo::Literal(1));
-        let b = i.intern_int(IntInfo::Literal(2));
+        let i = interner();
+        let a = i.intern_int(IntInfo::Literal(99));
+        let b = i.intern_int(IntInfo::Literal(100));
 
         let t1 = i.intern_type(&[a, b], FlowFlags::EMPTY);
         let t2 = i.intern_type(&[b, a], FlowFlags::EMPTY);
@@ -493,46 +455,18 @@ mod tests {
     }
 
     #[test]
-    fn never_is_dropped_when_other_elements_exist() {
-        let i = interner();
-        let int_or_never = i.intern_type(&[NEVER, INT], FlowFlags::EMPTY);
-        assert_eq!(int_or_never.as_ref().elements, &[INT]);
+    fn intern_type_does_not_canonicalize_bool() {
+        // Raw intern_type stores whatever the caller hands in (modulo
+        // sort+dedup). Canonicalization is the combiner's job.
+        let raw = interner().intern_type(&[TRUE, FALSE], FlowFlags::EMPTY);
+        assert_eq!(raw.as_ref().elements, &[TRUE, FALSE]);
     }
 
     #[test]
-    fn never_alone_is_preserved() {
-        let i = interner();
-        let just_never = i.intern_type(&[NEVER], FlowFlags::EMPTY);
-        assert_eq!(just_never.as_ref().elements, &[NEVER]);
-    }
-
-    #[test]
-    fn true_or_false_merges_to_bool_and_dedupes_against_well_known() {
-        let merged = interner().intern_type(&[TRUE, FALSE], FlowFlags::EMPTY);
-        assert_eq!(merged, TYPE_BOOL);
-        assert_eq!(merged.as_ref().elements, &[BOOL]);
-    }
-
-    #[test]
-    fn bool_absorbs_true_and_false_when_present_together() {
-        let i = interner();
-        assert_eq!(i.intern_type(&[BOOL, TRUE], FlowFlags::EMPTY).as_ref().elements, &[BOOL]);
-        assert_eq!(i.intern_type(&[BOOL, FALSE], FlowFlags::EMPTY).as_ref().elements, &[BOOL]);
-        assert_eq!(i.intern_type(&[BOOL, TRUE, FALSE], FlowFlags::EMPTY).as_ref().elements, &[BOOL]);
-    }
-
-    #[test]
-    fn vanilla_mixed_absorbs_everything_else() {
-        let i = interner();
-        let id = i.intern_type(&[MIXED, INT, STRING, NEVER], FlowFlags::EMPTY);
-        assert_eq!(id.as_ref().elements, &[MIXED]);
-        assert_eq!(id, TYPE_MIXED);
-    }
-
-    #[test]
-    fn canonicalization_preserves_unrelated_unions() {
-        let i = interner();
-        let id = i.intern_type(&[INT, STRING], FlowFlags::EMPTY);
+    fn intern_type_preserves_unrelated_unions() {
+        // INT and STRING have nothing to canonicalize, so raw intern_type
+        // still hits the well-known TYPE_INT_OR_STRING slot.
+        let id = interner().intern_type(&[INT, STRING], FlowFlags::EMPTY);
         assert_eq!(id, TYPE_INT_OR_STRING);
     }
 }

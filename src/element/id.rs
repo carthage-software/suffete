@@ -1,6 +1,8 @@
 use std::num::NonZeroU32;
 
 use crate::ElementKind;
+use crate::element::payload::ObjectFlags;
+use crate::element::payload::ObjectInfo;
 use crate::element::payload::scalar::FloatInfo;
 use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::IntRange;
@@ -139,6 +141,19 @@ impl ElementId {
             flags: StringRefinementFlags::EMPTY,
         };
         crate::interner::interner().intern_string(info)
+    }
+
+    /// Intern a named object element with no type arguments, no
+    /// intersections, and default flags (`is_static = false`,
+    /// `is_this = false`, `remapped_parameters = false`).
+    pub fn object_named(name: &str) -> Self {
+        let info = ObjectInfo {
+            name: mago_atom::atom(name),
+            type_args: None,
+            intersections: None,
+            flags: ObjectFlags::default(),
+        };
+        crate::interner::interner().intern_object(info)
     }
 }
 

@@ -47,17 +47,25 @@ impl TypeId {
     }
 
     /// Build a singleton union from one element, with empty flow flags.
+    /// The element is run through [`combiner::combine`](crate::combiner::combine)
+    /// before interning, so a singleton input always lands at the canonical
+    /// form for that element.
     #[inline]
     pub fn singleton(element: crate::ElementId) -> Self {
-        crate::interner::interner().intern_type(&[element], crate::FlowFlags::EMPTY)
+        Self::union(&[element])
     }
 
     /// Build a union from a slice of elements, with empty flow flags.
-    /// Atoms are sorted, deduplicated, and (per the basic canonical form)
-    /// empty input collapses to `never`.
+    ///
+    /// Elements go through [`combiner::combine`](crate::combiner::combine)
+    /// first: sorted, deduplicated, and put through the structural
+    /// canonicalization rules (drop `never` / `void` against other elements,
+    /// merge `true ∨ false → bool`, dominator absorption, etc.). Empty input
+    /// collapses to `[never]`.
     #[inline]
     pub fn union(elements: &[crate::ElementId]) -> Self {
-        crate::interner::interner().intern_type(elements, crate::FlowFlags::EMPTY)
+        let combined = crate::combiner::combine(elements);
+        crate::interner::interner().intern_type(&combined, crate::FlowFlags::EMPTY)
     }
 
     /// Singleton type wrapping a literal integer.
