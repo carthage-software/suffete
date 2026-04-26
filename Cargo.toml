@@ -20,9 +20,12 @@ dbg_macro = { level = "forbid" }
 let_underscore_lock = { level = "forbid" }
 
 [dependencies]
+mago-atom = "1.24"
+mago-span = "1.24"
+ordered-float = { version = "5.0", default-features = false }
 
 [[bench]]
-name = "compute"
+name = "id"
 harness = false
 
 [profile.release]

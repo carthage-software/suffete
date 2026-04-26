@@ -1,0 +1,45 @@
+use std::mem::size_of;
+
+use mago_atom::Atom;
+
+use crate::TypeId;
+
+/// `class-string`, `interface-string`, `enum-string`, `trait-string`, and
+/// their refined forms (`class-string<Foo>`, `class-string<T>`, the literal
+/// `"App\\Foo"` typed as a class-string, …).
+///
+/// `kind` identifies which family of class-like name this represents; the
+/// `specifier` carries the rest. The shared `kind` field is factored out so
+/// the specifier enum stays tight.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ClassLikeStringInfo {
+    pub kind: ClassLikeKind,
+    pub specifier: ClassLikeStringSpecifier,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum ClassLikeKind {
+    Class,
+    Interface,
+    Enum,
+    Trait,
+}
+
+/// What is known about the value of this class-like-string beyond its kind.
+///
+/// `Generic` carries just a constraint type. The constraint itself contains
+/// a [`GenericParameterInfo`](crate::payload::GenericParameterInfo) atom that
+/// names the template parameter and its scope, so we don't repeat that
+/// information here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ClassLikeStringSpecifier {
+    Any,
+    Literal { value: Atom },
+    OfType { constraint: TypeId },
+    Generic { constraint: TypeId },
+}
+
+const _: () = assert!(size_of::<ClassLikeStringSpecifier>() <= 16);
+const _: () = assert!(size_of::<ClassLikeStringInfo>() <= 24);
+const _: () = assert!(size_of::<ClassLikeKind>() == 1);

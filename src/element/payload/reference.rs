@@ -1,0 +1,53 @@
+use std::mem::size_of;
+
+use mago_atom::Atom;
+
+use crate::ElementListId;
+use crate::TypeListId;
+
+/// `Foo`, `Foo<int>`, `Foo<int>&Bar`: an unresolved class-like name with
+/// optional type arguments and intersection partners.
+///
+/// Payload of `ElementKind::Reference`. By far the most common indirection
+/// atom, which is why it has its own per-kind arena rather than sharing one
+/// with the rarer member/global references.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SymbolReference {
+    pub name: Atom,
+    pub type_args: Option<TypeListId>,
+    pub intersections: Option<ElementListId>,
+}
+
+/// `Foo::CONST`, `Foo::*`, `Foo::PREFIX_*`: a class-like constant reference.
+///
+/// Payload of `ElementKind::MemberReference`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MemberReference {
+    pub class_like_name: Atom,
+    pub selector: NameSelector,
+}
+
+/// A reference to a global constant, optionally via wildcard selector.
+///
+/// Payload of `ElementKind::GlobalReference`. Exists as a newtype rather than
+/// reusing [`NameSelector`] directly so the per-kind arena's element type is
+/// nominally distinct.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct GlobalReference {
+    pub selector: NameSelector,
+}
+
+/// How a member or global reference picks one or more matching names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NameSelector {
+    Identifier(Atom),
+    StartsWith(Atom),
+    EndsWith(Atom),
+    Contains(Atom),
+    Wildcard,
+}
+
+const _: () = assert!(size_of::<SymbolReference>() <= 24);
+const _: () = assert!(size_of::<MemberReference>() <= 24);
+const _: () = assert!(size_of::<GlobalReference>() <= 16);
+const _: () = assert!(size_of::<NameSelector>() <= 16);
