@@ -1,6 +1,10 @@
 use std::num::NonZeroU32;
 
 use crate::ElementKind;
+use crate::element::payload::ClassLikeKind;
+use crate::element::payload::ClassLikeStringInfo;
+use crate::element::payload::ClassLikeStringSpecifier;
+use crate::element::payload::EnumInfo;
 use crate::element::payload::ObjectFlags;
 use crate::element::payload::ObjectInfo;
 use crate::element::payload::scalar::FloatInfo;
@@ -154,6 +158,28 @@ impl ElementId {
             flags: ObjectFlags::default(),
         };
         crate::interner::interner().intern_object(info)
+    }
+
+    /// Intern an enum element ("any case of enum `name`").
+    pub fn enum_any(name: &str) -> Self {
+        let info = EnumInfo { name: mago_atom::atom(name), case: None };
+        crate::interner::interner().intern_enum(info)
+    }
+
+    /// Intern an enum-case element (`name::case`).
+    pub fn enum_case(name: &str, case: &str) -> Self {
+        let info = EnumInfo { name: mago_atom::atom(name), case: Some(mago_atom::atom(case)) };
+        crate::interner::interner().intern_enum(info)
+    }
+
+    /// Intern a literal class-string element (`class-string<Foo>` with a
+    /// concrete name).
+    pub fn class_string_literal(name: &str) -> Self {
+        let info = ClassLikeStringInfo {
+            kind: ClassLikeKind::Class,
+            specifier: ClassLikeStringSpecifier::Literal { value: mago_atom::atom(name) },
+        };
+        crate::interner::interner().intern_class_like_string(info)
     }
 }
 
