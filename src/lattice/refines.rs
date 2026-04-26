@@ -5,10 +5,13 @@ use crate::ElementId;
 use crate::ElementKind;
 use crate::TypeId;
 use crate::lattice::Codebase;
-use crate::lattice::LatticeContext;
+use crate::lattice::LatticeOptions;
+use crate::lattice::LatticeReport;
 use crate::lattice::family;
+use crate::prelude::FALSE;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
+use crate::prelude::NULL;
 
 /// `true` iff `a <: b` — every runtime value of type `a` is also a value of
 /// type `b` (i.e. `a` is a refinement / narrowing of `b`).
@@ -16,41 +19,66 @@ use crate::prelude::NEVER;
 /// Implements the universal axioms (refl / Bot / Top from spec §4.1, §4.2),
 /// the union dispatch (Union-L / Union-R from §4.3), and the structural
 /// scalar lattice (bool / int / float / string / class-like-string /
-/// resource / array-key / numeric / scalar / object-any). Object hierarchy,
-/// callable variance, array shape rules, mixed-axis refinements, and
-/// template machinery layer in family by family; what isn't implemented
-/// returns `false` conservatively.
-pub fn refines<C: Codebase>(a: TypeId, b: TypeId, ctx: &mut LatticeContext, codebase: &C) -> bool {
-    if a == b {
+/// resource / array-key / numeric / scalar / object-any). Object hierarchy
+/// queries flow through `codebase`; callable variance, array shape rules,
+/// mixed-axis refinements, and template machinery layer in family by
+/// family; what isn't implemented returns `false` conservatively.
+pub fn refines<C: Codebase>(
+    a: TypeId,
+    b: TypeId,
+    codebase: &C,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    if a == b && !options.ignore_null && !options.ignore_false {
         return true;
     }
 
     let a_type = a.as_ref();
     let b_type = b.as_ref();
 
-    // Union-L / Union-R: every element of `a` must fit some element of `b`.
+    // Union-L / Union-R: every element of `a` (modulo any caller-requested
+    // skips for `null` / `false`) must fit some element of `b`.
     a_type
         .elements
         .iter()
-        .all(|input| b_type.elements.iter().any(|container| element_refines(*input, *container, ctx, codebase)))
+        .filter(|input| {
+            let skipped = (options.ignore_null && **input == NULL) || (options.ignore_false && **input == FALSE);
+            !skipped
+        })
+        .all(|input| {
+            b_type.elements.iter().any(|container| element_refines(*input, *container, codebase, options, report))
+        })
 }
 
 /// `true` iff `a :> b` — every value of type `b` is also a value of type `a`
-/// (`a` generalizes `b`). Equivalent to `refines(b, a, ctx, codebase)`.
+/// (`a` generalizes `b`). Equivalent to `refines(b, a, codebase, options, report)`.
 #[inline]
-pub fn generalizes<C: Codebase>(a: TypeId, b: TypeId, ctx: &mut LatticeContext, codebase: &C) -> bool {
-    refines(b, a, ctx, codebase)
+pub fn generalizes<C: Codebase>(
+    a: TypeId,
+    b: TypeId,
+    codebase: &C,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    refines(b, a, codebase, options, report)
 }
 
 /// Decide whether one element refines another, ignoring flow flags.
 ///
 /// Universal axioms first (refl, `never <: anything`, `anything <: mixed`),
 /// then dispatch on the container's kind into a family-specific helper.
+/// When the result is `false` and the input belongs to a "true-union" kind
+/// (`mixed`, `array_key`, `bool`, `object_any`, `scalar`, `numeric`), the
+/// `type_coerced` flag is set to record that the rejection was a narrowing,
+/// not an out-of-family mismatch. `mixed` inputs additionally set
+/// `type_coerced_from_nested_mixed`.
 fn element_refines<C: Codebase>(
     input: ElementId,
     container: ElementId,
-    _ctx: &mut LatticeContext,
-    _codebase: &C,
+    codebase: &C,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
 ) -> bool {
     if input == container {
         return true;
@@ -64,6 +92,40 @@ fn element_refines<C: Codebase>(
         return true;
     }
 
+    let result = dispatch_refines(input, container, codebase, options, report);
+
+    if !result && is_true_union_kind(input.kind()) {
+        report.type_coerced = Some(true);
+        if input.kind() == ElementKind::Mixed {
+            report.type_coerced_from_nested_mixed = Some(true);
+        }
+    }
+
+    result
+}
+
+/// `true` for kinds whose values inhabit multiple disjoint sub-families:
+/// narrowing one of these to a concrete sub-form is the standard PHP
+/// "type-coerced" pattern that the lattice records via `type_coerced`.
+fn is_true_union_kind(kind: ElementKind) -> bool {
+    matches!(
+        kind,
+        ElementKind::Mixed
+            | ElementKind::ArrayKey
+            | ElementKind::Bool
+            | ElementKind::ObjectAny
+            | ElementKind::Scalar
+            | ElementKind::Numeric
+    )
+}
+
+fn dispatch_refines<C: Codebase>(
+    input: ElementId,
+    container: ElementId,
+    codebase: &C,
+    _options: LatticeOptions,
+    _report: &mut LatticeReport,
+) -> bool {
     match container.kind() {
         ElementKind::Bool => family::bool::refines(input, container),
         ElementKind::Resource => family::resource::refines(input, container),
@@ -79,7 +141,7 @@ fn element_refines<C: Codebase>(
         | ElementKind::Enum
         | ElementKind::ObjectShape
         | ElementKind::HasMethod
-        | ElementKind::HasProperty => family::object::refines(input, container),
+        | ElementKind::HasProperty => family::object::refines(input, container, codebase),
         ElementKind::Array | ElementKind::List => family::array::refines(input, container),
         ElementKind::Iterable => family::iterable::refines(input, container),
         ElementKind::Callable => family::callable::refines(input, container),
@@ -149,8 +211,8 @@ mod tests {
     use crate::prelude::UPPERCASE_STRING;
 
     fn check(input: TypeId, container: TypeId) -> bool {
-        let mut ctx = LatticeContext::new();
-        refines(input, container, &mut ctx, &NullCodebase)
+        let mut report = LatticeReport::new();
+        refines(input, container, &NullCodebase, LatticeOptions::default(), &mut report)
     }
 
     fn check_elem(input: ElementId, container: ElementId) -> bool {
@@ -403,9 +465,16 @@ mod tests {
 
     #[test]
     fn unrelated_types_do_not_refine() {
-        assert!(!check(TYPE_INT, TYPE_FLOAT));
         assert!(!check(TYPE_INT, TYPE_STRING));
+        assert!(!check(TYPE_FLOAT, TYPE_STRING));
         assert!(!check(TYPE_NULL, TYPE_INT));
+    }
+
+    #[test]
+    fn int_refines_float_via_php_coercion() {
+        // PHP implicitly coerces int -> float; the lattice records this as a
+        // refinement edge for the general `float` container.
+        assert!(check(TYPE_INT, TYPE_FLOAT));
     }
 
     #[test]
@@ -455,9 +524,9 @@ mod tests {
 
     #[test]
     fn generalizes_is_inverse_of_refines() {
-        let mut ctx = LatticeContext::new();
-        assert!(generalizes(TYPE_MIXED, TYPE_INT, &mut ctx, &NullCodebase));
-        assert!(generalizes(TYPE_INT, TYPE_NEVER, &mut ctx, &NullCodebase));
-        assert!(!generalizes(TYPE_INT, TYPE_FLOAT, &mut ctx, &NullCodebase));
+        let mut r = LatticeReport::new();
+        assert!(generalizes(TYPE_MIXED, TYPE_INT, &NullCodebase, LatticeOptions::default(), &mut r));
+        assert!(generalizes(TYPE_INT, TYPE_NEVER, &NullCodebase, LatticeOptions::default(), &mut r));
+        assert!(!generalizes(TYPE_INT, TYPE_FLOAT, &NullCodebase, LatticeOptions::default(), &mut r));
     }
 }

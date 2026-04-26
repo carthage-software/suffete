@@ -14,7 +14,8 @@
 
 use crate::TypeId;
 use crate::lattice::Codebase;
-use crate::lattice::LatticeContext;
+use crate::lattice::LatticeOptions;
+use crate::lattice::LatticeReport;
 use crate::lattice::refines::generalizes;
 use crate::lattice::refines::refines;
 
@@ -27,10 +28,16 @@ use crate::lattice::refines::refines;
 ///
 /// Returning `false` is therefore not yet a guarantee of disjointness; only
 /// `true` is sound to act on (modulo the current rule coverage).
-pub fn intersects<C: Codebase>(a: TypeId, b: TypeId, ctx: &mut LatticeContext, codebase: &C) -> bool {
+pub fn intersects<C: Codebase>(
+    a: TypeId,
+    b: TypeId,
+    codebase: &C,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
     if a == b {
         return true;
     }
 
-    refines(a, b, ctx, codebase) || generalizes(a, b, ctx, codebase)
+    refines(a, b, codebase, options, report) || generalizes(a, b, codebase, options, report)
 }

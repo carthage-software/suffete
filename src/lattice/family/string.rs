@@ -113,7 +113,9 @@ fn satisfies_flags(input: StringInfo, container_flags: StringRefinementFlags) ->
 }
 
 pub(super) fn input_is_non_empty(input: StringInfo) -> bool {
-    if input.flags.is_non_empty() || input.flags.is_truthy() {
+    // Truthy, numeric, and callable all imply non-empty (the empty string
+    // is none of those).
+    if input.flags.is_non_empty() || input.flags.is_truthy() || input.flags.is_numeric() || input.flags.is_callable() {
         return true;
     }
 

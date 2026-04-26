@@ -24,9 +24,9 @@ pub fn refines(input: ElementId, container: ElementId) -> bool {
         return false;
     }
 
-    matches!(
-        (input_info.specifier, container_info.specifier),
-        (_, ClassLikeStringSpecifier::Any)
-            | (ClassLikeStringSpecifier::Literal { .. }, ClassLikeStringSpecifier::Literal { .. })
-    )
+    // Container `Any` accepts any specifier of the matching kind. Concrete
+    // literal-vs-literal equality is already handled by reflexivity in the
+    // dispatcher; getting here with two distinct literals means they differ
+    // and the relation does not hold.
+    matches!(container_info.specifier, ClassLikeStringSpecifier::Any)
 }
