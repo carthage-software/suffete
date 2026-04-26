@@ -2,6 +2,7 @@
 //!
 //! See `README.md` for what this crate is, what it is not, and its (highly unstable) status.
 
+pub mod comparator;
 pub mod element;
 pub mod handle;
 pub mod interner;
