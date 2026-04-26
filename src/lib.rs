@@ -9,6 +9,7 @@ pub mod join;
 pub mod lattice;
 pub mod meet;
 pub mod prelude;
+pub mod subtract;
 pub mod template;
 pub mod ty;
 pub mod world;
