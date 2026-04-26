@@ -12,7 +12,7 @@ A *generic abstraction* is a class-like, function, method, or closure that intro
 
 - A **defining entity** $\Delta$ — the construct that introduces it. Two parameters with the same surface name in different defining entities are distinct.
 - A **constraint** (upper bound) $\kappa(T)$ — every concrete witness of $T$ must satisfy $\rho \mathrel{<:} \kappa(T)$. The default constraint is $\top$ (vanilla `mixed`).
-- A **variance** $\nu(T) \in \{+, -, \pm\}$ relative to its defining entity (covariant, contravariant, invariant). A function-defined parameter is implicitly invariant; a class-defined parameter has its variance declared on the class.
+- A **variance** $\nu(T) \in \{+, -, \pm\}$ relative to its defining entity (covariant, contravariant, invariant). The default for both function-defined and class-defined parameters is invariant ($\pm$). A class author opts into covariance (`@template-covariant T`) or contravariance (`@template-contravariant T`) only when $T$ appears exclusively in producer or consumer positions inside the class body. Defaulting to anything looser than invariance is unsound for mutable containers (see §1.1).
 
 A generic abstraction with $n$ parameters declares the family
 
@@ -33,6 +33,43 @@ The application is *well-formed* iff $\rho_i \mathrel{<:} \kappa_i$ for every $i
 ### Partial application
 
 A use site may omit type arguments. In that case the parameter defaults to a *standin* — an opaque atom $\widehat{T}$ with constraint $\kappa(T)$ that behaves like a fresh, abstract type until either inference fixes it or the constraint becomes the result.
+
+### 1.1 Why the variance default is invariant
+
+Variance is a per-parameter property determined by where $T$ appears inside the abstraction's body. A parameter is *sound to mark covariant* only when every occurrence of $T$ is in a producer position (return type, read-only field). It is *sound to mark contravariant* only when every occurrence is in a consumer position (function parameter, write-only field). When $T$ appears in both — the typical case for any class with a settable field of type $T$ — the only sound variance is invariant.
+
+A type system that defaults unannotated $T$ to covariant accepts the following unsoundness:
+
+```php
+/** @template T */
+final class Cell {
+    /** @var T */
+    public $value;
+
+    /** @param T $v */
+    public function set($v): void { $this->value = $v; }
+
+    /** @return T */
+    public function get() { return $this->value; }
+
+    /** @param T $v */
+    public function __construct($v) { $this->value = $v; }
+}
+
+/** @param Cell<scalar> $c */
+function store_string(Cell $c): void { $c->set('hi'); }
+
+/** @param Cell<int> $c */
+function increment(Cell $c): int { return $c->get() + 1; }
+
+$cell = new Cell(42);   // Cell<int>
+store_string($cell);    // accepted under covariant default: int <: scalar
+increment($cell);       // runtime: 'hi' + 1, type confusion
+```
+
+`Cell<T>` uses $T$ in *both* `set` (consumer, contravariant) and `get` (producer, covariant), so its sound variance is invariant. A covariant-by-default rule accepts the call to `store_string` because `int <: scalar`, which then lets a `string` be written into a slot the call site believes holds an `int`.
+
+For this reason, the default variance for any unannotated template parameter is **invariant**. A class author who has audited their class for producer-only or consumer-only usage opts in explicitly with `@template-covariant T` or `@template-contravariant T`. The type system never silently widens beyond invariance.
 
 ---
 
