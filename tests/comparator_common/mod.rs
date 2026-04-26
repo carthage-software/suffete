@@ -139,6 +139,19 @@ impl MockWorld {
         self
     }
 
+    /// Set the upper bound (`@template T of Foo`) on `class_like`'s
+    /// `name`d template parameter.
+    pub fn with_template_bound(&mut self, class_like: &str, name: &str, bound: TypeId) -> &mut Self {
+        let class = atom(class_like);
+        let template = atom(name);
+        if let Some(params) = self.templates.get_mut(&class)
+            && let Some(p) = params.iter_mut().find(|p| p.name == template)
+        {
+            p.upper_bound = Some(bound);
+        }
+        self
+    }
+
     /// Declare what type arguments `child` passes to `ancestor`. The
     /// list is positional, in `ancestor`'s declaration order. Argument
     /// type ids may reference `child`'s own templates (via

@@ -14,19 +14,15 @@
 //! pass-through atom becomes a real resolution).
 //!
 //! - **Stage 1:** `Alias` resolution.
-//! - **Stage 2 (current):** `Reference` resolution.
-//!   - `SymbolReference` (an unresolved class-like name) becomes the
-//!     equivalent `Object` atom, preserving `type_args` and
-//!     `intersections`.
-//!   - `MemberReference` with an `Identifier` selector resolves through
-//!     `World::class_constant_type`.
-//!   - `GlobalReference` with an `Identifier` selector resolves through
-//!     `World::global_constant_type`.
-//!   - Wildcard / prefix / suffix selectors pass through (they need a
-//!     constant-enumeration query that lands in a later stage).
-//! - **Stage 3:** Contextual keyword substitution (`self`, `static`,
-//!   `parent`) and `Derived` evaluation.
-//! - **Stage 4:** `Conditional` evaluation.
+//! - **Stage 2:** `Reference` resolution (`SymbolReference`,
+//!   `MemberReference`, `GlobalReference`).
+//! - **Stage 3 (current):** `Derived` evaluation. `KeyOf`, `ValueOf`,
+//!   `IndexAccess`, `IntMask`, `IntMaskOf`, and `TemplateType` resolve
+//!   structurally; `PropertiesOf` and `New` pass through until they
+//!   gain dedicated `World` queries (property enumeration and
+//!   constructor-signature lookup).
+//! - **Stage 4:** Contextual keyword substitution (`self`, `static`,
+//!   `parent`) and `Conditional` evaluation.
 //!
 //! # Structural descent
 //!
@@ -35,11 +31,15 @@
 //! known items, and class-like-string constraints. Element kinds whose
 //! payloads do not (yet) carry nested types pass through unchanged.
 
+use mago_atom::Atom;
+
 use crate::ElementId;
 use crate::ElementKind;
 use crate::TypeId;
+use crate::element::payload::ArrayKey;
 use crate::element::payload::ClassLikeStringInfo;
 use crate::element::payload::ClassLikeStringSpecifier;
+use crate::element::payload::DerivedInfo;
 use crate::element::payload::IterableInfo;
 use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::KnownItemEntry;
@@ -47,7 +47,12 @@ use crate::element::payload::ListInfo;
 use crate::element::payload::NameSelector;
 use crate::element::payload::ObjectFlags;
 use crate::element::payload::ObjectInfo;
+use crate::element::payload::scalar::IntInfo;
 use crate::interner::interner;
+use crate::prelude::NON_NEGATIVE_INT;
+use crate::prelude::TYPE_INT;
+use crate::prelude::TYPE_MIXED;
+use crate::prelude::TYPE_NEVER;
 use crate::world::World;
 
 /// Resolve every expandable atom inside `ty` against `world`. Returns
@@ -100,6 +105,7 @@ fn expand_element<W: World>(elem: ElementId, world: &W) -> Expansion {
         ElementKind::Reference => expand_reference(elem, world),
         ElementKind::MemberReference => expand_member_reference(elem, world),
         ElementKind::GlobalReference => expand_global_reference(elem, world),
+        ElementKind::Derived => expand_derived(elem, world),
         ElementKind::Object => expand_object(elem, world),
         ElementKind::List => expand_list(elem, world),
         ElementKind::Array => expand_keyed_array(elem, world),
@@ -186,6 +192,313 @@ fn expand_global_reference<W: World>(elem: ElementId, world: &W) -> Expansion {
     let expanded = expand(body, world);
     let elements = expanded.as_ref().elements;
     if elements.len() == 1 { Expansion::Single(elements[0]) } else { Expansion::Many(elements.to_vec()) }
+}
+
+fn expand_derived<W: World>(elem: ElementId, world: &W) -> Expansion {
+    let info = *interner().get_derived(elem);
+    match info {
+        DerivedInfo::KeyOf(target) => derived_to_expansion(eval_key_of(target, world)),
+        DerivedInfo::ValueOf(target) => derived_to_expansion(eval_value_of(target, world)),
+        DerivedInfo::IndexAccess { target, index } => derived_to_expansion(eval_index_access(target, index, world)),
+        DerivedInfo::IntMask(operands) => derived_to_expansion(eval_int_mask(operands, world)),
+        DerivedInfo::IntMaskOf(target) => derived_to_expansion(eval_int_mask_of(target, world)),
+        DerivedInfo::TemplateType { object: _, class_name, template_name } => {
+            match eval_template_type(class_name, template_name, world) {
+                Some(t) => derived_to_expansion(t),
+                None => Expansion::Unchanged,
+            }
+        }
+        DerivedInfo::PropertiesOf { .. } | DerivedInfo::New(_) => Expansion::Unchanged,
+    }
+}
+
+fn derived_to_expansion(ty: TypeId) -> Expansion {
+    let elements = ty.as_ref().elements;
+    if elements.is_empty() {
+        Expansion::Single(crate::prelude::NEVER)
+    } else if elements.len() == 1 {
+        Expansion::Single(elements[0])
+    } else {
+        Expansion::Many(elements.to_vec())
+    }
+}
+
+/// `key-of<τ>` per spec §7.3: keys admissible by `τ`.
+///
+/// - `list`: sealed length `n` yields the integer range `[0, n-1]`;
+///   unsealed yields the union of literal known indices and
+///   `non-negative-int`.
+/// - `array<K, V>` (keyed): the literal known keys joined with `K` when
+///   the shape is unsealed.
+/// - `iterable<K, V>`: `K` directly.
+/// - Anything else (including unions of unhandled atoms): `mixed`.
+fn eval_key_of<W: World>(target: TypeId, world: &W) -> TypeId {
+    let target = expand(target, world);
+    let elems = target.as_ref().elements;
+    if elems.len() != 1 {
+        return TYPE_MIXED;
+    }
+    let only = elems[0];
+    let i = interner();
+    match only.kind() {
+        ElementKind::List => {
+            let info = *i.get_list(only);
+            let mut keys: Vec<ElementId> = Vec::new();
+            if let Some(known_id) = info.known_elements {
+                for entry in i.get_known_elements(known_id) {
+                    keys.push(ElementId::int_literal(entry.index as i64));
+                }
+            }
+            match info.known_count {
+                Some(n) => {
+                    let n = n.get() as i64;
+                    keys.push(ElementId::int_range(Some(0), Some(n - 1)));
+                }
+                None => {
+                    keys.push(NON_NEGATIVE_INT);
+                }
+            }
+            TypeId::union(&keys)
+        }
+        ElementKind::Array => {
+            let info = *i.get_array(only);
+            let mut keys: Vec<ElementId> = Vec::new();
+            if let Some(known_id) = info.known_items {
+                for entry in i.get_known_items(known_id) {
+                    if let Some(k) = array_key_to_element(entry.key) {
+                        keys.push(k);
+                    }
+                }
+            }
+            if let Some(k_param) = info.key_param {
+                for &el in k_param.as_ref().elements {
+                    keys.push(el);
+                }
+            }
+            if keys.is_empty() { TYPE_MIXED } else { TypeId::union(&keys) }
+        }
+        ElementKind::Iterable => i.get_iterable(only).key_type,
+        _ => TYPE_MIXED,
+    }
+}
+
+/// `value-of<τ>` per spec §7.3: values admissible by `τ`.
+fn eval_value_of<W: World>(target: TypeId, world: &W) -> TypeId {
+    let target = expand(target, world);
+    let elems = target.as_ref().elements;
+    if elems.len() != 1 {
+        return TYPE_MIXED;
+    }
+    let only = elems[0];
+    let i = interner();
+    match only.kind() {
+        ElementKind::List => {
+            let info = *i.get_list(only);
+            let mut values: Vec<ElementId> = Vec::new();
+            if let Some(known_id) = info.known_elements {
+                for entry in i.get_known_elements(known_id) {
+                    values.extend_from_slice(entry.value.as_ref().elements);
+                }
+            }
+            values.extend_from_slice(info.element_type.as_ref().elements);
+            TypeId::union(&values)
+        }
+        ElementKind::Array => {
+            let info = *i.get_array(only);
+            let mut values: Vec<ElementId> = Vec::new();
+            if let Some(known_id) = info.known_items {
+                for entry in i.get_known_items(known_id) {
+                    values.extend_from_slice(entry.value.as_ref().elements);
+                }
+            }
+            if let Some(v_param) = info.value_param {
+                values.extend_from_slice(v_param.as_ref().elements);
+            }
+            if values.is_empty() { TYPE_MIXED } else { TypeId::union(&values) }
+        }
+        ElementKind::Iterable => i.get_iterable(only).value_type,
+        _ => TYPE_MIXED,
+    }
+}
+
+/// `τ[κ]` per spec §7.3.
+fn eval_index_access<W: World>(target: TypeId, index: TypeId, world: &W) -> TypeId {
+    let target = expand(target, world);
+    let index = expand(index, world);
+    let target_elems = target.as_ref().elements;
+    let index_elems = index.as_ref().elements;
+    if target_elems.len() != 1 || index_elems.len() != 1 {
+        return TYPE_MIXED;
+    }
+    let only = target_elems[0];
+    let key_elem = index_elems[0];
+    let i = interner();
+    match only.kind() {
+        ElementKind::Array => {
+            let info = *i.get_array(only);
+            if let Some(known_id) = info.known_items
+                && let Some(literal_key) = element_to_array_key(key_elem)
+            {
+                for entry in i.get_known_items(known_id) {
+                    if entry.key == literal_key {
+                        return entry.value;
+                    }
+                }
+            }
+            info.value_param.unwrap_or(TYPE_NEVER)
+        }
+        ElementKind::List => {
+            let info = *i.get_list(only);
+            if let Some(idx) = literal_int(key_elem)
+                && idx >= 0
+                && let Some(known_id) = info.known_elements
+            {
+                for entry in i.get_known_elements(known_id) {
+                    if entry.index as i64 == idx {
+                        return entry.value;
+                    }
+                }
+            }
+            info.element_type
+        }
+        ElementKind::Iterable => i.get_iterable(only).value_type,
+        _ => TYPE_MIXED,
+    }
+}
+
+/// `int-mask<n_1, n_2, …>`: every distinct bitwise OR of subsets of the
+/// operand literal integers, presented as integer literals. Operands
+/// that don't reduce to a single integer literal cause the mask to fall
+/// back to `mixed`.
+fn eval_int_mask<W: World>(operands: crate::TypeListId, world: &W) -> TypeId {
+    let i = interner();
+    let raw = i.get_type_list(operands);
+    let mut literals: Vec<i64> = Vec::with_capacity(raw.len());
+    for &operand in raw {
+        let expanded = expand(operand, world);
+        let elems = expanded.as_ref().elements;
+        if elems.len() != 1 {
+            return TYPE_MIXED;
+        }
+        match literal_int(elems[0]) {
+            Some(v) => literals.push(v),
+            None => return TYPE_MIXED,
+        }
+    }
+    int_mask_union(&literals)
+}
+
+/// `int-mask-of<τ>`: `τ` expands to a union of integer literals, then
+/// the mask of those literals.
+fn eval_int_mask_of<W: World>(target: TypeId, world: &W) -> TypeId {
+    let expanded = expand(target, world);
+    let mut literals: Vec<i64> = Vec::new();
+    for &el in expanded.as_ref().elements {
+        match literal_int(el) {
+            Some(v) => literals.push(v),
+            None => return TYPE_MIXED,
+        }
+    }
+    int_mask_union(&literals)
+}
+
+fn int_mask_union(literals: &[i64]) -> TypeId {
+    let n = literals.len();
+    if n == 0 {
+        return TypeId::union(&[ElementId::int_literal(0)]);
+    }
+    if n > 16 {
+        // 2^16 = 65,536 subsets is the practical ceiling; beyond that
+        // the mask widens to `int` to keep the operation cheap.
+        return TYPE_INT;
+    }
+    let total = 1u32 << n;
+    let mut values: std::collections::BTreeSet<i64> = std::collections::BTreeSet::new();
+    for mask in 0..total {
+        let mut acc: i64 = 0;
+        for (bit, &lit) in literals.iter().enumerate() {
+            if (mask >> bit) & 1 == 1 {
+                acc |= lit;
+            }
+        }
+        values.insert(acc);
+    }
+    let elems: Vec<ElementId> = values.into_iter().map(ElementId::int_literal).collect();
+    TypeId::union(&elems)
+}
+
+/// `template-type<$object, C, T>`: `T`'s constraint as declared on `C`.
+/// The `$object` operand exists for the analyser-side instantiation
+/// context and is ignored here. Returns `None` when the class or the
+/// template name cannot be extracted from their `TypeId` operands, so
+/// the caller leaves the form unexpanded.
+fn eval_template_type<W: World>(class_name: TypeId, template_name: TypeId, world: &W) -> Option<TypeId> {
+    let class = single_object_or_reference_name(class_name)?;
+    let template = single_string_literal_atom(template_name)?;
+    let position = world.template_parameter_index(class, template)?;
+    let parameter = world.template_parameter_at(class, position)?;
+    Some(expand(parameter.upper_bound.unwrap_or(TYPE_MIXED), world))
+}
+
+fn single_object_or_reference_name(ty: TypeId) -> Option<Atom> {
+    let elems = ty.as_ref().elements;
+    if elems.len() != 1 {
+        return None;
+    }
+    let i = interner();
+    match elems[0].kind() {
+        ElementKind::Object => Some(i.get_object(elems[0]).name),
+        ElementKind::Reference => Some(i.get_reference(elems[0]).name),
+        _ => None,
+    }
+}
+
+fn single_string_literal_atom(ty: TypeId) -> Option<Atom> {
+    let elems = ty.as_ref().elements;
+    if elems.len() != 1 || elems[0].kind() != ElementKind::String {
+        return None;
+    }
+    use crate::element::payload::scalar::StringLiteral;
+    match interner().get_string(elems[0]).literal {
+        StringLiteral::Value(atom) => Some(atom),
+        _ => None,
+    }
+}
+
+fn array_key_to_element(key: ArrayKey) -> Option<ElementId> {
+    match key {
+        ArrayKey::Int(n) => Some(ElementId::int_literal(n)),
+        ArrayKey::String(atom) => Some(ElementId::string_literal(atom.as_str())),
+        ArrayKey::Const { .. } => None,
+    }
+}
+
+fn element_to_array_key(elem: ElementId) -> Option<ArrayKey> {
+    let i = interner();
+    match elem.kind() {
+        ElementKind::Int => match i.get_int(elem) {
+            IntInfo::Literal(n) => Some(ArrayKey::Int(*n)),
+            _ => None,
+        },
+        ElementKind::String => {
+            use crate::element::payload::scalar::StringLiteral;
+            match i.get_string(elem).literal {
+                StringLiteral::Value(atom) => Some(ArrayKey::String(atom)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn literal_int(elem: ElementId) -> Option<i64> {
+    if elem.kind() != ElementKind::Int {
+        return None;
+    }
+    match interner().get_int(elem) {
+        IntInfo::Literal(n) => Some(*n),
+        _ => None,
+    }
 }
 
 fn expand_object<W: World>(elem: ElementId, world: &W) -> Expansion {
