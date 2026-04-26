@@ -2,18 +2,18 @@ use suffete::Element;
 use suffete::ElementId;
 use suffete::TypeId;
 use suffete::element::payload::scalar::IntInfo;
-use suffete::well_known;
+use suffete::prelude;
 
 #[test]
 fn int_literal_zero_dedupes_against_well_known() {
     let zero = ElementId::int_literal(0);
-    assert_eq!(zero, well_known::INT_ZERO, "int_literal(0) must dedupe to INT_ZERO");
+    assert_eq!(zero, prelude::INT_ZERO, "int_literal(0) must dedupe to INT_ZERO");
 
     let one = ElementId::int_literal(1);
-    assert_eq!(one, well_known::INT_ONE);
+    assert_eq!(one, prelude::INT_ONE);
 
     let minus_one = ElementId::int_literal(-1);
-    assert_eq!(minus_one, well_known::INT_MINUS_ONE);
+    assert_eq!(minus_one, prelude::INT_MINUS_ONE);
 }
 
 #[test]
@@ -25,10 +25,10 @@ fn int_literal_arbitrary_values_round_trip() {
 #[test]
 fn int_range_dedupes_against_well_known_positive_int() {
     let positive = ElementId::int_range(Some(1), None);
-    assert_eq!(positive, well_known::POSITIVE_INT);
+    assert_eq!(positive, prelude::POSITIVE_INT);
 
     let negative = ElementId::int_range(None, Some(-1));
-    assert_eq!(negative, well_known::NEGATIVE_INT);
+    assert_eq!(negative, prelude::NEGATIVE_INT);
 }
 
 #[test]
@@ -59,14 +59,14 @@ fn string_literal_round_trips_with_correct_atom() {
 
 #[test]
 fn type_singleton_dedupes_against_well_known_type_int() {
-    let t = TypeId::singleton(well_known::INT);
-    assert_eq!(t, well_known::TYPE_INT);
+    let t = TypeId::singleton(prelude::INT);
+    assert_eq!(t, prelude::TYPE_INT);
 }
 
 #[test]
 fn type_union_of_int_and_float_dedupes_against_well_known() {
-    let t = TypeId::union(&[well_known::INT, well_known::FLOAT]);
-    assert_eq!(t, well_known::TYPE_INT_OR_FLOAT);
+    let t = TypeId::union(&[prelude::INT, prelude::FLOAT]);
+    assert_eq!(t, prelude::TYPE_INT_OR_FLOAT);
 }
 
 #[test]

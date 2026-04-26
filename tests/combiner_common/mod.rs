@@ -8,20 +8,20 @@
 //!
 //! | mago                         | suffete                                       |
 //! |------------------------------|-----------------------------------------------|
-//! | `combine(atomics, c, opts)`  | `suffete::combiner::combine(&[..])`           |
+//! | `combine(atomics, c, opts)`  | `suffete::join::compute(&[..])`               |
 //! | `Vec<TAtomic>`               | `Vec<ElementId>`                              |
 //! | `t_lit_int(n)`               | `ElementId::int_literal(n)`                   |
-//! | `t_int()`                    | `well_known::INT`                             |
+//! | `t_int()`                    | `prelude::INT`                                |
 //! | `assert_combines_to(in, ex)` | sort-and-compare both sides as `&[ElementId]` |
 
 use suffete::ElementId;
-use suffete::combiner;
-use suffete::well_known;
+use suffete::join;
+use suffete::prelude;
 
 /// Combine elements via the structural canonicalization pass. Mirrors mago's
 /// `combine(Vec<TAtomic>) -> Vec<TAtomic>` signature.
 pub fn combine_default(elements: Vec<ElementId>) -> Vec<ElementId> {
-    combiner::combine(&elements)
+    join::compute(&elements)
 }
 
 /// Combine with a custom integer literal collapse threshold.
@@ -87,63 +87,63 @@ pub fn assert_combines_to(input: Vec<ElementId>, expected: Vec<ElementId>) {
 }
 
 pub fn never() -> ElementId {
-    well_known::NEVER
+    prelude::NEVER
 }
 
 pub fn null() -> ElementId {
-    well_known::NULL
+    prelude::NULL
 }
 
 pub fn void() -> ElementId {
-    well_known::VOID
+    prelude::VOID
 }
 
 pub fn placeholder() -> ElementId {
-    well_known::PLACEHOLDER
+    prelude::PLACEHOLDER
 }
 
 pub fn mixed() -> ElementId {
-    well_known::MIXED
+    prelude::MIXED
 }
 
 pub fn mixed_truthy() -> ElementId {
-    well_known::TRUTHY_MIXED
+    prelude::TRUTHY_MIXED
 }
 
 pub fn mixed_falsy() -> ElementId {
-    well_known::FALSY_MIXED
+    prelude::FALSY_MIXED
 }
 
 pub fn mixed_nonnull() -> ElementId {
-    well_known::NON_NULL_MIXED
+    prelude::NON_NULL_MIXED
 }
 
 pub fn t_true() -> ElementId {
-    well_known::TRUE
+    prelude::TRUE
 }
 
 pub fn t_false() -> ElementId {
-    well_known::FALSE
+    prelude::FALSE
 }
 
 pub fn t_bool() -> ElementId {
-    well_known::BOOL
+    prelude::BOOL
 }
 
 pub fn t_int() -> ElementId {
-    well_known::INT
+    prelude::INT
 }
 
 pub fn t_string() -> ElementId {
-    well_known::STRING
+    prelude::STRING
 }
 
 pub fn t_empty_array() -> ElementId {
-    well_known::EMPTY_ARRAY
+    prelude::EMPTY_ARRAY
 }
 
 pub fn t_object_any() -> ElementId {
-    well_known::OBJECT
+    prelude::OBJECT
 }
 
 pub fn t_named(name: &str) -> ElementId {
@@ -155,7 +155,7 @@ pub fn t_lit_int(value: i64) -> ElementId {
 }
 
 pub fn t_int_unspec_lit() -> ElementId {
-    well_known::LITERAL_INT
+    prelude::LITERAL_INT
 }
 
 pub fn t_lit_string(value: &str) -> ElementId {
@@ -163,11 +163,11 @@ pub fn t_lit_string(value: &str) -> ElementId {
 }
 
 pub fn t_unspec_lit_string(non_empty: bool) -> ElementId {
-    if non_empty { well_known::NON_EMPTY_LITERAL_STRING } else { well_known::LITERAL_STRING }
+    if non_empty { prelude::NON_EMPTY_LITERAL_STRING } else { prelude::LITERAL_STRING }
 }
 
 pub fn t_empty_string() -> ElementId {
-    well_known::EMPTY_STRING
+    prelude::EMPTY_STRING
 }
 
 pub fn t_lit_float(value: f64) -> ElementId {
@@ -175,7 +175,7 @@ pub fn t_lit_float(value: f64) -> ElementId {
 }
 
 pub fn t_unspec_lit_float() -> ElementId {
-    well_known::LITERAL_FLOAT
+    prelude::LITERAL_FLOAT
 }
 
 pub fn t_enum(name: &str) -> ElementId {
@@ -191,31 +191,31 @@ pub fn t_lit_class_string(name: &str) -> ElementId {
 }
 
 pub fn t_resource() -> ElementId {
-    well_known::RESOURCE
+    prelude::RESOURCE
 }
 
 pub fn t_open_resource() -> ElementId {
-    well_known::OPEN_RESOURCE
+    prelude::OPEN_RESOURCE
 }
 
 pub fn t_closed_resource() -> ElementId {
-    well_known::CLOSED_RESOURCE
+    prelude::CLOSED_RESOURCE
 }
 
 pub fn t_positive_int() -> ElementId {
-    well_known::POSITIVE_INT
+    prelude::POSITIVE_INT
 }
 
 pub fn t_negative_int() -> ElementId {
-    well_known::NEGATIVE_INT
+    prelude::NEGATIVE_INT
 }
 
 pub fn t_non_negative_int() -> ElementId {
-    well_known::NON_NEGATIVE_INT
+    prelude::NON_NEGATIVE_INT
 }
 
 pub fn t_non_positive_int() -> ElementId {
-    well_known::NON_POSITIVE_INT
+    prelude::NON_POSITIVE_INT
 }
 
 pub fn t_int_range(lo: i64, hi: i64) -> ElementId {
@@ -231,59 +231,59 @@ pub fn t_int_to(to: i64) -> ElementId {
 }
 
 pub fn t_float() -> ElementId {
-    well_known::FLOAT
+    prelude::FLOAT
 }
 
 pub fn t_array_key() -> ElementId {
-    well_known::ARRAY_KEY
+    prelude::ARRAY_KEY
 }
 
 pub fn t_numeric() -> ElementId {
-    well_known::NUMERIC
+    prelude::NUMERIC
 }
 
 pub fn t_scalar() -> ElementId {
-    well_known::SCALAR
+    prelude::SCALAR
 }
 
 pub fn t_class_string() -> ElementId {
-    well_known::CLASS_STRING
+    prelude::CLASS_STRING
 }
 
 pub fn t_interface_string() -> ElementId {
-    well_known::INTERFACE_STRING
+    prelude::INTERFACE_STRING
 }
 
 pub fn t_enum_string() -> ElementId {
-    well_known::ENUM_STRING
+    prelude::ENUM_STRING
 }
 
 pub fn t_trait_string() -> ElementId {
-    well_known::TRAIT_STRING
+    prelude::TRAIT_STRING
 }
 
 pub fn t_non_empty_string() -> ElementId {
-    well_known::NON_EMPTY_STRING
+    prelude::NON_EMPTY_STRING
 }
 
 pub fn t_numeric_string() -> ElementId {
-    well_known::NUMERIC_STRING
+    prelude::NUMERIC_STRING
 }
 
 pub fn t_lower_string() -> ElementId {
-    well_known::LOWERCASE_STRING
+    prelude::LOWERCASE_STRING
 }
 
 pub fn t_upper_string() -> ElementId {
-    well_known::UPPERCASE_STRING
+    prelude::UPPERCASE_STRING
 }
 
 pub fn t_truthy_string() -> ElementId {
-    well_known::TRUTHY_STRING
+    prelude::TRUTHY_STRING
 }
 
 pub fn t_callable_string() -> ElementId {
-    well_known::CALLABLE_STRING
+    prelude::CALLABLE_STRING
 }
 
 /// Combine `n` copies of an element and assert the result is exactly `[a]`

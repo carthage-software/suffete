@@ -3,7 +3,7 @@ use std::mem::size_of;
 use suffete::ElementId;
 use suffete::ElementKind;
 use suffete::TypeId;
-use suffete::well_known;
+use suffete::prelude;
 
 #[test]
 fn ids_are_four_bytes_with_niche_optimization() {
@@ -32,15 +32,15 @@ fn element_id_roundtrips_kind_and_slot() {
 #[test]
 fn well_known_trivial_elements_have_trivial_kind() {
     for id in [
-        well_known::NULL,
-        well_known::NEVER,
-        well_known::VOID,
-        well_known::PLACEHOLDER,
-        well_known::TRUE,
-        well_known::FALSE,
-        well_known::SCALAR,
-        well_known::NUMERIC,
-        well_known::ARRAY_KEY,
+        prelude::NULL,
+        prelude::NEVER,
+        prelude::VOID,
+        prelude::PLACEHOLDER,
+        prelude::TRUE,
+        prelude::FALSE,
+        prelude::SCALAR,
+        prelude::NUMERIC,
+        prelude::ARRAY_KEY,
     ] {
         assert!(id.kind().is_trivial(), "expected trivial kind, got {:?}", id.kind());
         assert_eq!(id.slot(), 0, "trivial elements occupy slot 0");
@@ -49,9 +49,9 @@ fn well_known_trivial_elements_have_trivial_kind() {
 
 #[test]
 fn well_known_int_family_slots_are_ordered() {
-    assert_eq!(well_known::INT.slot(), 0);
-    assert_eq!(well_known::POSITIVE_INT.slot(), 1);
-    assert_eq!(well_known::INT_ZERO.slot(), 6);
-    assert_eq!(well_known::INT_MINUS_ONE.slot(), 8);
-    assert_eq!(well_known::INT.kind(), ElementKind::Int);
+    assert_eq!(prelude::INT.slot(), 0);
+    assert_eq!(prelude::POSITIVE_INT.slot(), 1);
+    assert_eq!(prelude::INT_ZERO.slot(), 6);
+    assert_eq!(prelude::INT_MINUS_ONE.slot(), 8);
+    assert_eq!(prelude::INT.kind(), ElementKind::Int);
 }

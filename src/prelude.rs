@@ -1,4 +1,4 @@
-//! Well-known [`ElementId`]s and [`TypeId`]s, fixed at compile time.
+//! Prelude: well-known [`ElementId`]s and [`TypeId`]s, fixed at compile time.
 //!
 //! Trivial-kind elements (those whose [`ElementKind`] alone determines their
 //! identity, like `null`, `never`, `void`, `placeholder`, `true`, `false`,

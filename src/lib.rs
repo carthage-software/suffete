@@ -2,13 +2,13 @@
 //!
 //! See `README.md` for what this crate is, what it is not, and its (highly unstable) status.
 
-pub mod combiner;
-pub mod comparator;
 pub mod element;
 pub mod handle;
 pub mod interner;
+pub mod join;
+pub mod lattice;
+pub mod prelude;
 pub mod ty;
-pub mod well_known;
 
 pub use crate::element::Element;
 pub use crate::element::ElementId;

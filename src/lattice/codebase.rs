@@ -1,17 +1,17 @@
 use mago_atom::Atom;
 
-/// The information the type comparator needs from the surrounding world.
+/// The information the type lattice needs from the surrounding world.
 ///
 /// Implementations supply class-hierarchy lookups, member existence checks,
 /// constant resolutions, alias bodies, and template-parameter metadata. The
-/// trait is deliberately narrow: only the information the spec's subtype
-/// rules consult appears here. Implementations come from outside this crate
-/// (an analyser like Mago, a language server, mock fixtures for tests).
+/// trait is deliberately narrow: only the information the lattice rules
+/// consult appears here. Implementations come from outside this crate (an
+/// analyser like Mago, a language server, mock fixtures for tests).
 ///
-/// Methods are added to this trait as comparator rule families are
-/// implemented. The current set is the minimum the axiom-only comparator
-/// needs (which is nothing); future rules will require ancestor queries,
-/// method/property existence checks, template lookups, and so on.
+/// Methods are added to this trait as rule families are implemented. The
+/// current set is the minimum the axiom-only / scalar-lattice rules need
+/// (which is nothing); object hierarchy, callable variance, and template
+/// queries will all add their own methods.
 pub trait Codebase {
     /// `true` iff `child` is the same class-like as `parent`, or extends /
     /// implements / uses-as-trait it (transitively). Implementations are
@@ -19,7 +19,7 @@ pub trait Codebase {
     fn is_subclass_of(&self, child: Atom, parent: Atom) -> bool;
 }
 
-/// A no-op `Codebase` for tests of comparator paths that don't query Γ.
+/// A no-op `Codebase` for lattice queries that don't consult Γ.
 ///
 /// Every lookup returns the empty / negative answer. Suitable when the input
 /// types contain only scalar / trivial elements and no object / generic /

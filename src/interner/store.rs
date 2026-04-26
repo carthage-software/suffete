@@ -48,7 +48,7 @@ use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::StringInfo;
 use crate::interner::Arena;
 use crate::interner::SliceArena;
-use crate::well_known::NEVER;
+use crate::prelude::NEVER;
 
 /// Process-global interner that owns one storage backend per payload family.
 ///
@@ -335,11 +335,11 @@ pub fn interner() -> &'static Interner {
 mod tests {
     use super::*;
     use crate::element::payload::scalar::IntInfo;
-    use crate::well_known::FALSE;
-    use crate::well_known::INT;
-    use crate::well_known::STRING;
-    use crate::well_known::TRUE;
-    use crate::well_known::TYPE_INT_OR_STRING;
+    use crate::prelude::FALSE;
+    use crate::prelude::INT;
+    use crate::prelude::STRING;
+    use crate::prelude::TRUE;
+    use crate::prelude::TYPE_INT_OR_STRING;
 
     #[test]
     fn intern_int_dedupes_and_packs_kind() {
@@ -394,9 +394,9 @@ mod tests {
     fn slice_arena_intern_dedupes_by_content() {
         let i = Interner::new();
 
-        let a = i.intern_type_list(&[crate::well_known::TYPE_INT, crate::well_known::TYPE_STRING]);
-        let b = i.intern_type_list(&[crate::well_known::TYPE_INT, crate::well_known::TYPE_STRING]);
-        let c = i.intern_type_list(&[crate::well_known::TYPE_STRING]);
+        let a = i.intern_type_list(&[crate::prelude::TYPE_INT, crate::prelude::TYPE_STRING]);
+        let b = i.intern_type_list(&[crate::prelude::TYPE_INT, crate::prelude::TYPE_STRING]);
+        let c = i.intern_type_list(&[crate::prelude::TYPE_STRING]);
 
         assert_eq!(a, b, "identical contents share a slot");
         assert_ne!(a, c);

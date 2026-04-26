@@ -17,7 +17,7 @@ use crate::element::payload::scalar::FloatInfo;
 use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::IntRange;
 use crate::interner::Interner;
-use crate::well_known::*;
+use crate::prelude::*;
 
 impl Interner {
     /// Construct a fully-booted interner with every well-known
