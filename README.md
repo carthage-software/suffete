@@ -1,3 +1,8 @@
+<div align="center">
+  <img src="./assets/general-before-suffetes.jpg" alt="A Carthaginian general before the Sophetim" width="640">
+  <p><em>"A Carthaginian general before the Sophetim", W. J. Morgan, from Ridpath's Universal History (1897). Public domain.</em></p>
+</div>
+
 # Suffete
 
 > **Suffete**: the Carthaginian high magistrate, the judge of the city. The thing that decides whether what stands before it is sound.
