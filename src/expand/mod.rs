@@ -13,13 +13,19 @@
 //! signature is monotone in result precision (a previously
 //! pass-through atom becomes a real resolution).
 //!
-//! - **Stage 1 (current):** `Alias` resolution. Aliases declared on a
-//!   class via `World::alias_body` are looked up and replaced by their
-//!   recorded body, recursively expanded.
-//! - **Stage 2:** `Reference` resolution + contextual keyword
-//!   substitution (`self`, `static`, `parent`).
-//! - **Stage 3:** `Derived` evaluation (`KeyOf`, `ValueOf`, `IndexAccess`,
-//!   `PropertiesOf`, `IntMask`, etc.).
+//! - **Stage 1:** `Alias` resolution.
+//! - **Stage 2 (current):** `Reference` resolution.
+//!   - `SymbolReference` (an unresolved class-like name) becomes the
+//!     equivalent `Object` atom, preserving `type_args` and
+//!     `intersections`.
+//!   - `MemberReference` with an `Identifier` selector resolves through
+//!     `World::class_constant_type`.
+//!   - `GlobalReference` with an `Identifier` selector resolves through
+//!     `World::global_constant_type`.
+//!   - Wildcard / prefix / suffix selectors pass through (they need a
+//!     constant-enumeration query that lands in a later stage).
+//! - **Stage 3:** Contextual keyword substitution (`self`, `static`,
+//!   `parent`) and `Derived` evaluation.
 //! - **Stage 4:** `Conditional` evaluation.
 //!
 //! # Structural descent
@@ -38,6 +44,8 @@ use crate::element::payload::IterableInfo;
 use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::KnownItemEntry;
 use crate::element::payload::ListInfo;
+use crate::element::payload::NameSelector;
+use crate::element::payload::ObjectFlags;
 use crate::element::payload::ObjectInfo;
 use crate::interner::interner;
 use crate::world::World;
@@ -89,6 +97,9 @@ enum Expansion {
 fn expand_element<W: World>(elem: ElementId, world: &W) -> Expansion {
     match elem.kind() {
         ElementKind::Alias => expand_alias(elem, world),
+        ElementKind::Reference => expand_reference(elem, world),
+        ElementKind::MemberReference => expand_member_reference(elem, world),
+        ElementKind::GlobalReference => expand_global_reference(elem, world),
         ElementKind::Object => expand_object(elem, world),
         ElementKind::List => expand_list(elem, world),
         ElementKind::Array => expand_keyed_array(elem, world),
@@ -104,6 +115,74 @@ fn expand_alias<W: World>(elem: ElementId, world: &W) -> Expansion {
         return Expansion::Unchanged;
     };
 
+    let expanded = expand(body, world);
+    let elements = expanded.as_ref().elements;
+    if elements.len() == 1 { Expansion::Single(elements[0]) } else { Expansion::Many(elements.to_vec()) }
+}
+
+/// `SymbolReference("Foo", type_args, intersections)` is, semantically,
+/// the same value-set as `Object("Foo", ...)`. Convert it; type args
+/// and intersection conjuncts are recursively expanded so a reference
+/// like `Foo<MyAlias>` resolves to `Object("Foo", [<expanded alias>])`.
+fn expand_reference<W: World>(elem: ElementId, world: &W) -> Expansion {
+    let i = interner();
+    let info = *i.get_reference(elem);
+
+    let new_args = info.type_args.map(|id| {
+        let args = i.get_type_list(id);
+        let expanded: Vec<TypeId> = args.iter().map(|&a| expand(a, world)).collect();
+        i.intern_type_list(&expanded)
+    });
+
+    let new_intersections = info.intersections.map(|id| {
+        let conjuncts = i.get_element_list(id);
+        let expanded: Vec<ElementId> = conjuncts
+            .iter()
+            .flat_map(|&c| match expand_element(c, world) {
+                Expansion::Unchanged => vec![c],
+                Expansion::Single(e) => vec![e],
+                Expansion::Many(es) => es,
+            })
+            .collect();
+        i.intern_element_list(&expanded)
+    });
+
+    Expansion::Single(i.intern_object(ObjectInfo {
+        name: info.name,
+        type_args: new_args,
+        intersections: new_intersections,
+        flags: ObjectFlags::default(),
+    }))
+}
+
+/// `Foo::CONST` (an `Identifier` selector on a `MemberReference`)
+/// resolves to the constant's declared type via
+/// [`World::class_constant_type`]. Other selectors (wildcard / prefix /
+/// suffix) need a constant-enumeration query and pass through
+/// unchanged for now.
+fn expand_member_reference<W: World>(elem: ElementId, world: &W) -> Expansion {
+    let info = interner().get_member_reference(elem);
+    let NameSelector::Identifier(constant) = info.selector else {
+        return Expansion::Unchanged;
+    };
+    let Some(body) = world.class_constant_type(info.class_like_name, constant) else {
+        return Expansion::Unchanged;
+    };
+    let expanded = expand(body, world);
+    let elements = expanded.as_ref().elements;
+    if elements.len() == 1 { Expansion::Single(elements[0]) } else { Expansion::Many(elements.to_vec()) }
+}
+
+/// A global constant reference resolves through
+/// [`World::global_constant_type`]. Wildcard selectors pass through.
+fn expand_global_reference<W: World>(elem: ElementId, world: &W) -> Expansion {
+    let info = interner().get_global_reference(elem);
+    let NameSelector::Identifier(name) = info.selector else {
+        return Expansion::Unchanged;
+    };
+    let Some(body) = world.global_constant_type(name) else {
+        return Expansion::Unchanged;
+    };
     let expanded = expand(body, world);
     let elements = expanded.as_ref().elements;
     if elements.len() == 1 { Expansion::Single(elements[0]) } else { Expansion::Many(elements.to_vec()) }

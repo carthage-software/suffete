@@ -103,6 +103,16 @@ pub trait World {
     /// [`crate::expand`] to substitute alias bodies in place of
     /// `Alias` atoms.
     fn alias_body(&self, class: Atom, alias: Atom) -> Option<TypeId>;
+
+    /// The declared or inferred type of `class::constant`. `None` when
+    /// the constant is unknown. Used by [`crate::expand`] to resolve
+    /// `MemberReference` atoms with an `Identifier` selector.
+    fn class_constant_type(&self, class: Atom, constant: Atom) -> Option<TypeId>;
+
+    /// The declared or inferred type of a global constant or function
+    /// signature. `None` when the name is unknown. Used by
+    /// [`crate::expand`] to resolve `GlobalReference` atoms.
+    fn global_constant_type(&self, name: Atom) -> Option<TypeId>;
 }
 
 /// What an enum case carries beyond its `name`. PHP enums are either
@@ -163,6 +173,14 @@ impl World for NullWorld {
     }
 
     fn alias_body(&self, _class: Atom, _alias: Atom) -> Option<TypeId> {
+        None
+    }
+
+    fn class_constant_type(&self, _class: Atom, _constant: Atom) -> Option<TypeId> {
+        None
+    }
+
+    fn global_constant_type(&self, _name: Atom) -> Option<TypeId> {
         None
     }
 }

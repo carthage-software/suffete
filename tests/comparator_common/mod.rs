@@ -63,6 +63,10 @@ pub struct MockWorld {
     /// aliases. Body may itself contain other aliases, references, or
     /// derived types — expansion is recursive.
     aliases: HashMap<(Atom, Atom), TypeId>,
+    /// `(class, constant_name) -> constant type` for class-level constants.
+    class_constants: HashMap<(Atom, Atom), TypeId>,
+    /// `name -> constant type` for global constants.
+    global_constants: HashMap<Atom, TypeId>,
 }
 
 impl MockWorld {
@@ -76,6 +80,8 @@ impl MockWorld {
             properties: HashMap::new(),
             enums: HashMap::new(),
             aliases: HashMap::new(),
+            class_constants: HashMap::new(),
+            global_constants: HashMap::new(),
         }
     }
 
@@ -190,6 +196,20 @@ impl MockWorld {
         self
     }
 
+    /// Declare a class constant: `Class::CONST: type`.
+    pub fn with_class_constant(&mut self, class: &str, name: &str, type_: TypeId) -> &mut Self {
+        let n = atom(class);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.class_constants.insert((n, atom(name)), type_);
+        self
+    }
+
+    /// Declare a global constant: `define('NAME', value)`.
+    pub fn with_global_constant(&mut self, name: &str, type_: TypeId) -> &mut Self {
+        self.global_constants.insert(atom(name), type_);
+        self
+    }
+
     fn recompute_closure(&mut self) {
         loop {
             let mut changed = false;
@@ -269,6 +289,15 @@ impl World for MockWorld {
 
     fn alias_body(&self, class: Atom, alias: Atom) -> Option<TypeId> {
         self.aliases.get(&(class, alias)).copied()
+    }
+
+    fn class_constant_type(&self, class: Atom, constant: Atom) -> Option<TypeId> {
+        let ancestors = self.ancestors.get(&class)?;
+        ancestors.iter().find_map(|a| self.class_constants.get(&(*a, constant)).copied())
+    }
+
+    fn global_constant_type(&self, name: Atom) -> Option<TypeId> {
+        self.global_constants.get(&name).copied()
     }
 }
 
