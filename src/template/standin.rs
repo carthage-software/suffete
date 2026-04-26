@@ -98,11 +98,16 @@ pub struct StandinOptions {
     /// — the soundest choice when no surrounding container declares a
     /// position-specific variance.
     pub default_variance: Variance,
+    /// Maximum structural descent depth. Walks past this depth replace
+    /// the parameter slot with its constraint (no further bound is
+    /// recorded). Defaults to `8`, which is enough for realistic PHP
+    /// generics while bounding cost on cycles in template constraints.
+    pub max_depth: u32,
 }
 
 impl Default for StandinOptions {
     fn default() -> Self {
-        Self { argument_offset: 0, default_variance: Variance::Invariant }
+        Self { argument_offset: 0, default_variance: Variance::Invariant, max_depth: 8 }
     }
 }
 
@@ -116,6 +121,12 @@ impl StandinOptions {
     #[must_use]
     pub const fn with_default_variance(mut self, variance: Variance) -> Self {
         self.default_variance = variance;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_max_depth(mut self, depth: u32) -> Self {
+        self.max_depth = depth;
         self
     }
 }
@@ -178,6 +189,9 @@ fn walk_type<W: World>(
     if parameter == argument {
         return parameter;
     }
+    if depth > options.max_depth {
+        return collapse_to_constraints(parameter);
+    }
 
     let p_type = parameter.as_ref();
     let mut new_elements: Vec<ElementId> = Vec::with_capacity(p_type.elements.len());
@@ -206,6 +220,30 @@ fn walk_type<W: World>(
     interner().intern_type(&joined, p_type.flags)
 }
 
+/// Past the iteration-depth cutoff (§4.2.3): replace any template
+/// parameter atom in `parameter` with its constraint, leaving other
+/// atoms untouched. No bound is recorded — the walk terminated.
+fn collapse_to_constraints(parameter: TypeId) -> TypeId {
+    let i = interner();
+    let p_type = parameter.as_ref();
+    let mut new_elements: Vec<ElementId> = Vec::with_capacity(p_type.elements.len());
+    let mut changed = false;
+    for &p_elem in p_type.elements {
+        if p_elem.kind() == ElementKind::GenericParameter {
+            let info = i.get_generic_parameter(p_elem);
+            new_elements.extend_from_slice(info.constraint.as_ref().elements);
+            changed = true;
+        } else {
+            new_elements.push(p_elem);
+        }
+    }
+    if !changed {
+        return parameter;
+    }
+    let joined = crate::join::compute(&new_elements);
+    i.intern_type(&joined, p_type.flags)
+}
+
 enum Walk {
     Unchanged,
     Single(ElementId),
@@ -225,7 +263,9 @@ fn walk_element<W: World>(
         ElementKind::GenericParameter => walk_generic_parameter(parameter, argument, variance, depth, state, options),
         ElementKind::Object => walk_object(parameter, argument, depth, world, state, options),
         ElementKind::List => walk_list(parameter, argument, depth, world, state, options),
+        ElementKind::Array => walk_keyed_array(parameter, argument, depth, world, state, options),
         ElementKind::Iterable => walk_iterable(parameter, argument, depth, world, state, options),
+        ElementKind::Callable => walk_callable(parameter, argument, depth, world, state, options),
         _ => Walk::Unchanged,
     }
 }
@@ -256,11 +296,12 @@ fn walk_generic_parameter(
     if elements.len() == 1 { Walk::Single(elements[0]) } else { Walk::Many(elements.to_vec()) }
 }
 
-/// `Object(C, [τ_i])` against an argument that resolves to `Object(C,
-/// [σ_i])`: walk every type argument by position, with the world-
-/// declared variance for that parameter slot. Descendant arguments
-/// (where the argument's class is a subclass of `C`) need extension
-/// resolution and pass through unchanged in the first cut.
+/// `Object(C, [τ_i])` against an argument that resolves to a class in
+/// `C`'s closure. Same-class args walk by position; descendant args
+/// (`D <: C`) project through `World::inherited_template_argument` and
+/// then substitute `D`'s actual type arguments to recover the type
+/// `D` passes for `C`'s `i`-th slot. The variance comes from `C`'s
+/// declaration, not `D`'s.
 fn walk_object<W: World>(
     parameter: ElementId,
     argument: TypeId,
@@ -274,33 +315,29 @@ fn walk_object<W: World>(
     let Some(p_args_id) = p_info.type_args else {
         return Walk::Unchanged;
     };
-
     let p_args: Vec<TypeId> = i.get_type_list(p_args_id).to_vec();
 
-    let arg_elems = argument.as_ref().elements;
-    let matching_arg = arg_elems
-        .iter()
-        .find(|&&e| e.kind() == ElementKind::Object && i.get_object(e).name == p_info.name)
-        .copied();
+    let matching_arg = argument.as_ref().elements.iter().copied().find(|&e| {
+        e.kind() == ElementKind::Object && {
+            let a_info = i.get_object(e);
+            a_info.name == p_info.name || world.descends_from(a_info.name, p_info.name)
+        }
+    });
     let Some(arg_elem) = matching_arg else {
         return Walk::Unchanged;
     };
     let a_info = *i.get_object(arg_elem);
-    let Some(a_args_id) = a_info.type_args else {
-        return Walk::Unchanged;
-    };
-    let a_args = i.get_type_list(a_args_id);
 
     let mut new_args: Vec<TypeId> = Vec::with_capacity(p_args.len());
     let mut changed = false;
     for (idx, &p_arg) in p_args.iter().enumerate() {
-        let Some(&a_arg) = a_args.get(idx) else {
-            new_args.push(p_arg);
-            continue;
-        };
+        let a_arg = projected_object_arg(p_info.name, &a_info, idx, world);
         let variance =
             world.template_parameter_at(p_info.name, idx).map(|p| p.variance).unwrap_or(Variance::Invariant);
-        let refined = walk_type(p_arg, a_arg, variance, depth + 1, world, state, options);
+        let refined = match a_arg {
+            Some(t) => walk_type(p_arg, t, variance, depth + 1, world, state, options),
+            None => p_arg,
+        };
         if refined != p_arg {
             changed = true;
         }
@@ -313,6 +350,39 @@ fn walk_object<W: World>(
 
     let new_args_id = i.intern_type_list(&new_args);
     Walk::Single(i.intern_object(crate::element::payload::ObjectInfo { type_args: Some(new_args_id), ..p_info }))
+}
+
+/// Pick the type the argument passes to `container_class`'s `position`-th
+/// type parameter. For same-class arguments that's just
+/// `argument.type_args[position]`. For descendant arguments it goes
+/// through `World::inherited_template_argument` and substitutes the
+/// argument's own template arguments into the inherited expression.
+fn projected_object_arg<W: World>(
+    container_class: Atom,
+    argument_object: &crate::element::payload::ObjectInfo,
+    position: usize,
+    world: &W,
+) -> Option<TypeId> {
+    let i = interner();
+
+    if argument_object.name == container_class {
+        let id = argument_object.type_args?;
+        return i.get_type_list(id).get(position).copied();
+    }
+
+    let inherited = world.inherited_template_argument(argument_object.name, container_class, position)?;
+
+    let actual_args: Vec<TypeId> = argument_object.type_args.map(|id| i.get_type_list(id).to_vec()).unwrap_or_default();
+    let argument_entity =
+        i.intern_defining_entity(crate::element::payload::DefiningEntity::ClassLike(argument_object.name));
+
+    Some(crate::template::substitute(inherited, &|info: &crate::element::payload::GenericParameterInfo| -> Option<TypeId> {
+        if info.defining_entity != argument_entity {
+            return None;
+        }
+        let pos = world.template_parameter_index(argument_object.name, info.name)?;
+        actual_args.get(pos).copied()
+    }))
 }
 
 /// `List(τ)` against `List(σ)` or `Iterable(_, σ)`: walk τ vs σ
@@ -388,6 +458,165 @@ fn walk_iterable<W: World>(
             ..p_info
         }),
     )
+}
+
+/// `Keyed(τ_K, τ_V, {k → τ})` against a keyed-array argument: walk
+/// `τ_K` against the argument's key parameter (covariantly), `τ_V`
+/// against the value parameter, and each known item against the
+/// argument's matching known item. Iterable arguments contribute their
+/// key/value to `τ_K` / `τ_V` only — known-item entries don't have a
+/// corresponding projection.
+fn walk_keyed_array<W: World>(
+    parameter: ElementId,
+    argument: TypeId,
+    depth: u32,
+    world: &W,
+    state: &mut StandinState,
+    options: &StandinOptions,
+) -> Walk {
+    let i = interner();
+    let p_info = *i.get_array(parameter);
+
+    let arg_pair = argument.as_ref().elements.iter().find_map(|&e| match e.kind() {
+        ElementKind::Array => {
+            let info = *i.get_array(e);
+            Some(KeyedProjection { key: info.key_param, value: info.value_param, known_items: info.known_items })
+        }
+        ElementKind::Iterable => {
+            let info = i.get_iterable(e);
+            Some(KeyedProjection { key: Some(info.key_type), value: Some(info.value_type), known_items: None })
+        }
+        _ => None,
+    });
+    let Some(arg) = arg_pair else {
+        return Walk::Unchanged;
+    };
+
+    let new_key = match (p_info.key_param, arg.key) {
+        (Some(p_k), Some(a_k)) => Some(walk_type(p_k, a_k, Variance::Covariant, depth + 1, world, state, options)),
+        _ => p_info.key_param,
+    };
+    let new_value = match (p_info.value_param, arg.value) {
+        (Some(p_v), Some(a_v)) => Some(walk_type(p_v, a_v, Variance::Covariant, depth + 1, world, state, options)),
+        _ => p_info.value_param,
+    };
+
+    let new_known = p_info.known_items.map(|id| {
+        let p_entries = i.get_known_items(id);
+        let a_entries: &[crate::element::payload::KnownItemEntry] =
+            arg.known_items.map(|aid| i.get_known_items(aid)).unwrap_or(&[]);
+        let mut new_entries: Vec<crate::element::payload::KnownItemEntry> = Vec::with_capacity(p_entries.len());
+        let mut changed_inner = false;
+        for entry in p_entries {
+            let arg_value = a_entries.iter().find(|e| e.key == entry.key).map(|e| e.value);
+            let refined_value = match arg_value {
+                Some(av) => walk_type(entry.value, av, Variance::Covariant, depth + 1, world, state, options),
+                None => entry.value,
+            };
+            if refined_value != entry.value {
+                changed_inner = true;
+            }
+            new_entries.push(crate::element::payload::KnownItemEntry { value: refined_value, ..*entry });
+        }
+        if changed_inner { (i.intern_known_items(&new_entries), true) } else { (id, false) }
+    });
+
+    let key_changed = new_key != p_info.key_param;
+    let value_changed = new_value != p_info.value_param;
+    let known_changed = new_known.is_some_and(|(_, ch)| ch);
+    if !key_changed && !value_changed && !known_changed {
+        return Walk::Unchanged;
+    }
+
+    Walk::Single(i.intern_array(crate::element::payload::KeyedArrayInfo {
+        key_param: new_key,
+        value_param: new_value,
+        known_items: new_known.map(|(id, _)| id),
+        ..p_info
+    }))
+}
+
+struct KeyedProjection {
+    key: Option<TypeId>,
+    value: Option<TypeId>,
+    known_items: Option<crate::element::payload::KnownItemsId>,
+}
+
+/// `Callable(Sig(s_p))` against a callable argument: walk parameter
+/// types pointwise contravariantly and the return type covariantly.
+/// Aliases and `Any` callables pass through.
+fn walk_callable<W: World>(
+    parameter: ElementId,
+    argument: TypeId,
+    depth: u32,
+    world: &W,
+    state: &mut StandinState,
+    options: &StandinOptions,
+) -> Walk {
+    use crate::element::payload::CallableInfo;
+
+    let i = interner();
+    let p_info = *i.get_callable(parameter);
+    let p_sig_id = match p_info {
+        CallableInfo::Signature(s) | CallableInfo::Closure(s) => s,
+        _ => return Walk::Unchanged,
+    };
+
+    let arg_sig_id = argument.as_ref().elements.iter().find_map(|&e| {
+        if e.kind() != ElementKind::Callable {
+            return None;
+        }
+        match *i.get_callable(e) {
+            CallableInfo::Signature(s) | CallableInfo::Closure(s) => Some(s),
+            _ => None,
+        }
+    });
+    let Some(a_sig_id) = arg_sig_id else {
+        return Walk::Unchanged;
+    };
+
+    let p_sig = *i.get_signature(p_sig_id);
+    let a_sig = *i.get_signature(a_sig_id);
+
+    let new_return = walk_type(p_sig.return_type, a_sig.return_type, Variance::Covariant, depth + 1, world, state, options);
+
+    let new_param_list = p_sig.parameters.map(|pid| {
+        let p_params = i.get_param_list(pid);
+        let a_params: &[crate::element::payload::ParamInfo] =
+            a_sig.parameters.map(|aid| i.get_param_list(aid)).unwrap_or(&[]);
+        let mut new_params: Vec<crate::element::payload::ParamInfo> = Vec::with_capacity(p_params.len());
+        let mut changed_inner = false;
+        for (idx, p_param) in p_params.iter().enumerate() {
+            let arg_param_type = a_params.get(idx).map(|p| p.type_);
+            let refined = match arg_param_type {
+                Some(at) => walk_type(p_param.type_, at, Variance::Contravariant, depth + 1, world, state, options),
+                None => p_param.type_,
+            };
+            if refined != p_param.type_ {
+                changed_inner = true;
+            }
+            new_params.push(crate::element::payload::ParamInfo { type_: refined, ..*p_param });
+        }
+        if changed_inner { (i.intern_param_list(&new_params), true) } else { (pid, false) }
+    });
+
+    let return_changed = new_return != p_sig.return_type;
+    let params_changed = new_param_list.is_some_and(|(_, ch)| ch);
+    if !return_changed && !params_changed {
+        return Walk::Unchanged;
+    }
+
+    let new_sig = i.intern_signature(crate::element::payload::Signature {
+        return_type: new_return,
+        parameters: new_param_list.map(|(id, _)| id).or(p_sig.parameters),
+        ..p_sig
+    });
+    let new_callable = match p_info {
+        CallableInfo::Signature(_) => CallableInfo::Signature(new_sig),
+        CallableInfo::Closure(_) => CallableInfo::Closure(new_sig),
+        _ => return Walk::Unchanged,
+    };
+    Walk::Single(i.intern_callable(new_callable))
 }
 
 /// Pass the entire argument through to the next walk. Refinements like
