@@ -75,7 +75,7 @@ pub fn generalizes<W: World>(
 /// `type_coerced` flag is set to record that the rejection was a narrowing,
 /// not an out-of-family mismatch. `mixed` inputs additionally set
 /// `type_coerced_from_nested_mixed`.
-fn element_refines<W: World>(
+pub(crate) fn element_refines<W: World>(
     input: ElementId,
     container: ElementId,
     codebase: &W,

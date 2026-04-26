@@ -236,6 +236,18 @@ pub fn atomic_is_contained<W: World>(input: ElementId, container: ElementId, cod
     is_contained(it, ct, codebase)
 }
 
+pub fn overlaps<W: World>(a: TypeId, b: TypeId, codebase: &W) -> bool {
+    let mut report = LatticeReport::new();
+    lattice::intersects(a, b, codebase, LatticeOptions::default(), &mut report)
+}
+
+pub fn atomic_overlaps<W: World>(a: ElementId, b: ElementId, codebase: &W) -> bool {
+    let i = interner();
+    let at = i.intern_type(&[a], FlowFlags::EMPTY);
+    let bt = i.intern_type(&[b], FlowFlags::EMPTY);
+    overlaps(at, bt, codebase)
+}
+
 pub fn atomic_is_contained_capturing<W: World>(
     input: ElementId,
     container: ElementId,

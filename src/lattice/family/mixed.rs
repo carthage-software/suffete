@@ -107,7 +107,11 @@ fn truthiness_of(input: ElementId) -> Truthiness {
 
         ElementKind::Float => match interner().get_float(input) {
             FloatInfo::Literal(literal) => {
-                if literal.value() == 0.0 { Truthiness::Falsy } else { Truthiness::Truthy }
+                if literal.value() == 0.0 {
+                    Truthiness::Falsy
+                } else {
+                    Truthiness::Truthy
+                }
             }
             _ => Truthiness::Undetermined,
         },
