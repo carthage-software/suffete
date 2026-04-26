@@ -3,6 +3,7 @@
 > **Suffete**: the Carthaginian high magistrate, the judge of the city. The thing that decides whether what stands before it is sound.
 
 [![CI Status](https://github.com/carthage-software/suffete/actions/workflows/ci.yml/badge.svg)](https://github.com/carthage-software/suffete/actions/workflows/ci.yml)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/carthage-software/suffete?utm_source=badge)
 [![Crates.io](https://img.shields.io/crates/v/suffete.svg)](https://crates.io/crates/suffete)
 [![License](https://img.shields.io/crates/l/suffete.svg)](https://github.com/carthage-software/suffete/blob/main/LICENSE-MIT)
 
