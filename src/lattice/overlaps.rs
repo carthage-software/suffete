@@ -1,9 +1,10 @@
-//! Intersection (overlap) relation: `intersects(a, b)` is `true` iff there
-//! exists a runtime value `v` such that `v ∈ a ∩ b`.
+//! Overlap relation: `overlaps(a, b)` is `true` iff there exists a
+//! runtime value `v` such that `v ∈ a ∩ b`.
 //!
-//! Symmetric: `intersects(a, b) == intersects(b, a)`. Distinct from
+//! Symmetric: `overlaps(a, b) == overlaps(b, a)`. Distinct from
 //! `refines`: `int<0,10>` and `int<5,15>` overlap (value 7 inhabits both)
-//! without either refining the other.
+//! without either refining the other. The type-returning meet (greatest
+//! lower bound) lives in `crate::meet`.
 //!
 //! Strategy: distribute over union (any element pair on the two sides
 //! that overlaps proves the whole types overlap), then for each element
@@ -39,7 +40,7 @@ use crate::prelude::NEVER;
 use crate::prelude::PLACEHOLDER;
 use crate::world::World;
 
-pub fn intersects<W: World>(
+pub fn overlaps<W: World>(
     a: TypeId,
     b: TypeId,
     codebase: &W,
@@ -52,10 +53,10 @@ pub fn intersects<W: World>(
     a_type
         .elements
         .iter()
-        .any(|x| b_type.elements.iter().any(|y| element_intersects(*x, *y, codebase, options, report)))
+        .any(|x| b_type.elements.iter().any(|y| element_overlaps(*x, *y, codebase, options, report)))
 }
 
-fn element_intersects<W: World>(
+fn element_overlaps<W: World>(
     a: ElementId,
     b: ElementId,
     codebase: &W,
@@ -75,12 +76,12 @@ fn element_intersects<W: World>(
     if a.kind() == ElementKind::GenericParameter {
         let constraint = interner().get_generic_parameter(a).constraint;
         let other = interner().intern_type(&[b], FlowFlags::EMPTY);
-        return intersects(constraint, other, codebase, options, report);
+        return overlaps(constraint, other, codebase, options, report);
     }
     if b.kind() == ElementKind::GenericParameter {
         let constraint = interner().get_generic_parameter(b).constraint;
         let other = interner().intern_type(&[a], FlowFlags::EMPTY);
-        return intersects(constraint, other, codebase, options, report);
+        return overlaps(constraint, other, codebase, options, report);
     }
 
     if element_refines(a, b, codebase, options, report) || element_refines(b, a, codebase, options, report) {

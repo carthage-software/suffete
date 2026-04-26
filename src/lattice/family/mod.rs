@@ -1,9 +1,9 @@
 //! Per-family lattice rule helpers.
 //!
-//! Each submodule owns the refinement (`<:`) and intersection (`∩`) rules
+//! Each submodule owns the refinement (`<:`) and overlap (`∩ ≠ ∅`) rules
 //! for one element family. The top-level [`refines`](crate::lattice::refines)
-//! and [`intersects`](crate::lattice::intersects) entry points dispatch into
-//! these by container kind (refines) or pair of kinds (intersects).
+//! and [`overlaps`](crate::lattice::overlaps) entry points dispatch into
+//! these by container kind (refines) or pair of kinds (overlaps).
 //!
 //! Each family file follows the same shape:
 //!
@@ -11,7 +11,7 @@
 //!   under that family's rules. Reflexivity, Bot (`never <: anything`), and
 //!   Top (`anything <: mixed`) are the entry points' responsibility, never
 //!   each family's.
-//! - `intersects(a, b)` — returns `true` iff `a ∩ b ≠ ∅`. Symmetric.
+//! - `overlaps(a, b)` — returns `true` iff `a ∩ b ≠ ∅`. Symmetric.
 //!
 //! Stub modules return `false` conservatively until their rules land.
 

@@ -3,7 +3,7 @@ use crate::TypeId;
 /// Caller-controlled options for the lattice operations
 /// ([`refines`](crate::lattice::refines),
 /// [`generalizes`](crate::lattice::generalizes),
-/// [`intersects`](crate::lattice::intersects)).
+/// [`overlaps`](crate::lattice::overlaps)).
 ///
 /// Each field tweaks the algorithm without changing its meaning at the
 /// type level. Defaults are all `false`. Use [`LatticeOptions::default`]

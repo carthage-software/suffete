@@ -1,4 +1,4 @@
-//! Overlap (`intersects`) tests covering the universal axioms,
+//! Overlap (`overlaps`) tests covering the universal axioms,
 //! subsumption shortcut, integer-range overlap, and family-wedge cases
 //! from comparison.md §2.
 

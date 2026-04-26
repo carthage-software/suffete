@@ -301,7 +301,7 @@ pub fn atomic_is_contained<W: World>(input: ElementId, container: ElementId, cod
 
 pub fn overlaps<W: World>(a: TypeId, b: TypeId, codebase: &W) -> bool {
     let mut report = LatticeReport::new();
-    lattice::intersects(a, b, codebase, LatticeOptions::default(), &mut report)
+    lattice::overlaps(a, b, codebase, LatticeOptions::default(), &mut report)
 }
 
 pub fn atomic_overlaps<W: World>(a: ElementId, b: ElementId, codebase: &W) -> bool {
