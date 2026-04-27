@@ -13,7 +13,9 @@ pub mod meet;
 pub mod prelude;
 pub mod subtract;
 pub mod template;
+pub mod transform;
 pub mod ty;
+pub mod widen;
 pub mod world;
 
 pub use crate::builder::TypeBuilder;
