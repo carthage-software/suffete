@@ -327,6 +327,91 @@ fn declared_but_unbound_distinguishable_from_undeclared() {
 }
 
 #[test]
+fn bounds_in_scope_filters_by_defining_entity() {
+    let cb = empty_world();
+    let mut state = StandinState::new();
+    let opts = StandinOptions::default();
+    let foo_t = u(template_param("Foo", "T"));
+    let bar_u = u(template_param("Bar", "U"));
+    template::standin(foo_t, prelude::TYPE_INT, &cb, &mut state, &opts);
+    template::standin(bar_u, prelude::TYPE_STRING, &cb, &mut state, &opts);
+
+    let foo_entity = key_for("Foo", "T").defining_entity;
+    let scoped: Vec<_> = state.bounds_in_scope(foo_entity).map(|(k, _)| k.name).collect();
+    assert_eq!(scoped, vec![atom("T")]);
+}
+
+#[test]
+fn declarations_in_scope_filters_by_defining_entity() {
+    let mut state = StandinState::new();
+    state.declare(key_for("Foo", "T"), prelude::TYPE_MIXED);
+    state.declare(key_for("Bar", "U"), prelude::TYPE_INT);
+    let foo_entity = key_for("Foo", "T").defining_entity;
+    let scoped: Vec<_> = state.declarations_in_scope(foo_entity).map(|(k, _)| k.name).collect();
+    assert_eq!(scoped, vec![atom("T")]);
+}
+
+#[test]
+fn merge_scope_re_keys_declarations_and_bounds() {
+    let cb = empty_world();
+    let mut state = StandinState::new();
+    let opts = StandinOptions::default();
+
+    // Record under Foo.
+    let foo_t = u(template_param("Foo", "T"));
+    template::standin(foo_t, prelude::TYPE_INT, &cb, &mut state, &opts);
+
+    let foo_entity = key_for("Foo", "T").defining_entity;
+    let bar_entity = key_for("Bar", "Z").defining_entity;
+
+    state.merge_scope(foo_entity, bar_entity);
+
+    // After merge, the bounds and declarations for T live under Bar.
+    let bar_t_key = TemplateKey { defining_entity: bar_entity, name: atom("T") };
+    assert!(state.is_declared(bar_t_key));
+    assert_eq!(state.bounds_for(bar_t_key).len(), 1);
+
+    // Foo entity has nothing left.
+    assert_eq!(state.bounds_in_scope(foo_entity).count(), 0);
+    assert_eq!(state.declarations_in_scope(foo_entity).count(), 0);
+}
+
+#[test]
+fn merge_scope_appends_when_target_already_has_bounds_for_same_name() {
+    let cb = empty_world();
+    let mut state = StandinState::new();
+    let opts = StandinOptions::default();
+
+    let foo_t = u(template_param("Foo", "T"));
+    template::standin(foo_t, prelude::TYPE_INT, &cb, &mut state, &opts);
+    let bar_t = u(template_param("Bar", "T"));
+    template::standin(bar_t, prelude::TYPE_STRING, &cb, &mut state, &opts);
+
+    let foo_entity = key_for("Foo", "T").defining_entity;
+    let bar_entity = key_for("Bar", "T").defining_entity;
+
+    state.merge_scope(foo_entity, bar_entity);
+
+    let bar_t_key = TemplateKey { defining_entity: bar_entity, name: atom("T") };
+    assert_eq!(state.bounds_for(bar_t_key).len(), 2);
+}
+
+#[test]
+fn merge_scope_into_self_is_noop() {
+    let cb = empty_world();
+    let mut state = StandinState::new();
+    let opts = StandinOptions::default();
+    let foo_t = u(template_param("Foo", "T"));
+    template::standin(foo_t, prelude::TYPE_INT, &cb, &mut state, &opts);
+
+    let foo_entity = key_for("Foo", "T").defining_entity;
+    state.merge_scope(foo_entity, foo_entity);
+
+    assert_eq!(state.bounds_for(key_for("Foo", "T")).len(), 1);
+    assert!(state.is_declared(key_for("Foo", "T")));
+}
+
+#[test]
 fn declarations_iter_yields_every_declared_template() {
     let mut state = StandinState::new();
     state.declare(key_for("Foo", "T"), prelude::TYPE_MIXED);

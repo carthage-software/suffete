@@ -226,6 +226,59 @@ impl StandinState {
         self.template_types.iter()
     }
 
+    /// Iterate every `(key, bounds)` pair whose defining entity matches
+    /// `entity`. The analyzer uses this to walk a single class's
+    /// inferences without touching unrelated scopes.
+    pub fn bounds_in_scope(
+        &self,
+        entity: DefiningEntityId,
+    ) -> impl Iterator<Item = (&TemplateKey, &[Bound])> {
+        self.bounds.iter().filter(move |(k, _)| k.defining_entity == entity).map(|(k, v)| (k, v.as_slice()))
+    }
+
+    /// Iterate every `(key, declaration)` pair whose defining entity
+    /// matches `entity`.
+    pub fn declarations_in_scope(
+        &self,
+        entity: DefiningEntityId,
+    ) -> impl Iterator<Item = (&TemplateKey, &GenericTemplate)> {
+        self.template_types.iter().filter(move |(k, _)| k.defining_entity == entity)
+    }
+
+    /// Re-key every declaration and bound from `from` so it appears
+    /// under `to`. Used when a class extends another and the parent's
+    /// inferences must propagate up under the child's entity. Bounds
+    /// append (the destination's existing list grows); declarations
+    /// overwrite (latest scope wins).
+    pub fn merge_scope(&mut self, from: DefiningEntityId, to: DefiningEntityId) {
+        if from == to {
+            return;
+        }
+        let moved_decls: Vec<(TemplateKey, GenericTemplate)> = self
+            .template_types
+            .iter()
+            .filter(|(k, _)| k.defining_entity == from)
+            .map(|(k, v)| (*k, *v))
+            .collect();
+        for (key, decl) in moved_decls {
+            self.template_types.remove(&key);
+            let new_key = TemplateKey { defining_entity: to, name: key.name };
+            self.template_types.insert(new_key, GenericTemplate { defining_entity: to, ..decl });
+        }
+
+        let moved_bounds: Vec<(TemplateKey, Vec<Bound>)> = self
+            .bounds
+            .iter()
+            .filter(|(k, _)| k.defining_entity == from)
+            .map(|(k, v)| (*k, v.clone()))
+            .collect();
+        for (key, bounds) in moved_bounds {
+            self.bounds.remove(&key);
+            let new_key = TemplateKey { defining_entity: to, name: key.name };
+            self.bounds.entry(new_key).or_default().extend(bounds);
+        }
+    }
+
     fn record(&mut self, key: TemplateKey, bound: Bound) {
         self.bounds.entry(key).or_default().push(bound);
     }
