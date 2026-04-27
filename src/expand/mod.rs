@@ -79,17 +79,21 @@ pub fn expand_with<W: World>(ty: TypeId, world: &W, ctx: &ExpansionContext) -> T
 fn resolve_element<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     match elem.kind() {
         ElementKind::Alias => resolve_alias(elem, world, ctx),
-        ElementKind::Reference => resolve_reference(elem, ctx),
+        ElementKind::Reference => resolve_reference(elem, world, ctx),
         ElementKind::MemberReference => resolve_member_reference(elem, world, ctx),
         ElementKind::GlobalReference => resolve_global_reference(elem, world, ctx),
         ElementKind::Derived => resolve_derived(elem, world, ctx),
         ElementKind::Conditional => resolve_conditional(elem, world, ctx),
-        ElementKind::Object => resolve_object_keyword(elem, ctx),
+        ElementKind::Object => resolve_object(elem, world, ctx),
+        ElementKind::GenericParameter => resolve_generic_parameter(elem, ctx),
         _ => vec![elem],
     }
 }
 
 fn resolve_alias<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
+    if !ctx.eval_aliases {
+        return vec![elem];
+    }
     let info = interner().get_alias(elem);
     let Some(body) = world.alias_body(info.class_name, info.alias_name) else {
         return vec![elem];
@@ -103,17 +107,42 @@ fn resolve_alias<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -
 /// surrounding [`crate::transform`] call, so we just reuse them.
 /// Contextual keyword substitution applies (a `self` / `static` /
 /// `parent` reference picks up the corresponding context entry).
-fn resolve_reference(elem: ElementId, ctx: &ExpansionContext) -> Vec<ElementId> {
+fn resolve_reference<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     let i = interner();
     let info = *i.get_reference(elem);
-    let resolved_name = resolve_keyword_name(info.name, ObjectFlags::default(), ctx);
-    let object = ObjectInfo {
-        name: resolved_name.unwrap_or(info.name),
+    let resolved_name = resolve_keyword_name(info.name, ObjectFlags::default(), ctx).unwrap_or(info.name);
+    let mut object = ObjectInfo {
+        name: resolved_name,
         type_args: info.type_args,
         intersections: info.intersections,
         flags: ObjectFlags::default(),
     };
+
+    if ctx.fill_template_defaults && object.type_args.is_none() {
+        let arity = world.template_parameter_arity(object.name);
+        if arity > 0 {
+            let filled: Vec<TypeId> = (0..arity)
+                .map(|pos| {
+                    world.template_parameter_at(object.name, pos).and_then(|p| p.upper_bound).unwrap_or(TYPE_MIXED)
+                })
+                .collect();
+            object.type_args = Some(i.intern_type_list(&filled));
+        }
+    }
+
     vec![i.intern_object(object)]
+}
+
+/// Replace a free `GenericParameter` atom with its constraint. Gated
+/// on [`ExpansionContext::substitute_template_constraints`]; when off,
+/// the atom passes through (the common case — comparing two template
+/// parameters for identity must see them as opaque).
+fn resolve_generic_parameter(elem: ElementId, ctx: &ExpansionContext) -> Vec<ElementId> {
+    if !ctx.substitute_template_constraints {
+        return vec![elem];
+    }
+    let info = interner().get_generic_parameter(elem);
+    info.constraint.as_ref().elements.to_vec()
 }
 
 /// `Foo::CONST` (an `Identifier` selector on a `MemberReference`)
@@ -122,6 +151,9 @@ fn resolve_reference(elem: ElementId, ctx: &ExpansionContext) -> Vec<ElementId> 
 /// selectors (wildcard / prefix / suffix) need a constant-enumeration
 /// query and pass through unchanged for now.
 fn resolve_member_reference<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
+    if !ctx.eval_class_constants {
+        return vec![elem];
+    }
     let info = interner().get_member_reference(elem);
     let NameSelector::Identifier(constant) = info.selector else {
         return vec![elem];
@@ -135,6 +167,9 @@ fn resolve_member_reference<W: World>(elem: ElementId, world: &W, ctx: &Expansio
 /// A global constant reference resolves through
 /// [`World::global_constant_type`]. Wildcard selectors pass through.
 fn resolve_global_reference<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
+    if !ctx.eval_global_constants {
+        return vec![elem];
+    }
     let info = interner().get_global_reference(elem);
     let NameSelector::Identifier(name) = info.selector else {
         return vec![elem];
@@ -203,18 +238,41 @@ fn resolve_conditional<W: World>(elem: ElementId, world: &W, ctx: &ExpansionCont
     result.as_ref().elements.to_vec()
 }
 
-/// Substitute `self` / `static` / `parent` / `$this` on a named-object
-/// atom with the corresponding entry from `ctx`. Returns the original
-/// element when no keyword applies or when the context lacks the
-/// required entry.
-fn resolve_object_keyword(elem: ElementId, ctx: &ExpansionContext) -> Vec<ElementId> {
+/// Resolve a named-object atom. Combines three independent stages:
+///
+/// - Contextual keyword substitution (`self` / `static` / `parent` /
+///   `$this`) when the corresponding [`ExpansionContext`] entry is set.
+/// - Final-function collapse: with [`ExpansionContext::function_is_final`],
+///   drop the `is_static` / `is_this` modality flags on a named class
+///   that already has a concrete name (no `static_class` binding
+///   needed).
+/// - Default-fill of unfilled generic positions when
+///   [`ExpansionContext::fill_template_defaults`] is on.
+fn resolve_object<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     let i = interner();
-    let info = *i.get_object(elem);
-    let Some(class) = resolve_keyword_name(info.name, info.flags, ctx) else {
-        return vec![elem];
-    };
-    let resolved = ObjectInfo { name: class, flags: info.flags.with_is_static(false).with_is_this(false), ..info };
-    vec![i.intern_object(resolved)]
+    let mut info = *i.get_object(elem);
+    let mut changed = false;
+
+    if let Some(class) = resolve_keyword_name(info.name, info.flags, ctx) {
+        info = ObjectInfo { name: class, flags: info.flags.with_is_static(false).with_is_this(false), ..info };
+        changed = true;
+    } else if ctx.function_is_final && (info.flags.is_static() || info.flags.is_this()) {
+        info = ObjectInfo { flags: info.flags.with_is_static(false).with_is_this(false), ..info };
+        changed = true;
+    }
+
+    if ctx.fill_template_defaults && info.type_args.is_none() {
+        let arity = world.template_parameter_arity(info.name);
+        if arity > 0 {
+            let filled: Vec<TypeId> = (0..arity)
+                .map(|pos| world.template_parameter_at(info.name, pos).and_then(|p| p.upper_bound).unwrap_or(TYPE_MIXED))
+                .collect();
+            info = ObjectInfo { type_args: Some(i.intern_type_list(&filled)), ..info };
+            changed = true;
+        }
+    }
+
+    if changed { vec![i.intern_object(info)] } else { vec![elem] }
 }
 
 /// Map `self` / `static` / `parent` / the `is_static` / `is_this`
