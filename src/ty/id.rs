@@ -47,9 +47,6 @@ impl TypeId {
     }
 
     /// Build a singleton union from one element, with empty flow flags.
-    /// The element is run through [`join::compute`](crate::join::compute)
-    /// before interning, so a singleton input always lands at the canonical
-    /// form for that element.
     #[inline]
     pub fn singleton(element: crate::ElementId) -> Self {
         Self::union(&[element])
@@ -57,15 +54,17 @@ impl TypeId {
 
     /// Build a union from a slice of elements, with empty flow flags.
     ///
-    /// Elements go through [`join::compute`](crate::join::compute) first:
-    /// sorted, deduplicated, and put through the structural canonicalization
-    /// rules (drop `never` / `void` against other elements, merge
-    /// `true ∨ false → bool`, dominator absorption, etc.). Empty input
-    /// collapses to `[never]`.
+    /// The interner sorts and deduplicates the slice for canonical
+    /// handle identity, but applies **no merge rules**: `[TRUE, FALSE]`
+    /// does not collapse to `BOOL`, dominator absorption does not
+    /// fire, range unions are not merged. Callers that want the
+    /// lattice-canonical form route through
+    /// [`crate::join::compute`] explicitly.
+    ///
+    /// Empty input collapses to `[never]`.
     #[inline]
     pub fn union(elements: &[crate::ElementId]) -> Self {
-        let joined = crate::join::compute(elements);
-        crate::interner::interner().intern_type(&joined, crate::FlowFlags::EMPTY)
+        crate::interner::interner().intern_type(elements, crate::FlowFlags::EMPTY)
     }
 
     /// Singleton type wrapping a literal integer.

@@ -216,8 +216,7 @@ fn walk_type<W: World>(
         return parameter;
     }
 
-    let joined = crate::join::compute(&new_elements);
-    interner().intern_type(&joined, p_type.flags)
+    interner().intern_type(&new_elements, p_type.flags)
 }
 
 /// Past the iteration-depth cutoff (§4.2.3): replace any template
@@ -240,8 +239,7 @@ fn collapse_to_constraints(parameter: TypeId) -> TypeId {
     if !changed {
         return parameter;
     }
-    let joined = crate::join::compute(&new_elements);
-    i.intern_type(&joined, p_type.flags)
+    i.intern_type(&new_elements, p_type.flags)
 }
 
 enum Walk {

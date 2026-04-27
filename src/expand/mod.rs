@@ -95,8 +95,7 @@ pub fn expand_with<W: World>(ty: TypeId, world: &W, ctx: &ExpansionContext) -> T
         return ty;
     }
 
-    let joined = crate::join::compute(&new_elements);
-    i.intern_type(&joined, original.flags)
+    i.intern_type(&new_elements, original.flags)
 }
 
 /// What `expand_element` returns. `Unchanged` is the common case;

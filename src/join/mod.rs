@@ -252,17 +252,31 @@ mod tests {
     }
 
     #[test]
-    fn type_id_union_routes_through_join() {
-        // TypeId::union calls join::compute and then intern_type, so the
-        // well-known unions stay reachable through the sugar API.
-        let id = TypeId::union(&[INT, STRING]);
-        assert_eq!(id, TYPE_INT_OR_STRING);
+    fn type_id_union_does_not_apply_join_rules() {
+        // `TypeId::union` only sort+dedups via the interner; it does
+        // not run the merges in `join::compute`. Callers wanting the
+        // collapsed form route through `join::compute` explicitly.
+        let pair = TypeId::union(&[TRUE, FALSE]);
+        assert_ne!(pair, TYPE_BOOL);
+        assert_eq!(pair.as_ref().elements, &[TRUE, FALSE]);
 
-        let bool_id = TypeId::union(&[TRUE, FALSE]);
-        assert_eq!(bool_id, TYPE_BOOL);
+        let with_mixed = TypeId::union(&[MIXED, INT, STRING]);
+        assert_ne!(with_mixed, TYPE_MIXED);
+        assert_eq!(with_mixed.as_ref().elements.len(), 3);
 
-        let mixed_id = TypeId::union(&[MIXED, INT, STRING]);
-        assert_eq!(mixed_id, TYPE_MIXED);
+        // Sort+dedup still happens, so unions of distinct elements
+        // canonical to the well-known handle when slot order matches.
+        let int_or_string = TypeId::union(&[INT, STRING]);
+        assert_eq!(int_or_string, TYPE_INT_OR_STRING);
+    }
+
+    #[test]
+    fn join_compute_then_union_collapses_to_well_known_handles() {
+        let collapsed_bool = TypeId::union(&compute(&[TRUE, FALSE]));
+        assert_eq!(collapsed_bool, TYPE_BOOL);
+
+        let collapsed_mixed = TypeId::union(&compute(&[MIXED, INT, STRING]));
+        assert_eq!(collapsed_mixed, TYPE_MIXED);
     }
 
     #[test]
