@@ -2,6 +2,7 @@
 //!
 //! See `README.md` for what this crate is, what it is not, and its (highly unstable) status.
 
+pub mod builder;
 pub mod element;
 pub mod expand;
 pub mod handle;
@@ -15,6 +16,7 @@ pub mod template;
 pub mod ty;
 pub mod world;
 
+pub use crate::builder::TypeBuilder;
 pub use crate::element::Element;
 pub use crate::element::ElementId;
 pub use crate::element::ElementKind;
