@@ -283,6 +283,60 @@ fn span_from_options_propagates_to_recorded_bound() {
 }
 
 #[test]
+fn walk_auto_declares_encountered_template() {
+    let cb = empty_world();
+    let mut state = StandinState::new();
+    let opts = StandinOptions::default();
+    let t = u(template_param("Box", "T"));
+    template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
+    let key = key_for("Box", "T");
+    assert!(state.is_declared(key));
+    let decl = state.declaration(key).unwrap();
+    assert_eq!(decl.constraint, prelude::TYPE_MIXED);
+}
+
+#[test]
+fn walk_preserves_existing_declaration_constraint() {
+    let cb = empty_world();
+    let mut state = StandinState::new();
+    let key = key_for("Box", "T");
+    state.declare(key, prelude::TYPE_INT);
+    let opts = StandinOptions::default();
+    let t = u(template_param("Box", "T"));
+    template::standin(t, prelude::TYPE_STRING, &cb, &mut state, &opts);
+    let decl = state.declaration(key).unwrap();
+    assert_eq!(decl.constraint, prelude::TYPE_INT);
+}
+
+#[test]
+fn declared_but_unbound_distinguishable_from_undeclared() {
+    let mut state = StandinState::new();
+    let bound_key = key_for("Box", "T");
+    let unbound_key = key_for("Box", "U");
+    let absent_key = key_for("Box", "Z");
+
+    state.declare(bound_key, prelude::TYPE_MIXED);
+    state.declare(unbound_key, prelude::TYPE_MIXED);
+
+    assert!(state.is_declared(bound_key));
+    assert!(state.is_declared(unbound_key));
+    assert!(!state.is_declared(absent_key));
+
+    assert!(state.bounds_for(bound_key).is_empty());
+    assert!(state.bounds_for(unbound_key).is_empty());
+}
+
+#[test]
+fn declarations_iter_yields_every_declared_template() {
+    let mut state = StandinState::new();
+    state.declare(key_for("Foo", "T"), prelude::TYPE_MIXED);
+    state.declare(key_for("Bar", "U"), prelude::TYPE_INT);
+    let names: Vec<_> = state.declarations().map(|(k, _)| k.name).collect();
+    assert!(names.contains(&atom("T")));
+    assert!(names.contains(&atom("U")));
+}
+
+#[test]
 fn span_threads_through_nested_walk() {
     let mut w = MockWorld::new();
     w.with_templates("Box", &[("T", Variance::Covariant)]);

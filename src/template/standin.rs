@@ -152,11 +152,35 @@ impl StandinOptions {
     }
 }
 
-/// Bounds collected across one or more standin walks. The same
-/// [`StandinState`] is threaded through every parameter of a call so
-/// reconciliation sees the full bound set per template parameter.
+/// Definition of a template parameter as it exists in the inference
+/// scope, distinct from any bound inferred for it. Mirrors mago's
+/// `GenericTemplate`. See report §11 — the analyzer needs to ask "does
+/// this template exist in scope" before it asks "what was inferred",
+/// because a template never bound is indistinguishable from one that
+/// doesn't exist if you only carry bounds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct GenericTemplate {
+    pub defining_entity: DefiningEntityId,
+    pub constraint: TypeId,
+}
+
+/// Definitions and bounds collected across one or more standin walks.
+/// The same [`StandinState`] is threaded through every parameter of a
+/// call so reconciliation sees the full set per template parameter.
+///
+/// Two parallel maps:
+///
+/// - `template_types` records *definitions* — the templates the inference
+///   scope knows about, with their constraints.
+/// - `bounds` records *inferred bounds* — what the standin walk
+///   discovered for each template.
+///
+/// The walk auto-declares every template it encounters; consumers can
+/// also call [`StandinState::declare`] explicitly for templates that
+/// don't appear in any walked parameter type.
 #[derive(Debug, Default, Clone)]
 pub struct StandinState {
+    template_types: BTreeMap<TemplateKey, GenericTemplate>,
     bounds: BTreeMap<TemplateKey, Vec<Bound>>,
 }
 
@@ -174,6 +198,32 @@ impl StandinState {
     /// Iterate over every recorded `(key, bounds)` pair.
     pub fn iter(&self) -> impl Iterator<Item = (&TemplateKey, &[Bound])> {
         self.bounds.iter().map(|(k, v)| (k, v.as_slice()))
+    }
+
+    /// Register a template parameter as existing in scope. Idempotent on
+    /// the same `(key, constraint)` pair; subsequent calls with a
+    /// different constraint overwrite (the latest declaration wins, as
+    /// inner scopes shadow outer ones).
+    pub fn declare(&mut self, key: TemplateKey, constraint: TypeId) {
+        self.template_types.insert(key, GenericTemplate { defining_entity: key.defining_entity, constraint });
+    }
+
+    /// Declaration recorded for `key`, or `None` when the template has
+    /// never been declared (or auto-declared by a walk).
+    pub fn declaration(&self, key: TemplateKey) -> Option<&GenericTemplate> {
+        self.template_types.get(&key)
+    }
+
+    /// `true` iff `key` has a declaration recorded. The analyzer uses
+    /// this to distinguish "no bound was inferred for an in-scope
+    /// template" from "this template doesn't exist in this scope".
+    pub fn is_declared(&self, key: TemplateKey) -> bool {
+        self.template_types.contains_key(&key)
+    }
+
+    /// Iterate over every recorded `(key, declaration)` pair.
+    pub fn declarations(&self) -> impl Iterator<Item = (&TemplateKey, &GenericTemplate)> {
+        self.template_types.iter()
     }
 
     fn record(&mut self, key: TemplateKey, bound: Bound) {
@@ -310,6 +360,9 @@ fn walk_generic_parameter(
 ) -> Walk {
     let info = interner().get_generic_parameter(parameter);
     let key = TemplateKey { defining_entity: info.defining_entity, name: info.name };
+    if !state.is_declared(key) {
+        state.declare(key, info.constraint);
+    }
     let kind = match variance {
         Variance::Covariant => BoundKind::Lower,
         Variance::Contravariant => BoundKind::Upper,

@@ -14,6 +14,7 @@ mod substitute;
 pub use self::reconcile::reconcile;
 pub use self::standin::Bound;
 pub use self::standin::BoundKind;
+pub use self::standin::GenericTemplate;
 pub use self::standin::StandinOptions;
 pub use self::standin::StandinState;
 pub use self::standin::TemplateKey;
