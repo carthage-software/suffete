@@ -101,7 +101,16 @@ pub(crate) fn element_refines<W: World>(
     if input.kind() == ElementKind::GenericParameter && container.kind() != ElementKind::GenericParameter {
         let constraint = interner().get_generic_parameter(input).constraint;
         let container_type = interner().intern_type(&[container], FlowFlags::EMPTY);
-        return refines(constraint, container_type, codebase, options, report);
+        let result = refines(constraint, container_type, codebase, options, report);
+        if !result && container != MIXED && constraint.as_ref().elements.contains(&MIXED) {
+            // Reattribute: the input is `T as mixed`, not a structurally
+            // nested mixed — the actionable diagnostic is "tighten T's
+            // constraint", not "stop putting mixed in this slot".
+            report.causes.remove(CoercionCauses::NESTED_MIXED);
+            report.add_cause(CoercionCauses::TRUE_UNION_NARROW);
+            report.add_cause(CoercionCauses::FROM_AS_MIXED);
+        }
+        return result;
     }
 
     let result = dispatch_refines(input, container, codebase, options, report);

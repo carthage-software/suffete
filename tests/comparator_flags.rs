@@ -147,6 +147,34 @@ fn int_to_float_sets_php_runtime_coerce() {
 }
 
 #[test]
+fn template_constrained_to_mixed_sets_from_as_mixed_on_rejection() {
+    let cb = empty_world();
+    let template = t_template("Foo", "T");
+    let (v, r) = atomic_is_contained_capturing(template, t_int(), &cb);
+    assert!(!v);
+    assert!(r.causes.from_as_mixed());
+    assert!(r.causes.true_union_narrow());
+    assert!(!r.causes.nested_mixed());
+}
+
+#[test]
+fn template_to_mixed_does_not_set_from_as_mixed() {
+    let cb = empty_world();
+    let template = t_template("Foo", "T");
+    let (v, r) = atomic_is_contained_capturing(template, mixed(), &cb);
+    assert!(v);
+    assert!(!r.causes.from_as_mixed());
+}
+
+#[test]
+fn fresh_report_has_empty_bounds_and_no_replacements() {
+    let r = suffete::lattice::LatticeReport::new();
+    assert!(r.replacement.is_none());
+    assert!(r.replacement_element.is_none());
+    assert!(r.bounds.is_empty());
+}
+
+#[test]
 fn nullable_int_to_int_with_ignore_null_passes() {
     let cb = empty_world();
     let nullable = u_many(vec![t_int(), null()]);
