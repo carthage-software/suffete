@@ -7,9 +7,11 @@
 //! [`crate::world::Variance`]); this module operates *on* types whose
 //! atoms reference those parameters.
 
+mod reconcile;
 mod standin;
 mod substitute;
 
+pub use self::reconcile::reconcile;
 pub use self::standin::Bound;
 pub use self::standin::BoundKind;
 pub use self::standin::StandinOptions;
