@@ -1,6 +1,6 @@
 //! Bound reconciliation (`generics.md §6`) tests: §6.3 selection rule
 //! (shallowest depth, equality-marker propagation, offset matching),
-//! §6.5 fallback, and the `StandinState::witness` integration.
+//! §6.5 fallback, and the `TemplateState::witness` integration.
 
 mod comparator_common;
 
@@ -17,7 +17,7 @@ use suffete::template;
 use suffete::template::Bound;
 use suffete::template::BoundKind;
 use suffete::template::StandinOptions;
-use suffete::template::StandinState;
+use suffete::template::TemplateState;
 use suffete::template::TemplateKey;
 use suffete::world::Variance;
 
@@ -124,7 +124,7 @@ fn multiple_baseline_bounds_with_equality_propagate() {
 
 #[test]
 fn witness_falls_back_when_no_bound_collected() {
-    let state = StandinState::new();
+    let state = TemplateState::new();
     let key = key_for("Box", "T");
     let result = state.witness(key, prelude::TYPE_MIXED);
     assert_eq!(result, prelude::TYPE_MIXED);
@@ -133,7 +133,7 @@ fn witness_falls_back_when_no_bound_collected() {
 #[test]
 fn witness_uses_recorded_bounds_when_present() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default().with_default_variance(Variance::Covariant);
     let t = u(template_param("Box", "T"));
     template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
@@ -144,7 +144,7 @@ fn witness_uses_recorded_bounds_when_present() {
 #[test]
 fn witness_after_two_arguments_unions_bounds() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let t = u(template_param("F", "T"));
 
     let opts0 = StandinOptions::default().with_argument_offset(0).with_default_variance(Variance::Covariant);
@@ -160,7 +160,7 @@ fn witness_after_two_arguments_unions_bounds() {
 fn witness_after_invariant_then_nested_arg_keeps_deep_bound() {
     let mut w = MockWorld::new();
     w.with_templates("Cell", &[("T", Variance::Invariant)]);
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let param = u(t_generic_named("Cell", vec![u(t)]));

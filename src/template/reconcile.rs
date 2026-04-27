@@ -1,5 +1,5 @@
 //! Bound reconciliation: pick the relevant bounds for a template
-//! parameter from a [`StandinState`] and union them into the
+//! parameter from a [`TemplateState`] and union them into the
 //! parameter's *witness* — the type the parameter resolves to in the
 //! current call context. Implements `type-system/generics.md` §6.
 //!
@@ -35,7 +35,7 @@ use crate::TypeId;
 
 use super::standin::Bound;
 use super::standin::BoundKind;
-use super::standin::StandinState;
+use super::standin::TemplateState;
 use super::standin::TemplateKey;
 
 /// Apply §6.3 selection to a list of bounds and return the unioned
@@ -85,7 +85,7 @@ pub fn reconcile(bounds: &[Bound]) -> Option<TypeId> {
     Some(TypeId::union(&elements))
 }
 
-impl StandinState {
+impl TemplateState {
     /// Materialise `key`'s witness from its collected bounds. Returns
     /// `fallback` (typically the parameter's constraint or `mixed`)
     /// when no bound was recorded.

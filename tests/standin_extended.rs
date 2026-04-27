@@ -17,7 +17,7 @@ use suffete::prelude;
 use suffete::template;
 use suffete::template::BoundKind;
 use suffete::template::StandinOptions;
-use suffete::template::StandinState;
+use suffete::template::TemplateState;
 use suffete::template::TemplateKey;
 use suffete::world::Variance;
 
@@ -33,7 +33,7 @@ fn key_for(class: &str, name: &str) -> TemplateKey {
 #[test]
 fn keyed_array_value_param_records_lower_bound() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let param = u(t_keyed_unsealed(prelude::TYPE_STRING, u(t), false));
@@ -48,7 +48,7 @@ fn keyed_array_value_param_records_lower_bound() {
 #[test]
 fn keyed_array_known_item_walked_when_arg_has_matching_key() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let param = u(t_keyed_sealed(BTreeMap::from([(ak_str("name"), (false, u(t)))]), false));
@@ -61,7 +61,7 @@ fn keyed_array_known_item_walked_when_arg_has_matching_key() {
 #[test]
 fn keyed_array_against_iterable_walks_key_and_value_params() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let k = template_param("F", "K");
     let v = template_param("F", "V");
@@ -75,7 +75,7 @@ fn keyed_array_against_iterable_walks_key_and_value_params() {
 #[test]
 fn callable_return_walked_covariantly() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let param = u(t_callable(&[], u(t)));
@@ -90,7 +90,7 @@ fn callable_return_walked_covariantly() {
 #[test]
 fn callable_parameter_walked_contravariantly() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let param = u(t_callable(&[u(t)], prelude::TYPE_VOID));
@@ -105,7 +105,7 @@ fn callable_parameter_walked_contravariantly() {
 #[test]
 fn callable_records_both_param_and_return_bounds() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let p = template_param("F", "P");
     let r = template_param("F", "R");
@@ -127,7 +127,7 @@ fn descendant_class_arg_threads_through_extension_binding() {
     w.declare("B");
     w.with_extended("B", "A", vec![prelude::TYPE_INT]);
 
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let param = u(t_generic_named("A", vec![u(t)]));
@@ -147,7 +147,7 @@ fn descendant_class_arg_substitutes_own_template_args() {
     w.with_templates("B", &[("U", Variance::Covariant)]);
     w.with_extended("B", "A", vec![u(t_template("B", "U"))]);
 
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let param = u(t_generic_named("A", vec![u(t)]));
@@ -160,7 +160,7 @@ fn descendant_class_arg_substitutes_own_template_args() {
 #[test]
 fn iteration_depth_cutoff_replaces_template_with_constraint() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default().with_max_depth(0);
     let t = template_param("F", "T");
     let param = u(t_list(u(t), false));
@@ -173,7 +173,7 @@ fn iteration_depth_cutoff_replaces_template_with_constraint() {
 #[test]
 fn iteration_depth_zero_records_top_level_binding() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default().with_max_depth(0);
     let t = template_param("F", "T");
     let param = u(t);
@@ -185,7 +185,7 @@ fn iteration_depth_zero_records_top_level_binding() {
 #[test]
 fn keyed_array_unchanged_when_no_template() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let param = u(t_keyed_unsealed(prelude::TYPE_STRING, prelude::TYPE_INT, false));
     let arg = u(t_keyed_unsealed(prelude::TYPE_STRING, prelude::TYPE_INT, false));
@@ -197,7 +197,7 @@ fn keyed_array_unchanged_when_no_template() {
 #[test]
 fn callable_unchanged_when_no_template() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let param = u(t_callable(&[prelude::TYPE_INT], prelude::TYPE_STRING));
     let result = template::standin(param, param, &cb, &mut state, &opts);
@@ -213,7 +213,7 @@ fn descendant_with_no_extension_binding_passes_through() {
     w.add_edge("B", "A");
     // No `with_extended` for B → A: world has no inherited binding.
 
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let param = u(t_generic_named("A", vec![u(t)]));
@@ -226,7 +226,7 @@ fn descendant_with_no_extension_binding_passes_through() {
 #[test]
 fn keyed_array_known_value_against_lit_walks_to_lit_bound() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let param = u(t_keyed_sealed(BTreeMap::from([(ak_str("v"), (false, u(t)))]), false));

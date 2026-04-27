@@ -16,7 +16,7 @@ use suffete::template;
 use suffete::template::Bound;
 use suffete::template::BoundKind;
 use suffete::template::StandinOptions;
-use suffete::template::StandinState;
+use suffete::template::TemplateState;
 use suffete::template::TemplateKey;
 use suffete::world::Variance;
 
@@ -36,7 +36,7 @@ fn key_for(class: &str, name: &str) -> TemplateKey {
 #[test]
 fn top_level_template_records_invariant_bound() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = u(template_param("Box", "T"));
     let result = template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
@@ -61,7 +61,7 @@ fn top_level_template_records_invariant_bound() {
 #[test]
 fn top_level_template_with_int_constraint_emits_int_standin() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = u(template_param_with_constraint("Box", "T", prelude::TYPE_INT));
     let result = template::standin(t, u(t_lit_int(42)), &cb, &mut state, &opts);
@@ -71,7 +71,7 @@ fn top_level_template_with_int_constraint_emits_int_standin() {
 #[test]
 fn covariant_default_records_lower_bound() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default().with_default_variance(Variance::Covariant);
     let t = u(template_param("Box", "T"));
     template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
@@ -82,7 +82,7 @@ fn covariant_default_records_lower_bound() {
 #[test]
 fn contravariant_default_records_upper_bound() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default().with_default_variance(Variance::Contravariant);
     let t = u(template_param("Box", "T"));
     template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
@@ -93,7 +93,7 @@ fn contravariant_default_records_upper_bound() {
 #[test]
 fn argument_offset_is_recorded() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default().with_argument_offset(3);
     let t = u(template_param("Box", "T"));
     template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
@@ -104,7 +104,7 @@ fn argument_offset_is_recorded() {
 #[test]
 fn template_inside_list_records_lower_bound_at_depth_one() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("Box", "T");
     let param = u(t_list(u(t), false));
@@ -129,7 +129,7 @@ fn template_inside_list_records_lower_bound_at_depth_one() {
 #[test]
 fn template_inside_list_against_iterable_arg_walks_value() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("Box", "T");
     let param = u(t_list(u(t), false));
@@ -142,7 +142,7 @@ fn template_inside_list_against_iterable_arg_walks_value() {
 #[test]
 fn template_inside_iterable_records_both_key_and_value() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let k = template_param("M", "K");
     let v = template_param("M", "V");
@@ -159,7 +159,7 @@ fn template_inside_iterable_records_both_key_and_value() {
 fn template_inside_object_uses_world_variance() {
     let mut w = MockWorld::new();
     w.with_templates("Container", &[("T", Variance::Covariant)]);
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("Container", "T");
     let param = u(t_generic_named("Container", vec![u(t)]));
@@ -174,7 +174,7 @@ fn template_inside_object_uses_world_variance() {
 fn template_inside_object_with_invariant_records_equality_bound() {
     let mut w = MockWorld::new();
     w.with_templates("Cell", &[("T", Variance::Invariant)]);
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("Cell", "T");
     let param = u(t_generic_named("Cell", vec![u(t)]));
@@ -188,7 +188,7 @@ fn template_inside_object_with_invariant_records_equality_bound() {
 fn object_with_unrelated_arg_passes_parameter_through() {
     let mut w = MockWorld::new();
     w.with_templates("Box", &[("T", Variance::Covariant)]);
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("Box", "T");
     let param = u(t_generic_named("Box", vec![u(t)]));
@@ -203,7 +203,7 @@ fn object_with_unrelated_arg_passes_parameter_through() {
 fn nested_object_template_records_at_correct_depth() {
     let mut w = MockWorld::new();
     w.with_templates("Box", &[("T", Variance::Covariant)]);
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("Box", "T");
     let inner_param = u(t_list(u(t), false));
@@ -220,7 +220,7 @@ fn nested_object_template_records_at_correct_depth() {
 #[test]
 fn equal_param_and_argument_short_circuits_no_changes() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let result = template::standin(prelude::TYPE_INT, prelude::TYPE_INT, &cb, &mut state, &opts);
     assert_eq!(result, prelude::TYPE_INT);
@@ -232,7 +232,7 @@ fn equal_param_and_argument_short_circuits_no_changes() {
 fn invariant_object_walk_records_introducing_class_on_equality_bound() {
     let mut w = MockWorld::new();
     w.with_templates("Cell", &[("T", Variance::Invariant)]);
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("Cell", "T");
     let param = u(t_generic_named("Cell", vec![u(t)]));
@@ -247,7 +247,7 @@ fn invariant_object_walk_records_introducing_class_on_equality_bound() {
 fn covariant_object_walk_does_not_set_equality_classlike() {
     let mut w = MockWorld::new();
     w.with_templates("Container", &[("T", Variance::Covariant)]);
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("Container", "T");
     let param = u(t_generic_named("Container", vec![u(t)]));
@@ -261,7 +261,7 @@ fn covariant_object_walk_does_not_set_equality_classlike() {
 #[test]
 fn top_level_invariant_walk_outside_class_has_no_classlike() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = u(template_param("Free", "T"));
     template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
@@ -273,7 +273,7 @@ fn top_level_invariant_walk_outside_class_has_no_classlike() {
 #[test]
 fn span_from_options_propagates_to_recorded_bound() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let span = mago_span::Span::dummy(10, 20);
     let opts = StandinOptions::default().with_span(span);
     let t = u(template_param("Box", "T"));
@@ -285,7 +285,7 @@ fn span_from_options_propagates_to_recorded_bound() {
 #[test]
 fn walk_auto_declares_encountered_template() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = u(template_param("Box", "T"));
     template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
@@ -298,7 +298,7 @@ fn walk_auto_declares_encountered_template() {
 #[test]
 fn walk_preserves_existing_declaration_constraint() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let key = key_for("Box", "T");
     state.declare(key, prelude::TYPE_INT);
     let opts = StandinOptions::default();
@@ -310,7 +310,7 @@ fn walk_preserves_existing_declaration_constraint() {
 
 #[test]
 fn declared_but_unbound_distinguishable_from_undeclared() {
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let bound_key = key_for("Box", "T");
     let unbound_key = key_for("Box", "U");
     let absent_key = key_for("Box", "Z");
@@ -329,7 +329,7 @@ fn declared_but_unbound_distinguishable_from_undeclared() {
 #[test]
 fn bounds_in_scope_filters_by_defining_entity() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let foo_t = u(template_param("Foo", "T"));
     let bar_u = u(template_param("Bar", "U"));
@@ -343,7 +343,7 @@ fn bounds_in_scope_filters_by_defining_entity() {
 
 #[test]
 fn declarations_in_scope_filters_by_defining_entity() {
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     state.declare(key_for("Foo", "T"), prelude::TYPE_MIXED);
     state.declare(key_for("Bar", "U"), prelude::TYPE_INT);
     let foo_entity = key_for("Foo", "T").defining_entity;
@@ -354,7 +354,7 @@ fn declarations_in_scope_filters_by_defining_entity() {
 #[test]
 fn merge_scope_re_keys_declarations_and_bounds() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
 
     // Record under Foo.
@@ -379,7 +379,7 @@ fn merge_scope_re_keys_declarations_and_bounds() {
 #[test]
 fn merge_scope_appends_when_target_already_has_bounds_for_same_name() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
 
     let foo_t = u(template_param("Foo", "T"));
@@ -397,8 +397,44 @@ fn merge_scope_appends_when_target_already_has_bounds_for_same_name() {
 }
 
 #[test]
+fn freeze_preserves_declarations_bounds_and_anti_bounds() {
+    let cb = empty_world();
+    let mut state = TemplateState::new();
+    let opts = StandinOptions::default();
+    let foo_t = u(template_param("Foo", "T"));
+    template::standin(foo_t, prelude::TYPE_INT, &cb, &mut state, &opts);
+    state.add_anti_bound(key_for("Foo", "T"), prelude::TYPE_STRING);
+
+    let result = state.freeze();
+    let key = key_for("Foo", "T");
+    assert!(result.is_declared(key));
+    assert_eq!(result.bounds_for(key).len(), 1);
+    assert_eq!(result.anti_bounds_for(key), &[prelude::TYPE_STRING]);
+}
+
+#[test]
+fn freeze_consumes_state() {
+    let state = TemplateState::new();
+    let _result = state.freeze();
+    // Re-using `state` here would not compile — by-value freeze enforces
+    // that no further mutation can happen on the same handle.
+}
+
+#[test]
+fn frozen_result_supports_scope_filtered_queries() {
+    let mut state = TemplateState::new();
+    state.declare(key_for("Foo", "T"), prelude::TYPE_MIXED);
+    state.declare(key_for("Bar", "U"), prelude::TYPE_INT);
+    state.add_anti_bound(key_for("Foo", "T"), prelude::TYPE_STRING);
+    let result = state.freeze();
+    let foo_entity = key_for("Foo", "T").defining_entity;
+    assert_eq!(result.declarations_in_scope(foo_entity).count(), 1);
+    assert_eq!(result.anti_bounds_in_scope(foo_entity).count(), 1);
+}
+
+#[test]
 fn anti_bound_recorded_and_queryable() {
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let key = key_for("Foo", "T");
     state.add_anti_bound(key, prelude::TYPE_INT);
     state.add_anti_bound(key, prelude::TYPE_STRING);
@@ -410,13 +446,13 @@ fn anti_bound_recorded_and_queryable() {
 
 #[test]
 fn anti_bound_unset_returns_empty_slice() {
-    let state = StandinState::new();
+    let state = TemplateState::new();
     assert!(state.anti_bounds_for(key_for("Foo", "T")).is_empty());
 }
 
 #[test]
 fn anti_bounds_in_scope_filters_by_defining_entity() {
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     state.add_anti_bound(key_for("Foo", "T"), prelude::TYPE_INT);
     state.add_anti_bound(key_for("Bar", "U"), prelude::TYPE_STRING);
     let foo_entity = key_for("Foo", "T").defining_entity;
@@ -426,7 +462,7 @@ fn anti_bounds_in_scope_filters_by_defining_entity() {
 
 #[test]
 fn merge_scope_re_keys_anti_bounds() {
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     state.add_anti_bound(key_for("Foo", "T"), prelude::TYPE_INT);
     let foo_entity = key_for("Foo", "T").defining_entity;
     let bar_entity = key_for("Bar", "Z").defining_entity;
@@ -439,7 +475,7 @@ fn merge_scope_re_keys_anti_bounds() {
 #[test]
 fn merge_scope_into_self_is_noop() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let foo_t = u(template_param("Foo", "T"));
     template::standin(foo_t, prelude::TYPE_INT, &cb, &mut state, &opts);
@@ -453,7 +489,7 @@ fn merge_scope_into_self_is_noop() {
 
 #[test]
 fn declarations_iter_yields_every_declared_template() {
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     state.declare(key_for("Foo", "T"), prelude::TYPE_MIXED);
     state.declare(key_for("Bar", "U"), prelude::TYPE_INT);
     let names: Vec<_> = state.declarations().map(|(k, _)| k.name).collect();
@@ -465,7 +501,7 @@ fn declarations_iter_yields_every_declared_template() {
 fn span_threads_through_nested_walk() {
     let mut w = MockWorld::new();
     w.with_templates("Box", &[("T", Variance::Covariant)]);
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let span = mago_span::Span::dummy(100, 110);
     let opts = StandinOptions::default().with_span(span);
     let t = template_param("Box", "T");
@@ -480,7 +516,7 @@ fn span_threads_through_nested_walk() {
 #[test]
 fn parameter_without_templates_passes_through_unchanged() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let result = template::standin(prelude::TYPE_INT, prelude::TYPE_STRING, &cb, &mut state, &opts);
     assert_eq!(result, prelude::TYPE_INT);
@@ -490,7 +526,7 @@ fn parameter_without_templates_passes_through_unchanged() {
 #[test]
 fn multiple_arguments_share_state_and_accumulate_bounds() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
 
     let t = template_param("F", "T");
     let param = u(t);
@@ -512,7 +548,7 @@ fn multiple_arguments_share_state_and_accumulate_bounds() {
 #[test]
 fn distinct_template_parameters_recorded_separately() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let u_var = template_param("F", "U");
@@ -531,7 +567,7 @@ fn distinct_template_parameters_recorded_separately() {
 #[test]
 fn iter_returns_all_recorded_keys() {
     let cb = empty_world();
-    let mut state = StandinState::new();
+    let mut state = TemplateState::new();
     let opts = StandinOptions::default();
     let t = template_param("F", "T");
     let u_var = template_param("F", "U");

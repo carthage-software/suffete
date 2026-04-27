@@ -6,14 +6,14 @@
 //! parameter `T`, a bound on `T` is recorded against the corresponding
 //! sub-type of the argument; the parameter slot itself is replaced by
 //! `T`'s constraint (the loosest type a value at that position can
-//! still inhabit). The caller threads the same [`StandinState`] across
+//! still inhabit). The caller threads the same [`TemplateState`] across
 //! every parameter of a call site, then runs bound reconciliation
 //! (§6) to materialise each `T`'s witness.
 //!
 //! # Public API
 //!
 //! ```ignore
-//! let mut state = StandinState::new();
+//! let mut state = TemplateState::new();
 //! let opts = StandinOptions::default();
 //! let refined = standin(parameter, argument, &world, &mut state, &opts);
 //! // ... repeat for each call-site argument ...
@@ -165,7 +165,7 @@ pub struct GenericTemplate {
 }
 
 /// Definitions, bounds, and anti-bounds collected across one or more
-/// standin walks. The same [`StandinState`] is threaded through every
+/// standin walks. The same [`TemplateState`] is threaded through every
 /// parameter of a call so reconciliation sees the full set per template
 /// parameter.
 ///
@@ -180,16 +180,16 @@ pub struct GenericTemplate {
 ///   the other branch must remember (report §13).
 ///
 /// The walk auto-declares every template it encounters; consumers can
-/// also call [`StandinState::declare`] explicitly for templates that
+/// also call [`TemplateState::declare`] explicitly for templates that
 /// don't appear in any walked parameter type.
 #[derive(Debug, Default, Clone)]
-pub struct StandinState {
+pub struct TemplateState {
     template_types: BTreeMap<TemplateKey, GenericTemplate>,
     bounds: BTreeMap<TemplateKey, Vec<Bound>>,
     anti_bounds: BTreeMap<TemplateKey, Vec<TypeId>>,
 }
 
-impl StandinState {
+impl TemplateState {
     pub fn new() -> Self {
         Self::default()
     }
@@ -318,8 +318,78 @@ impl StandinState {
         }
     }
 
+    /// Consume `self` and return a read-only [`TemplateResult`].
+    ///
+    /// Once inference for a call site is complete, the analyzer freezes
+    /// the state so later substitution passes cannot accidentally mutate
+    /// it (report §14). The split is type-state: callers who need to
+    /// keep adding bounds must keep the [`TemplateState`] handle; once
+    /// substitution starts they take a [`TemplateResult`] and the type
+    /// system rules out any further accumulation.
+    pub fn freeze(self) -> TemplateResult {
+        TemplateResult { template_types: self.template_types, bounds: self.bounds, anti_bounds: self.anti_bounds }
+    }
+
     fn record(&mut self, key: TemplateKey, bound: Bound) {
         self.bounds.entry(key).or_default().push(bound);
+    }
+}
+
+/// Read-only view of template definitions, bounds, and anti-bounds
+/// produced by [`TemplateState::freeze`]. Substitution and reconciliation
+/// take this; mutation is rejected at compile time because no
+/// `&mut self` methods exist.
+#[derive(Debug, Clone, Default)]
+pub struct TemplateResult {
+    template_types: BTreeMap<TemplateKey, GenericTemplate>,
+    bounds: BTreeMap<TemplateKey, Vec<Bound>>,
+    anti_bounds: BTreeMap<TemplateKey, Vec<TypeId>>,
+}
+
+impl TemplateResult {
+    pub fn bounds_for(&self, key: TemplateKey) -> &[Bound] {
+        self.bounds.get(&key).map(Vec::as_slice).unwrap_or(&[])
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&TemplateKey, &[Bound])> {
+        self.bounds.iter().map(|(k, v)| (k, v.as_slice()))
+    }
+
+    pub fn declaration(&self, key: TemplateKey) -> Option<&GenericTemplate> {
+        self.template_types.get(&key)
+    }
+
+    pub fn is_declared(&self, key: TemplateKey) -> bool {
+        self.template_types.contains_key(&key)
+    }
+
+    pub fn declarations(&self) -> impl Iterator<Item = (&TemplateKey, &GenericTemplate)> {
+        self.template_types.iter()
+    }
+
+    pub fn bounds_in_scope(
+        &self,
+        entity: DefiningEntityId,
+    ) -> impl Iterator<Item = (&TemplateKey, &[Bound])> {
+        self.bounds.iter().filter(move |(k, _)| k.defining_entity == entity).map(|(k, v)| (k, v.as_slice()))
+    }
+
+    pub fn declarations_in_scope(
+        &self,
+        entity: DefiningEntityId,
+    ) -> impl Iterator<Item = (&TemplateKey, &GenericTemplate)> {
+        self.template_types.iter().filter(move |(k, _)| k.defining_entity == entity)
+    }
+
+    pub fn anti_bounds_for(&self, key: TemplateKey) -> &[TypeId] {
+        self.anti_bounds.get(&key).map(Vec::as_slice).unwrap_or(&[])
+    }
+
+    pub fn anti_bounds_in_scope(
+        &self,
+        entity: DefiningEntityId,
+    ) -> impl Iterator<Item = (&TemplateKey, &[TypeId])> {
+        self.anti_bounds.iter().filter(move |(k, _)| k.defining_entity == entity).map(|(k, v)| (k, v.as_slice()))
     }
 }
 
@@ -334,7 +404,7 @@ pub fn standin<W: World>(
     parameter: TypeId,
     argument: TypeId,
     world: &W,
-    state: &mut StandinState,
+    state: &mut TemplateState,
     options: &StandinOptions,
 ) -> TypeId {
     walk_type(parameter, argument, options.default_variance, 0, None, world, state, options)
@@ -348,7 +418,7 @@ fn walk_type<W: World>(
     depth: u32,
     introducing_class: Option<Atom>,
     world: &W,
-    state: &mut StandinState,
+    state: &mut TemplateState,
     options: &StandinOptions,
 ) -> TypeId {
     if parameter == argument {
@@ -421,7 +491,7 @@ fn walk_element<W: World>(
     depth: u32,
     introducing_class: Option<Atom>,
     world: &W,
-    state: &mut StandinState,
+    state: &mut TemplateState,
     options: &StandinOptions,
 ) -> Walk {
     match parameter.kind() {
@@ -447,7 +517,7 @@ fn walk_generic_parameter(
     variance: Variance,
     depth: u32,
     introducing_class: Option<Atom>,
-    state: &mut StandinState,
+    state: &mut TemplateState,
     options: &StandinOptions,
 ) -> Walk {
     let info = interner().get_generic_parameter(parameter);
@@ -489,7 +559,7 @@ fn walk_object<W: World>(
     argument: TypeId,
     depth: u32,
     world: &W,
-    state: &mut StandinState,
+    state: &mut TemplateState,
     options: &StandinOptions,
 ) -> Walk {
     let i = interner();
@@ -579,7 +649,7 @@ fn walk_list<W: World>(
     depth: u32,
     introducing_class: Option<Atom>,
     world: &W,
-    state: &mut StandinState,
+    state: &mut TemplateState,
     options: &StandinOptions,
 ) -> Walk {
     let i = interner();
@@ -611,7 +681,7 @@ fn walk_iterable<W: World>(
     depth: u32,
     introducing_class: Option<Atom>,
     world: &W,
-    state: &mut StandinState,
+    state: &mut TemplateState,
     options: &StandinOptions,
 ) -> Walk {
     let i = interner();
@@ -659,7 +729,7 @@ fn walk_keyed_array<W: World>(
     depth: u32,
     introducing_class: Option<Atom>,
     world: &W,
-    state: &mut StandinState,
+    state: &mut TemplateState,
     options: &StandinOptions,
 ) -> Walk {
     let i = interner();
@@ -745,7 +815,7 @@ fn walk_callable<W: World>(
     depth: u32,
     introducing_class: Option<Atom>,
     world: &W,
-    state: &mut StandinState,
+    state: &mut TemplateState,
     options: &StandinOptions,
 ) -> Walk {
     use crate::element::payload::CallableInfo;
