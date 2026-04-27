@@ -397,6 +397,46 @@ fn merge_scope_appends_when_target_already_has_bounds_for_same_name() {
 }
 
 #[test]
+fn anti_bound_recorded_and_queryable() {
+    let mut state = StandinState::new();
+    let key = key_for("Foo", "T");
+    state.add_anti_bound(key, prelude::TYPE_INT);
+    state.add_anti_bound(key, prelude::TYPE_STRING);
+    let antis = state.anti_bounds_for(key);
+    assert_eq!(antis.len(), 2);
+    assert!(antis.contains(&prelude::TYPE_INT));
+    assert!(antis.contains(&prelude::TYPE_STRING));
+}
+
+#[test]
+fn anti_bound_unset_returns_empty_slice() {
+    let state = StandinState::new();
+    assert!(state.anti_bounds_for(key_for("Foo", "T")).is_empty());
+}
+
+#[test]
+fn anti_bounds_in_scope_filters_by_defining_entity() {
+    let mut state = StandinState::new();
+    state.add_anti_bound(key_for("Foo", "T"), prelude::TYPE_INT);
+    state.add_anti_bound(key_for("Bar", "U"), prelude::TYPE_STRING);
+    let foo_entity = key_for("Foo", "T").defining_entity;
+    let scoped: Vec<_> = state.anti_bounds_in_scope(foo_entity).map(|(k, _)| k.name).collect();
+    assert_eq!(scoped, vec![atom("T")]);
+}
+
+#[test]
+fn merge_scope_re_keys_anti_bounds() {
+    let mut state = StandinState::new();
+    state.add_anti_bound(key_for("Foo", "T"), prelude::TYPE_INT);
+    let foo_entity = key_for("Foo", "T").defining_entity;
+    let bar_entity = key_for("Bar", "Z").defining_entity;
+    state.merge_scope(foo_entity, bar_entity);
+    let bar_t_key = TemplateKey { defining_entity: bar_entity, name: atom("T") };
+    assert_eq!(state.anti_bounds_for(bar_t_key), &[prelude::TYPE_INT]);
+    assert!(state.anti_bounds_for(key_for("Foo", "T")).is_empty());
+}
+
+#[test]
 fn merge_scope_into_self_is_noop() {
     let cb = empty_world();
     let mut state = StandinState::new();

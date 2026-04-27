@@ -164,16 +164,20 @@ pub struct GenericTemplate {
     pub constraint: TypeId,
 }
 
-/// Definitions and bounds collected across one or more standin walks.
-/// The same [`StandinState`] is threaded through every parameter of a
-/// call so reconciliation sees the full set per template parameter.
+/// Definitions, bounds, and anti-bounds collected across one or more
+/// standin walks. The same [`StandinState`] is threaded through every
+/// parameter of a call so reconciliation sees the full set per template
+/// parameter.
 ///
-/// Two parallel maps:
+/// Three parallel maps:
 ///
 /// - `template_types` records *definitions* — the templates the inference
 ///   scope knows about, with their constraints.
 /// - `bounds` records *inferred bounds* — what the standin walk
 ///   discovered for each template.
+/// - `anti_bounds` records types each template *cannot* be — set by the
+///   reconciler when one branch of a conditional rules out a possibility
+///   the other branch must remember (report §13).
 ///
 /// The walk auto-declares every template it encounters; consumers can
 /// also call [`StandinState::declare`] explicitly for templates that
@@ -182,6 +186,7 @@ pub struct GenericTemplate {
 pub struct StandinState {
     template_types: BTreeMap<TemplateKey, GenericTemplate>,
     bounds: BTreeMap<TemplateKey, Vec<Bound>>,
+    anti_bounds: BTreeMap<TemplateKey, Vec<TypeId>>,
 }
 
 impl StandinState {
@@ -245,11 +250,33 @@ impl StandinState {
         self.template_types.iter().filter(move |(k, _)| k.defining_entity == entity)
     }
 
-    /// Re-key every declaration and bound from `from` so it appears
-    /// under `to`. Used when a class extends another and the parent's
-    /// inferences must propagate up under the child's entity. Bounds
-    /// append (the destination's existing list grows); declarations
-    /// overwrite (latest scope wins).
+    /// Record a type that `key`'s template may **not** be. Used by the
+    /// reconciler when a conditional branch rules out a possibility the
+    /// other branch must remember.
+    pub fn add_anti_bound(&mut self, key: TemplateKey, ty: TypeId) {
+        self.anti_bounds.entry(key).or_default().push(ty);
+    }
+
+    /// Types `key`'s template is forbidden from being. Empty when no
+    /// anti-bounds have been recorded.
+    pub fn anti_bounds_for(&self, key: TemplateKey) -> &[TypeId] {
+        self.anti_bounds.get(&key).map(Vec::as_slice).unwrap_or(&[])
+    }
+
+    /// Iterate every `(key, anti-bounds)` pair whose defining entity
+    /// matches `entity`.
+    pub fn anti_bounds_in_scope(
+        &self,
+        entity: DefiningEntityId,
+    ) -> impl Iterator<Item = (&TemplateKey, &[TypeId])> {
+        self.anti_bounds.iter().filter(move |(k, _)| k.defining_entity == entity).map(|(k, v)| (k, v.as_slice()))
+    }
+
+    /// Re-key every declaration, bound, and anti-bound from `from` so
+    /// it appears under `to`. Used when a class extends another and
+    /// the parent's inferences must propagate up under the child's
+    /// entity. Bounds and anti-bounds append (the destination's
+    /// existing list grows); declarations overwrite (latest scope wins).
     pub fn merge_scope(&mut self, from: DefiningEntityId, to: DefiningEntityId) {
         if from == to {
             return;
@@ -276,6 +303,18 @@ impl StandinState {
             self.bounds.remove(&key);
             let new_key = TemplateKey { defining_entity: to, name: key.name };
             self.bounds.entry(new_key).or_default().extend(bounds);
+        }
+
+        let moved_anti: Vec<(TemplateKey, Vec<TypeId>)> = self
+            .anti_bounds
+            .iter()
+            .filter(|(k, _)| k.defining_entity == from)
+            .map(|(k, v)| (*k, v.clone()))
+            .collect();
+        for (key, antis) in moved_anti {
+            self.anti_bounds.remove(&key);
+            let new_key = TemplateKey { defining_entity: to, name: key.name };
+            self.anti_bounds.entry(new_key).or_default().extend(antis);
         }
     }
 
