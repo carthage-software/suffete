@@ -296,3 +296,56 @@ fn t_alias_elem(class: &str, alias: &str) -> ElementId {
     use suffete::element::payload::AliasInfo;
     interner().intern_alias(AliasInfo { class_name: atom(class), alias_name: atom(alias) })
 }
+
+#[test]
+fn key_of_object_shape_is_union_of_property_name_literals() {
+    let cb = empty_world();
+    let shape = u(t_object_shape(&[("name", prelude::TYPE_STRING, false), ("age", prelude::TYPE_INT, false)], true));
+    let result = expand::expand(u(t_key_of(shape)), &cb);
+    let expected = u_many(vec![t_lit_string("age"), t_lit_string("name")]);
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn key_of_empty_object_shape_is_never() {
+    let cb = empty_world();
+    let shape = u(t_object_shape(&[], true));
+    let result = expand::expand(u(t_key_of(shape)), &cb);
+    assert_eq!(result, prelude::TYPE_NEVER);
+}
+
+#[test]
+fn value_of_object_shape_is_union_of_property_types() {
+    let cb = empty_world();
+    let shape = u(t_object_shape(&[("name", prelude::TYPE_STRING, false), ("age", prelude::TYPE_INT, false)], true));
+    let result = expand::expand(u(t_value_of(shape)), &cb);
+    let expected = u_many(vec![t_int(), t_string()]);
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn index_access_object_shape_with_literal_key_returns_property_type() {
+    let cb = empty_world();
+    let shape = u(t_object_shape(&[("name", prelude::TYPE_STRING, false), ("age", prelude::TYPE_INT, false)], true));
+    let key = u(t_lit_string("name"));
+    let result = expand::expand(u(t_index_access(shape, key)), &cb);
+    assert_eq!(result, prelude::TYPE_STRING);
+}
+
+#[test]
+fn index_access_object_shape_with_unknown_literal_key_is_never() {
+    let cb = empty_world();
+    let shape = u(t_object_shape(&[("name", prelude::TYPE_STRING, false)], true));
+    let key = u(t_lit_string("missing"));
+    let result = expand::expand(u(t_index_access(shape, key)), &cb);
+    assert_eq!(result, prelude::TYPE_NEVER);
+}
+
+#[test]
+fn index_access_object_shape_with_non_literal_key_widens_to_value_union() {
+    let cb = empty_world();
+    let shape = u(t_object_shape(&[("name", prelude::TYPE_STRING, false), ("age", prelude::TYPE_INT, false)], true));
+    let result = expand::expand(u(t_index_access(shape, prelude::TYPE_STRING)), &cb);
+    let expected = u_many(vec![t_int(), t_string()]);
+    assert_eq!(result, expected);
+}

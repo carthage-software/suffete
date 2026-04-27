@@ -339,6 +339,16 @@ fn eval_key_of(target: TypeId) -> TypeId {
             if keys.is_empty() { TYPE_MIXED } else { TypeId::union(&keys) }
         }
         ElementKind::Iterable => i.get_iterable(only).key_type,
+        ElementKind::ObjectShape => {
+            let info = *i.get_object_shape(only);
+            let Some(known_id) = info.known_properties else {
+                return TYPE_NEVER;
+            };
+            let entries = i.get_known_properties(known_id);
+            let keys: Vec<ElementId> =
+                entries.iter().map(|entry| ElementId::string_literal(entry.name.as_str())).collect();
+            if keys.is_empty() { TYPE_NEVER } else { TypeId::union(&keys) }
+        }
         _ => TYPE_MIXED,
     }
 }
@@ -377,6 +387,17 @@ fn eval_value_of(target: TypeId) -> TypeId {
             if values.is_empty() { TYPE_MIXED } else { TypeId::union(&values) }
         }
         ElementKind::Iterable => i.get_iterable(only).value_type,
+        ElementKind::ObjectShape => {
+            let info = *i.get_object_shape(only);
+            let Some(known_id) = info.known_properties else {
+                return TYPE_NEVER;
+            };
+            let mut values: Vec<ElementId> = Vec::new();
+            for entry in i.get_known_properties(known_id) {
+                values.extend_from_slice(entry.value.as_ref().elements);
+            }
+            if values.is_empty() { TYPE_NEVER } else { TypeId::union(&values) }
+        }
         _ => TYPE_MIXED,
     }
 }
@@ -420,7 +441,37 @@ fn eval_index_access(target: TypeId, index: TypeId) -> TypeId {
             info.element_type
         }
         ElementKind::Iterable => i.get_iterable(only).value_type,
+        ElementKind::ObjectShape => {
+            let info = *i.get_object_shape(only);
+            let Some(known_id) = info.known_properties else {
+                return TYPE_NEVER;
+            };
+            if let Some(literal) = single_string_literal_atom_from_element(key_elem) {
+                for entry in i.get_known_properties(known_id) {
+                    if entry.name == literal {
+                        return entry.value;
+                    }
+                }
+                return TYPE_NEVER;
+            }
+            let mut values: Vec<ElementId> = Vec::new();
+            for entry in i.get_known_properties(known_id) {
+                values.extend_from_slice(entry.value.as_ref().elements);
+            }
+            if values.is_empty() { TYPE_NEVER } else { TypeId::union(&values) }
+        }
         _ => TYPE_MIXED,
+    }
+}
+
+fn single_string_literal_atom_from_element(elem: ElementId) -> Option<Atom> {
+    use crate::element::payload::scalar::StringLiteral;
+    if elem.kind() != ElementKind::String {
+        return None;
+    }
+    match interner().get_string(elem).literal {
+        StringLiteral::Value(atom) => Some(atom),
+        _ => None,
     }
 }
 
