@@ -193,6 +193,56 @@ fn non_generic_named_into_non_generic_descendant() {
 }
 
 #[test]
+fn unspecialised_box_flows_into_box_int_under_invariance() {
+    let mut w = MockWorld::new();
+    w.with_templates("Box", &[("T", Variance::Invariant)]);
+
+    let unspec = t_named("Box");
+    let box_int = t_generic_named("Box", vec![u(t_int())]);
+    let (v, r) = atomic_is_contained_capturing(unspec, box_int, &w);
+    assert!(v);
+    assert!(r.causes.template_default());
+}
+
+#[test]
+fn box_int_flows_into_unspecialised_box_under_invariance() {
+    let mut w = MockWorld::new();
+    w.with_templates("Box", &[("T", Variance::Invariant)]);
+
+    let box_int = t_generic_named("Box", vec![u(t_int())]);
+    let unspec = t_named("Box");
+    let (v, r) = atomic_is_contained_capturing(box_int, unspec, &w);
+    assert!(v);
+    assert!(r.causes.template_default());
+}
+
+#[test]
+fn unspec_to_unspec_box_passes_via_reflexivity() {
+    let mut w = MockWorld::new();
+    w.with_templates("Box", &[("T", Variance::Invariant)]);
+
+    let lhs = t_named("Box");
+    let rhs = t_named("Box");
+    let (v, r) = atomic_is_contained_capturing(lhs, rhs, &w);
+    assert!(v);
+    assert!(!r.coerced());
+}
+
+#[test]
+fn nested_default_fill_propagates_through_outer_container() {
+    let mut w = MockWorld::new();
+    w.with_templates("Box", &[("T", Variance::Invariant)]);
+    w.with_templates("Outer", &[("T", Variance::Invariant)]);
+
+    let outer_with_unspec_box = t_generic_named("Outer", vec![u(t_named("Box"))]);
+    let outer_with_box_int = t_generic_named("Outer", vec![u(t_generic_named("Box", vec![u(t_int())]))]);
+
+    let (v, r) = atomic_is_contained_capturing(outer_with_unspec_box, outer_with_box_int, &w);
+    assert!(v);
+    assert!(r.causes.template_default());
+}
+
+#[test]
 fn descendant_reaches_generic_ancestor_without_own_templates() {
     // class A<T>; class StringList extends A<string>; (StringList non-generic)
     let mut w = MockWorld::new();

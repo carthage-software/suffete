@@ -48,6 +48,7 @@ use crate::element::payload::ObjectInfo;
 use crate::element::payload::ObjectShapeFlags;
 use crate::element::payload::ObjectShapeInfo;
 use crate::interner::interner;
+use crate::lattice::CoercionCauses;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::refines::refines as type_refines;
@@ -345,12 +346,14 @@ fn refines_named_named<W: World>(
         return false;
     }
 
-    // Container takes no type arguments: nominal check is sufficient.
-    let Some(container_args_id) = container.type_args else {
-        return true;
+    let container_args: Vec<TypeId> = match container.type_args {
+        Some(id) => interner().get_type_list(id).to_vec(),
+        None => default_fill_template_args(container.name, world),
     };
+    if container_args.is_empty() {
+        return true;
+    }
 
-    let container_args: Vec<TypeId> = interner().get_type_list(container_args_id).to_vec();
     let input_actual_args: Vec<TypeId> =
         input.type_args.map(|id| interner().get_type_list(id).to_vec()).unwrap_or_default();
     let same_class = input.name == container.name;
@@ -405,12 +408,9 @@ fn input_argument_for_container_position<W: World>(
         if let Some(&arg) = input_actual_args.get(position) {
             return Some(arg);
         }
-        // No argument supplied at this position: fall back to the
-        // template's constraint, defaulting to `mixed` when the world
-        // doesn't know the parameter.
-        return Some(
-            world.template_parameter_at(input_name, position).and_then(|p| p.upper_bound).unwrap_or(TYPE_MIXED),
-        );
+        let constraint =
+            world.template_parameter_at(input_name, position).and_then(|p| p.upper_bound).unwrap_or(TYPE_MIXED);
+        return Some(mark_default_filled(constraint));
     }
 
     let inherited = world.inherited_template_argument(input_name, container_name, position)?;
@@ -425,6 +425,10 @@ fn input_argument_for_container_position<W: World>(
     }))
 }
 
+/// Compare a single type-argument pair under the container parameter's
+/// declared variance. A default-fill marker on either side bypasses the
+/// check and records [`CoercionCauses::TEMPLATE_DEFAULT`] so the consumer
+/// can warn about the unpinned position.
 fn compare_with_variance<W: World>(
     input: TypeId,
     container: TypeId,
@@ -433,6 +437,11 @@ fn compare_with_variance<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
+    if input.as_ref().flags.from_template_default() || container.as_ref().flags.from_template_default() {
+        report.add_cause(CoercionCauses::TEMPLATE_DEFAULT);
+        return true;
+    }
+
     match variance {
         Variance::Covariant => type_refines(input, container, world, options, report),
         Variance::Contravariant => type_refines(container, input, world, options, report),
@@ -441,6 +450,33 @@ fn compare_with_variance<W: World>(
                 && type_refines(container, input, world, options, report)
         }
     }
+}
+
+/// Stamp `ty` with [`FlowFlags::from_template_default`]. The flag rides
+/// with the [`TypeId`] wherever it is later nested, so the variance check
+/// sees it even several layers deep.
+fn mark_default_filled(ty: TypeId) -> TypeId {
+    let view = ty.as_ref();
+    if view.flags.from_template_default() {
+        return ty;
+    }
+    interner().intern_type(view.elements, view.flags.with_from_template_default(true))
+}
+
+/// Build a positional list of default-filled type-arguments for `class`,
+/// one per declared template parameter. Each entry is the parameter's
+/// upper bound (or `mixed`) stamped with
+/// [`FlowFlags::from_template_default`]. Empty when `class` has no
+/// declared templates.
+fn default_fill_template_args<W: World>(class: Atom, world: &W) -> Vec<TypeId> {
+    let arity = world.template_parameter_arity(class);
+    (0..arity)
+        .map(|position| {
+            let constraint =
+                world.template_parameter_at(class, position).and_then(|p| p.upper_bound).unwrap_or(TYPE_MIXED);
+            mark_default_filled(constraint)
+        })
+        .collect()
 }
 
 /// `static<C>` accepts only `static` or `$this`; `$this<C>` accepts only
