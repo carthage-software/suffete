@@ -105,6 +105,11 @@ fn family_overlap(a: ElementId, b: ElementId) -> bool {
         return true;
     }
 
+    // Numeric strings inhabit both `numeric` and `string`.
+    if matches!(pair, (ElementKind::Numeric, ElementKind::String) | (ElementKind::String, ElementKind::Numeric)) {
+        return true;
+    }
+
     false
 }
 
