@@ -29,8 +29,7 @@ fn template_param_with_constraint(class: &str, name: &str, constraint: TypeId) -
 }
 
 fn key_for(class: &str, name: &str) -> TemplateKey {
-    let defining_entity =
-        suffete::interner::interner().intern_defining_entity(DefiningEntity::ClassLike(atom(class)));
+    let defining_entity = suffete::interner::interner().intern_defining_entity(DefiningEntity::ClassLike(atom(class)));
     TemplateKey { defining_entity, name: atom(name) }
 }
 

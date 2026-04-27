@@ -10,8 +10,8 @@ use mago_atom::atom;
 
 use suffete::ElementId;
 use suffete::FlowFlags;
-use suffete::expand;
 use suffete::element::payload::AliasInfo;
+use suffete::expand;
 use suffete::interner::interner;
 use suffete::prelude;
 

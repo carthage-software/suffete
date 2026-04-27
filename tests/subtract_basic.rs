@@ -7,13 +7,13 @@ mod comparator_common;
 
 use comparator_common::*;
 
+use suffete::TypeId;
 use suffete::lattice::LatticeOptions;
 use suffete::lattice::LatticeReport;
 use suffete::lattice::overlaps;
 use suffete::lattice::refines;
 use suffete::prelude;
 use suffete::subtract;
-use suffete::TypeId;
 use suffete::world::World;
 
 fn subtract_of<W: World>(a: TypeId, b: TypeId, world: &W) -> TypeId {

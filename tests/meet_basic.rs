@@ -7,12 +7,12 @@ mod comparator_common;
 
 use comparator_common::*;
 
+use suffete::TypeId;
 use suffete::lattice::LatticeOptions;
 use suffete::lattice::LatticeReport;
 use suffete::lattice::refines;
 use suffete::meet;
 use suffete::prelude;
-use suffete::TypeId;
 use suffete::world::World;
 
 fn meet_of<W: World>(a: TypeId, b: TypeId, world: &W) -> TypeId {

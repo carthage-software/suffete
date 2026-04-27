@@ -50,10 +50,7 @@ pub fn overlaps<W: World>(
     let a_type = a.as_ref();
     let b_type = b.as_ref();
 
-    a_type
-        .elements
-        .iter()
-        .any(|x| b_type.elements.iter().any(|y| element_overlaps(*x, *y, codebase, options, report)))
+    a_type.elements.iter().any(|x| b_type.elements.iter().any(|y| element_overlaps(*x, *y, codebase, options, report)))
 }
 
 fn element_overlaps<W: World>(

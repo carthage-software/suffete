@@ -13,11 +13,11 @@ use mago_atom::atom;
 use suffete::ElementId;
 use suffete::FlowFlags;
 use suffete::TypeId;
-use suffete::expand;
 use suffete::element::payload::DerivedInfo;
 use suffete::element::payload::KnownElementEntry;
 use suffete::element::payload::ListFlags;
 use suffete::element::payload::ListInfo;
+use suffete::expand;
 use suffete::interner::interner;
 use suffete::prelude;
 use suffete::world::Variance;
@@ -44,13 +44,20 @@ fn t_int_mask_of(target: TypeId) -> ElementId {
 }
 
 fn t_template_type(class: TypeId, name: TypeId) -> ElementId {
-    interner().intern_derived(DerivedInfo::TemplateType { object: prelude::TYPE_MIXED, class_name: class, template_name: name })
+    interner().intern_derived(DerivedInfo::TemplateType {
+        object: prelude::TYPE_MIXED,
+        class_name: class,
+        template_name: name,
+    })
 }
 
 fn t_sealed_list(elements: &[TypeId]) -> ElementId {
     let i = interner();
-    let entries: Vec<KnownElementEntry> =
-        elements.iter().enumerate().map(|(idx, t)| KnownElementEntry { index: idx as u32, value: *t, optional: false }).collect();
+    let entries: Vec<KnownElementEntry> = elements
+        .iter()
+        .enumerate()
+        .map(|(idx, t)| KnownElementEntry { index: idx as u32, value: *t, optional: false })
+        .collect();
     let known = i.intern_known_elements(&entries);
     let info = ListInfo {
         element_type: prelude::TYPE_NEVER,

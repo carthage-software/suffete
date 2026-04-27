@@ -332,8 +332,7 @@ fn walk_object<W: World>(
     let mut changed = false;
     for (idx, &p_arg) in p_args.iter().enumerate() {
         let a_arg = projected_object_arg(p_info.name, &a_info, idx, world);
-        let variance =
-            world.template_parameter_at(p_info.name, idx).map(|p| p.variance).unwrap_or(Variance::Invariant);
+        let variance = world.template_parameter_at(p_info.name, idx).map(|p| p.variance).unwrap_or(Variance::Invariant);
         let refined = match a_arg {
             Some(t) => walk_type(p_arg, t, variance, depth + 1, world, state, options),
             None => p_arg,
@@ -376,13 +375,16 @@ fn projected_object_arg<W: World>(
     let argument_entity =
         i.intern_defining_entity(crate::element::payload::DefiningEntity::ClassLike(argument_object.name));
 
-    Some(crate::template::substitute(inherited, &|info: &crate::element::payload::GenericParameterInfo| -> Option<TypeId> {
-        if info.defining_entity != argument_entity {
-            return None;
-        }
-        let pos = world.template_parameter_index(argument_object.name, info.name)?;
-        actual_args.get(pos).copied()
-    }))
+    Some(crate::template::substitute(
+        inherited,
+        &|info: &crate::element::payload::GenericParameterInfo| -> Option<TypeId> {
+            if info.defining_entity != argument_entity {
+                return None;
+            }
+            let pos = world.template_parameter_index(argument_object.name, info.name)?;
+            actual_args.get(pos).copied()
+        },
+    ))
 }
 
 /// `List(τ)` against `List(σ)` or `Iterable(_, σ)`: walk τ vs σ
@@ -451,13 +453,11 @@ fn walk_iterable<W: World>(
     if new_key == p_info.key_type && new_value == p_info.value_type {
         return Walk::Unchanged;
     }
-    Walk::Single(
-        i.intern_iterable(crate::element::payload::IterableInfo {
-            key_type: new_key,
-            value_type: new_value,
-            ..p_info
-        }),
-    )
+    Walk::Single(i.intern_iterable(crate::element::payload::IterableInfo {
+        key_type: new_key,
+        value_type: new_value,
+        ..p_info
+    }))
 }
 
 /// `Keyed(τ_K, τ_V, {k → τ})` against a keyed-array argument: walk
@@ -578,7 +578,8 @@ fn walk_callable<W: World>(
     let p_sig = *i.get_signature(p_sig_id);
     let a_sig = *i.get_signature(a_sig_id);
 
-    let new_return = walk_type(p_sig.return_type, a_sig.return_type, Variance::Covariant, depth + 1, world, state, options);
+    let new_return =
+        walk_type(p_sig.return_type, a_sig.return_type, Variance::Covariant, depth + 1, world, state, options);
 
     let new_param_list = p_sig.parameters.map(|pid| {
         let p_params = i.get_param_list(pid);

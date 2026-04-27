@@ -10,10 +10,10 @@ use mago_atom::atom;
 
 use suffete::ElementId;
 use suffete::TypeId;
-use suffete::expand;
 use suffete::element::payload::ConditionalInfo;
 use suffete::element::payload::ObjectFlags;
 use suffete::element::payload::ObjectInfo;
+use suffete::expand;
 use suffete::expand::ExpansionContext;
 use suffete::interner::interner;
 use suffete::prelude;
@@ -27,13 +27,7 @@ fn t_object_with_flags(name: &str, is_static: bool, is_this: bool) -> ElementId 
     })
 }
 
-fn t_conditional(
-    subject: TypeId,
-    target: TypeId,
-    then: TypeId,
-    otherwise: TypeId,
-    negated: bool,
-) -> ElementId {
+fn t_conditional(subject: TypeId, target: TypeId, then: TypeId, otherwise: TypeId, negated: bool) -> ElementId {
     interner().intern_conditional(ConditionalInfo { subject, target, then, otherwise, negated })
 }
 

@@ -57,10 +57,7 @@ fn properties_of_class_with_two_properties_returns_shape() {
     let derived = u(t_properties_of(u(t_named("User")), None));
     let result = expand::expand(derived, &w);
     let expected = u(t_keyed_sealed(
-        BTreeMap::from([
-            (ak_str("name"), (false, prelude::TYPE_STRING)),
-            (ak_str("age"), (false, prelude::TYPE_INT)),
-        ]),
+        BTreeMap::from([(ak_str("name"), (false, prelude::TYPE_STRING)), (ak_str("age"), (false, prelude::TYPE_INT))]),
         false,
     ));
     assert_eq!(result, expected);

@@ -1,8 +1,17 @@
-//! Lattice difference: `subtract::compute(A, B) ≡ A \ B` is the type
-//! whose values are in `A` but not in `B`. Pairs with [`crate::meet`]
-//! the way negative narrowing pairs with positive narrowing:
-//! `else if ($x === null)` produces `meet(T_x, null)`,
-//! `if ($x !== null)` produces `subtract(T_x, null)`.
+//! Lattice difference: `A \ B` is the type whose values are in `A`
+//! but not in `B`. Pairs with [`crate::meet`] the way negative
+//! narrowing pairs with positive narrowing: `if ($x !== null)`
+//! produces `subtract(T_x, null)`.
+//!
+//! Two entry points:
+//!
+//! - [`narrow`] is the primary operation. It runs the difference and
+//!   classifies the result for assertion-driven narrowing:
+//!   `Impossible` when `input ⊆ σ` (the negation can never hold),
+//!   `Redundant` when `input # σ` (the negation is trivially true and
+//!   adds nothing), `Narrowed` when the result is strictly smaller.
+//! - [`compute`] is a thin wrapper that returns just the resulting
+//!   `TypeId`, mapping `Impossible` to [`prelude::TYPE_NEVER`].
 //!
 //! The operation is *partial* (intersection.md §3.3.2): when no rule
 //! describes the precise difference, the input is returned unchanged.
@@ -51,13 +60,73 @@ use crate::prelude::TRUE;
 use crate::prelude::TYPE_NEVER;
 use crate::world::World;
 
-/// Compute `A \ B`: the largest representable type whose values are in
-/// `A` but not in `B`. Returns [`prelude::TYPE_NEVER`] only when every
-/// `A`-value also satisfies `B`; partial rules return `A` unchanged
-/// rather than a guess.
+/// Outcome of [`narrow`], classifying an assertion-driven difference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SubtractOutcome {
+    /// `input ⊆ σ`: every value of the input also satisfies the
+    /// predicate being negated, so the negative assertion can never
+    /// hold. The result is `never`.
+    Impossible,
+    /// `input # σ` (already disjoint): the input has no values in
+    /// common with the predicate, so the negation is trivially true
+    /// and adds no information. Carries the (unchanged) input.
+    Redundant(TypeId),
+    /// The subtraction strictly narrowed the input. Carries the new
+    /// type.
+    Narrowed(TypeId),
+}
+
+impl SubtractOutcome {
+    /// Extract the resulting [`TypeId`], mapping `Impossible` to
+    /// [`prelude::TYPE_NEVER`].
+    pub fn into_type(self) -> TypeId {
+        match self {
+            Self::Impossible => TYPE_NEVER,
+            Self::Redundant(t) | Self::Narrowed(t) => t,
+        }
+    }
+}
+
+/// Compute `input \ narrowing` and classify the outcome for
+/// assertion-driven diagnostics.
 ///
-/// `result <: A` always; `result ∧ B ≡ ⊥` when the rules cover every
-/// surviving atom precisely.
+/// `input` is the existing type; `narrowing` is the type the negative
+/// assertion is removing (e.g. the right-hand side of
+/// `!($x instanceof Foo)`).
+///
+/// `result <: input` always; `result ∧ narrowing ≡ ⊥` when the family
+/// rules cover every surviving atom precisely.
+pub fn narrow<W: World>(
+    input: TypeId,
+    narrowing: TypeId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> SubtractOutcome {
+    if input == narrowing {
+        return SubtractOutcome::Impossible;
+    }
+
+    let input_type = input.as_ref();
+    let narrowing_type = narrowing.as_ref();
+
+    let mut atoms: Vec<ElementId> = Vec::new();
+    for &x in input_type.elements.iter() {
+        let pieces = subtract_all(x, narrowing_type.elements, world, options, report);
+        atoms.extend(pieces);
+    }
+
+    if atoms.is_empty() {
+        return SubtractOutcome::Impossible;
+    }
+
+    let result = TypeId::union(&atoms);
+    if result == input { SubtractOutcome::Redundant(input) } else { SubtractOutcome::Narrowed(result) }
+}
+
+/// Compute `A \ B`: the largest representable type whose values are in
+/// `A` but not in `B`. Thin wrapper over [`narrow`] for callers that
+/// don't need the assertion classification.
 pub fn compute<W: World>(
     a: TypeId,
     b: TypeId,
@@ -65,24 +134,7 @@ pub fn compute<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> TypeId {
-    if a == b {
-        return TYPE_NEVER;
-    }
-
-    let a_type = a.as_ref();
-    let b_type = b.as_ref();
-
-    let mut atoms: Vec<ElementId> = Vec::new();
-    for &x in a_type.elements.iter() {
-        let pieces = subtract_all(x, b_type.elements, world, options, report);
-        atoms.extend(pieces);
-    }
-
-    if atoms.is_empty() {
-        return TYPE_NEVER;
-    }
-
-    TypeId::union(&atoms)
+    narrow(a, b, world, options, report).into_type()
 }
 
 /// Apply `α \ β₁ \ β₂ \ … \ βₙ` by folding over the right-hand atoms.
@@ -230,4 +282,3 @@ fn make_int_piece(lo: Option<i64>, hi: Option<i64>) -> ElementId {
         _ => ElementId::int_range(lo, hi),
     }
 }
-

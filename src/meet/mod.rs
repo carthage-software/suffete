@@ -1,13 +1,20 @@
 //! Lattice meet (greatest lower bound) — the type-returning intersection.
 //!
-//! [`compute`] takes two types and returns their meet `A ∧ B`: the
-//! largest type whose runtime values inhabit both `A` and `B`. The
-//! boolean overlap question (`A ∩ B ≠ ∅`) lives in
-//! [`crate::lattice::overlaps`]; this module returns the actual type.
+//! Two entry points:
+//!
+//! - [`narrow`] is the primary operation. It runs the meet and
+//!   classifies the result for assertion-driven narrowing: `Impossible`
+//!   when the inputs are disjoint, `Redundant` when the input already
+//!   refines the narrowing (the assertion adds no information),
+//!   `Narrowed` when the result is strictly more specific.
+//! - [`compute`] is a thin wrapper that throws away the classification
+//!   and returns just the meet's `TypeId`. Use it when you want the
+//!   intersection of two types unrelated to assertions (e.g. computing
+//!   `A ∧ B` to feed into a later operation).
 //!
 //! In type-lattice terms, `compute(A, B)` is the greatest lower bound
-//! (meet, ⊓) of `A` and `B` under the suffete subtype order, paired with
-//! the union join in [`crate::join`].
+//! (meet, ⊓) of `A` and `B` under the suffete subtype order, paired
+//! with the union join in [`crate::join`].
 //!
 //! # Strategy
 //!
@@ -30,7 +37,9 @@
 //! a precision loss but never an unsoundness: `never <: anything` so the
 //! lower-bound axiom holds. As family rules grow, what previously
 //! collapsed to `never` becomes the real meet — every step is monotone
-//! in result precision.
+//! in result precision. The same precision debt feeds the classifier in
+//! [`narrow`]: an unhandled overlap pair will be misreported as
+//! `Impossible`, never as a false `Redundant`/`Narrowed`.
 
 use crate::ElementId;
 use crate::ElementKind;
@@ -48,28 +57,55 @@ use crate::prelude::PLACEHOLDER;
 use crate::prelude::TYPE_NEVER;
 use crate::world::World;
 
-/// Compute `A ∧ B`: the largest type whose values are in both `A` and
-/// `B`. Returns [`prelude::TYPE_NEVER`] when the two are disjoint (or
-/// when no rule yet describes their overlap; precision can only grow).
+/// Outcome of [`narrow`], classifying an assertion-driven meet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MeetOutcome {
+    /// The input and the narrowing have no values in common. The
+    /// assertion `input is σ` cannot hold for any value of `input`.
+    Impossible,
+    /// The input is already a subtype of the narrowing; the assertion
+    /// adds no information. Carries the (unchanged) input.
+    Redundant(TypeId),
+    /// The narrowing strictly refined the input. Carries the new type.
+    Narrowed(TypeId),
+}
+
+impl MeetOutcome {
+    /// Extract the resulting [`TypeId`], mapping `Impossible` to
+    /// [`prelude::TYPE_NEVER`].
+    pub fn into_type(self) -> TypeId {
+        match self {
+            Self::Impossible => TYPE_NEVER,
+            Self::Redundant(t) | Self::Narrowed(t) => t,
+        }
+    }
+}
+
+/// Compute `input ∧ narrowing` and classify the outcome for
+/// assertion-driven diagnostics.
 ///
-/// Both `result <: a` and `result <: b` always hold.
-pub fn compute<W: World>(
-    a: TypeId,
-    b: TypeId,
+/// `input` is the existing type; `narrowing` is the type asserted at
+/// the use site (e.g. the right-hand side of `instanceof`). Both
+/// `result <: input` and `result <: narrowing` always hold for the
+/// `Narrowed` and `Redundant` variants; `Impossible` corresponds to
+/// `result ≡ ⊥`.
+pub fn narrow<W: World>(
+    input: TypeId,
+    narrowing: TypeId,
     world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
-) -> TypeId {
-    if a == b {
-        return a;
+) -> MeetOutcome {
+    if input == narrowing {
+        return MeetOutcome::Redundant(input);
     }
 
-    let a_type = a.as_ref();
-    let b_type = b.as_ref();
+    let input_type = input.as_ref();
+    let narrowing_type = narrowing.as_ref();
 
     let mut atoms: Vec<ElementId> = Vec::new();
-    for &x in a_type.elements.iter() {
-        for &y in b_type.elements.iter() {
+    for &x in input_type.elements.iter() {
+        for &y in narrowing_type.elements.iter() {
             if let Some(m) = atom_meet(x, y, world, options, report) {
                 atoms.push(m);
             }
@@ -77,10 +113,27 @@ pub fn compute<W: World>(
     }
 
     if atoms.is_empty() {
-        return TYPE_NEVER;
+        return MeetOutcome::Impossible;
     }
 
-    TypeId::union(&atoms)
+    let result = TypeId::union(&atoms);
+    if result == input { MeetOutcome::Redundant(input) } else { MeetOutcome::Narrowed(result) }
+}
+
+/// Compute `A ∧ B`: the largest type whose values are in both `A` and
+/// `B`. Returns [`prelude::TYPE_NEVER`] when the two are disjoint (or
+/// when no rule yet describes their overlap; precision can only grow).
+///
+/// This is a thin wrapper over [`narrow`] for callers that don't need
+/// the assertion classification.
+pub fn compute<W: World>(
+    a: TypeId,
+    b: TypeId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> TypeId {
+    narrow(a, b, world, options, report).into_type()
 }
 
 fn atom_meet<W: World>(

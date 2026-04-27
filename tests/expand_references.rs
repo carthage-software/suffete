@@ -10,11 +10,11 @@ use mago_atom::atom;
 
 use suffete::ElementId;
 use suffete::TypeId;
-use suffete::expand;
 use suffete::element::payload::GlobalReference;
 use suffete::element::payload::MemberReference;
 use suffete::element::payload::NameSelector;
 use suffete::element::payload::SymbolReference;
+use suffete::expand;
 use suffete::interner::interner;
 use suffete::prelude;
 
@@ -48,7 +48,8 @@ fn t_member_ref(class: &str, member: &str) -> ElementId {
 }
 
 fn t_member_ref_wildcard(class: &str) -> ElementId {
-    interner().intern_member_reference(MemberReference { class_like_name: atom(class), selector: NameSelector::Wildcard })
+    interner()
+        .intern_member_reference(MemberReference { class_like_name: atom(class), selector: NameSelector::Wildcard })
 }
 
 fn t_global_ref(name: &str) -> ElementId {
