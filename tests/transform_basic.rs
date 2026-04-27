@@ -77,9 +77,13 @@ fn map_post_order_sees_rebuilt_children() {
 #[test]
 fn flat_map_one_to_many_explodes_top_level() {
     let ty = u(t_lit_int(5));
-    let result = transform::flat_map(ty, |e| {
-        if e == t_lit_int(5) { vec![t_int_range(0, 4), t_int_range(6, 10)] } else { vec![e] }
-    });
+    let result =
+        transform::flat_map(
+            ty,
+            |e| {
+                if e == t_lit_int(5) { vec![t_int_range(0, 4), t_int_range(6, 10)] } else { vec![e] }
+            },
+        );
     let expected = u_many(vec![t_int_range(0, 4), t_int_range(6, 10)]);
     assert_eq!(result, expected);
 }
@@ -144,8 +148,7 @@ fn map_descends_into_class_like_string_constraint() {
         specifier: ClassLikeStringSpecifier::OfType { constraint: u(t_named("Foo")) },
     });
     let ty = u(constrained);
-    let result =
-        transform::map(ty, |e| if e == t_named("Foo") { t_named("Bar") } else { e });
+    let result = transform::map(ty, |e| if e == t_named("Foo") { t_named("Bar") } else { e });
     let expected_inner = interner().intern_class_like_string(ClassLikeStringInfo {
         kind: ClassLikeKind::Class,
         specifier: ClassLikeStringSpecifier::OfType { constraint: u(t_named("Bar")) },

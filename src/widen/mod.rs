@@ -118,10 +118,7 @@ fn widen_class_like_string_to_any(elem: ElementId) -> ElementId {
     let info = *i.get_class_like_string(elem);
     match info.specifier {
         ClassLikeStringSpecifier::Any => elem,
-        _ => i.intern_class_like_string(ClassLikeStringInfo {
-            specifier: ClassLikeStringSpecifier::Any,
-            ..info
-        }),
+        _ => i.intern_class_like_string(ClassLikeStringInfo { specifier: ClassLikeStringSpecifier::Any, ..info }),
     }
 }
 

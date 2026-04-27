@@ -112,19 +112,12 @@ fn walk_object<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Op
     let new_args = info.type_args.and_then(|id| {
         let args = i.get_type_list(id);
         let walked: Vec<TypeId> = args.iter().map(|&a| walk(a, f)).collect();
-        if walked.iter().zip(args.iter()).all(|(w, o)| w == o) {
-            None
-        } else {
-            Some(i.intern_type_list(&walked))
-        }
+        if walked.iter().zip(args.iter()).all(|(w, o)| w == o) { None } else { Some(i.intern_type_list(&walked)) }
     });
 
     let new_intersections = info.intersections.and_then(|id| {
         let conjuncts = i.get_element_list(id);
-        let walked: Vec<ElementId> = conjuncts
-            .iter()
-            .map(|&c| walk_nested(c, f).unwrap_or(c))
-            .collect();
+        let walked: Vec<ElementId> = conjuncts.iter().map(|&c| walk_nested(c, f).unwrap_or(c)).collect();
         if walked.iter().zip(conjuncts.iter()).all(|(w, o)| w == o) {
             None
         } else {
@@ -222,10 +215,7 @@ fn walk_object_shape<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F)
     if walked.iter().zip(entries.iter()).all(|(w, o)| w.value == o.value) {
         return None;
     }
-    Some(i.intern_object_shape(ObjectShapeInfo {
-        known_properties: Some(i.intern_known_properties(&walked)),
-        ..info
-    }))
+    Some(i.intern_object_shape(ObjectShapeInfo { known_properties: Some(i.intern_known_properties(&walked)), ..info }))
 }
 
 fn walk_class_like_string<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
@@ -268,19 +258,12 @@ fn walk_reference<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) ->
     let new_args = info.type_args.and_then(|id| {
         let args = i.get_type_list(id);
         let walked: Vec<TypeId> = args.iter().map(|&a| walk(a, f)).collect();
-        if walked.iter().zip(args.iter()).all(|(w, o)| w == o) {
-            None
-        } else {
-            Some(i.intern_type_list(&walked))
-        }
+        if walked.iter().zip(args.iter()).all(|(w, o)| w == o) { None } else { Some(i.intern_type_list(&walked)) }
     });
 
     let new_intersections = info.intersections.and_then(|id| {
         let conjuncts = i.get_element_list(id);
-        let walked: Vec<ElementId> = conjuncts
-            .iter()
-            .map(|&c| walk_nested(c, f).unwrap_or(c))
-            .collect();
+        let walked: Vec<ElementId> = conjuncts.iter().map(|&c| walk_nested(c, f).unwrap_or(c)).collect();
         if walked.iter().zip(conjuncts.iter()).all(|(w, o)| w == o) {
             None
         } else {
@@ -392,8 +375,7 @@ fn walk_callable<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> 
     let new_throws = sig.throws.map(|t| walk(t, f));
     let new_params = sig.parameters.and_then(|pid| {
         let params = i.get_param_list(pid);
-        let walked: Vec<ParamInfo> =
-            params.iter().map(|p| ParamInfo { type_: walk(p.type_, f), ..*p }).collect();
+        let walked: Vec<ParamInfo> = params.iter().map(|p| ParamInfo { type_: walk(p.type_, f), ..*p }).collect();
         if walked.iter().zip(params.iter()).all(|(w, o)| w.type_ == o.type_) {
             None
         } else {
