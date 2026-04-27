@@ -13,7 +13,8 @@
 //! Each takes a [`World`](crate::world::World) (class hierarchy lookups,
 //! member existence checks, template metadata), a [`LatticeOptions`] value
 //! (caller-set knobs like `ignore_null`), and writes diagnostics into a
-//! `&mut LatticeReport` (`type_coerced` and friends).
+//! `&mut LatticeReport` (the [`CoercionCauses`] bitset and an optional
+//! replacement [`TypeId`]).
 //!
 //! Per-family rules live in [`family`]; each [`crate::ElementKind`] family
 //! owns its refinement and (eventually) overlap logic in a dedicated
@@ -29,4 +30,5 @@ pub use self::options::LatticeOptions;
 pub use self::overlaps::overlaps;
 pub use self::refines::generalizes;
 pub use self::refines::refines;
+pub use self::report::CoercionCauses;
 pub use self::report::LatticeReport;

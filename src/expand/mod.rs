@@ -213,11 +213,7 @@ fn resolve_object_keyword(elem: ElementId, ctx: &ExpansionContext) -> Vec<Elemen
     let Some(class) = resolve_keyword_name(info.name, info.flags, ctx) else {
         return vec![elem];
     };
-    let resolved = ObjectInfo {
-        name: class,
-        flags: info.flags.with_is_static(false).with_is_this(false),
-        ..info
-    };
+    let resolved = ObjectInfo { name: class, flags: info.flags.with_is_static(false).with_is_this(false), ..info };
     vec![i.intern_object(resolved)]
 }
 
@@ -580,4 +576,3 @@ fn literal_int(elem: ElementId) -> Option<i64> {
         _ => None,
     }
 }
-

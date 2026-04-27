@@ -7,8 +7,9 @@ fn mixed_to_int_sets_coerced_and_from_nested() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(mixed(), t_int(), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, Some(true));
-    assert_eq!(r.type_coerced_from_nested_mixed, Some(true));
+    assert!(r.coerced());
+    assert!(r.causes.true_union_narrow());
+    assert!(r.causes.nested_mixed());
 }
 
 #[test]
@@ -16,8 +17,9 @@ fn mixed_to_string_sets_coerced_and_from_nested() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(mixed(), t_string(), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, Some(true));
-    assert_eq!(r.type_coerced_from_nested_mixed, Some(true));
+    assert!(r.coerced());
+    assert!(r.causes.true_union_narrow());
+    assert!(r.causes.nested_mixed());
 }
 
 #[test]
@@ -25,8 +27,8 @@ fn array_key_to_int_sets_coerced() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(t_array_key(), t_int(), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, Some(true));
-    assert_eq!(r.type_coerced_from_nested_mixed, None);
+    assert!(r.causes.true_union_narrow());
+    assert!(!r.causes.nested_mixed());
 }
 
 #[test]
@@ -34,15 +36,16 @@ fn array_key_to_string_sets_coerced() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(t_array_key(), t_string(), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, Some(true));
+    assert!(r.causes.true_union_narrow());
 }
 
 #[test]
-fn object_to_named_sets_coerced() {
+fn object_to_named_sets_coerced_and_object_any_down() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(t_object_any(), t_named("Foo"), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, Some(true));
+    assert!(r.causes.true_union_narrow());
+    assert!(r.causes.object_any_down());
 }
 
 #[test]
@@ -50,7 +53,7 @@ fn bool_to_true_sets_coerced() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(t_bool(), t_true(), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, Some(true));
+    assert!(r.causes.true_union_narrow());
 }
 
 #[test]
@@ -58,7 +61,7 @@ fn bool_to_false_sets_coerced() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(t_bool(), t_false(), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, Some(true));
+    assert!(r.causes.true_union_narrow());
 }
 
 #[test]
@@ -66,9 +69,8 @@ fn lit_int_in_int_no_flags_set() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(t_lit_int(5), t_int(), &cb);
     assert!(v);
-    assert_eq!(r.type_coerced, None);
-    assert_eq!(r.type_coerced_to_literal, None);
-    assert_eq!(r.type_coerced_from_nested_mixed, None);
+    assert!(!r.coerced());
+    assert_eq!(r.replacement, None);
 }
 
 #[test]
@@ -76,7 +78,7 @@ fn int_to_lit_int_no_coerced_flag() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(t_int(), t_lit_int(5), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, None);
+    assert!(!r.coerced());
 }
 
 #[test]
@@ -84,7 +86,7 @@ fn int_to_positive_int_no_coerced_flag() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(t_int(), t_positive_int(), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, None);
+    assert!(!r.coerced());
 }
 
 #[test]
@@ -93,9 +95,8 @@ fn equal_atoms_no_flags() {
     for atom in [t_int(), t_string(), t_bool(), t_float(), null(), t_object_any(), mixed()] {
         let (v, r) = atomic_is_contained_capturing(atom, atom, &cb);
         assert!(v, "{atom:?} should equal itself");
-        assert_eq!(r.type_coerced, None);
-        assert_eq!(r.type_coerced_to_literal, None);
-        assert_eq!(r.type_coerced_from_nested_mixed, None);
+        assert!(!r.coerced(), "no causes for {atom:?} == itself");
+        assert_eq!(r.replacement, None);
     }
 }
 
@@ -105,7 +106,7 @@ fn never_to_anything_no_flags() {
     for atom in [t_int(), t_string(), t_object_any(), mixed()] {
         let (v, r) = atomic_is_contained_capturing(never(), atom, &cb);
         assert!(v, "never <: {atom:?}");
-        assert_eq!(r.type_coerced, None);
+        assert!(!r.coerced());
     }
 }
 
@@ -114,7 +115,8 @@ fn mixed_to_never_sets_coerced() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(mixed(), never(), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, Some(true));
+    assert!(r.causes.true_union_narrow());
+    assert!(r.causes.nested_mixed());
 }
 
 #[test]
@@ -123,7 +125,7 @@ fn concrete_to_never_does_not_set_coerced() {
     for atom in [t_int(), t_string()] {
         let (v, r) = atomic_is_contained_capturing(atom, never(), &cb);
         assert!(!v);
-        assert_eq!(r.type_coerced, None);
+        assert!(!r.coerced());
     }
 }
 
@@ -132,7 +134,16 @@ fn literal_int_to_other_literal_no_coerced_flag() {
     let cb = empty_world();
     let (v, r) = atomic_is_contained_capturing(t_lit_int(1), t_lit_int(2), &cb);
     assert!(!v);
-    assert_eq!(r.type_coerced, None);
+    assert!(!r.coerced());
+}
+
+#[test]
+fn int_to_float_sets_php_runtime_coerce() {
+    let cb = empty_world();
+    let (v, r) = atomic_is_contained_capturing(t_int(), t_float(), &cb);
+    assert!(v);
+    assert!(r.causes.php_runtime_coerce());
+    assert!(!r.causes.true_union_narrow());
 }
 
 #[test]

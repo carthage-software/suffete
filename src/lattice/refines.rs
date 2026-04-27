@@ -6,6 +6,7 @@ use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
 use crate::interner::interner;
+use crate::lattice::CoercionCauses;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::family;
@@ -72,9 +73,10 @@ pub fn generalizes<W: World>(
 /// then dispatch on the container's kind into a family-specific helper.
 /// When the result is `false` and the input belongs to a "true-union" kind
 /// (`mixed`, `array_key`, `bool`, `object_any`, `scalar`, `numeric`), the
-/// `type_coerced` flag is set to record that the rejection was a narrowing,
-/// not an out-of-family mismatch. `mixed` inputs additionally set
-/// `type_coerced_from_nested_mixed`.
+/// [`CoercionCauses::TRUE_UNION_NARROW`] cause is recorded to flag that the
+/// rejection was a narrowing, not an out-of-family mismatch. `mixed` inputs
+/// additionally record [`CoercionCauses::NESTED_MIXED`]. `object_any`
+/// inputs additionally record [`CoercionCauses::OBJECT_ANY_DOWN`].
 pub(crate) fn element_refines<W: World>(
     input: ElementId,
     container: ElementId,
@@ -104,10 +106,16 @@ pub(crate) fn element_refines<W: World>(
 
     let result = dispatch_refines(input, container, codebase, options, report);
 
-    if !result && is_true_union_kind(input.kind()) {
-        report.type_coerced = Some(true);
-        if input.kind() == ElementKind::Mixed {
-            report.type_coerced_from_nested_mixed = Some(true);
+    if result {
+        if input.kind() == ElementKind::Int && container.kind() == ElementKind::Float {
+            report.add_cause(CoercionCauses::PHP_RUNTIME_COERCE);
+        }
+    } else if is_true_union_kind(input.kind()) {
+        report.add_cause(CoercionCauses::TRUE_UNION_NARROW);
+        match input.kind() {
+            ElementKind::Mixed => report.add_cause(CoercionCauses::NESTED_MIXED),
+            ElementKind::ObjectAny => report.add_cause(CoercionCauses::OBJECT_ANY_DOWN),
+            _ => {}
         }
     }
 
@@ -116,7 +124,8 @@ pub(crate) fn element_refines<W: World>(
 
 /// `true` for kinds whose values inhabit multiple disjoint sub-families:
 /// narrowing one of these to a concrete sub-form is the standard PHP
-/// "type-coerced" pattern that the lattice records via `type_coerced`.
+/// "type-coerced" pattern that the lattice records via
+/// [`CoercionCauses::TRUE_UNION_NARROW`].
 fn is_true_union_kind(kind: ElementKind) -> bool {
     matches!(
         kind,
