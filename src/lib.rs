@@ -7,6 +7,7 @@ pub mod compatibility;
 pub mod element;
 pub mod expand;
 pub mod handle;
+pub mod hierarchy;
 pub mod inspect;
 pub mod interner;
 pub mod join;

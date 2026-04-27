@@ -17,8 +17,8 @@ use suffete::prelude;
 use suffete::template;
 use suffete::template::BoundKind;
 use suffete::template::StandinOptions;
-use suffete::template::TemplateState;
 use suffete::template::TemplateKey;
+use suffete::template::TemplateState;
 use suffete::world::Variance;
 
 fn template_param(class: &str, name: &str) -> ElementId {

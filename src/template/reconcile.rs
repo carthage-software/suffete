@@ -35,8 +35,8 @@ use crate::TypeId;
 
 use super::standin::Bound;
 use super::standin::BoundKind;
-use super::standin::TemplateState;
 use super::standin::TemplateKey;
+use super::standin::TemplateState;
 
 /// Apply §6.3 selection to a list of bounds and return the unioned
 /// witness type. Returns `None` when the bound list is empty so the

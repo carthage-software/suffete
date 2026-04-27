@@ -119,9 +119,7 @@ fn objects_runtime_compatible<W: World>(a: ElementId, b: ElementId, world: &W) -
         return true;
     }
 
-    a_classes
-        .iter()
-        .any(|ac| b_classes.iter().any(|bc| world.descends_from(*ac, *bc) || world.descends_from(*bc, *ac)))
+    a_classes.iter().any(|ac| b_classes.iter().any(|bc| world.descends_from(*ac, *bc) || world.descends_from(*bc, *ac)))
 }
 
 /// Collect the nominal class names an object-family element identifies
