@@ -31,7 +31,7 @@ fn key_for(class: &str, name: &str) -> TemplateKey {
 }
 
 fn bound(kind: BoundKind, ty: TypeId, depth: u32, offset: u32) -> Bound {
-    Bound { kind, ty, depth, argument_offset: offset }
+    Bound { kind, ty, depth, argument_offset: offset, equality_bound_classlike: None, span: None }
 }
 
 #[test]

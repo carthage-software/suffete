@@ -45,7 +45,17 @@ fn top_level_template_records_invariant_bound() {
     let key = key_for("Box", "T");
     let bounds = state.bounds_for(key);
     assert_eq!(bounds.len(), 1);
-    assert_eq!(bounds[0], Bound { kind: BoundKind::Equality, ty: prelude::TYPE_INT, argument_offset: 0, depth: 0 });
+    assert_eq!(
+        bounds[0],
+        Bound {
+            kind: BoundKind::Equality,
+            ty: prelude::TYPE_INT,
+            argument_offset: 0,
+            depth: 0,
+            equality_bound_classlike: None,
+            span: None,
+        }
+    );
 }
 
 #[test]
@@ -103,7 +113,17 @@ fn template_inside_list_records_lower_bound_at_depth_one() {
     let expected = u(t_list(prelude::TYPE_MIXED, false));
     assert_eq!(result, expected);
     let bounds = state.bounds_for(key_for("Box", "T"));
-    assert_eq!(bounds[0], Bound { kind: BoundKind::Lower, ty: prelude::TYPE_INT, argument_offset: 0, depth: 1 });
+    assert_eq!(
+        bounds[0],
+        Bound {
+            kind: BoundKind::Lower,
+            ty: prelude::TYPE_INT,
+            argument_offset: 0,
+            depth: 1,
+            equality_bound_classlike: None,
+            span: None,
+        }
+    );
 }
 
 #[test]
@@ -206,6 +226,76 @@ fn equal_param_and_argument_short_circuits_no_changes() {
     assert_eq!(result, prelude::TYPE_INT);
     // No template parameter mentioned → no bounds recorded.
     assert_eq!(state.iter().count(), 0);
+}
+
+#[test]
+fn invariant_object_walk_records_introducing_class_on_equality_bound() {
+    let mut w = MockWorld::new();
+    w.with_templates("Cell", &[("T", Variance::Invariant)]);
+    let mut state = StandinState::new();
+    let opts = StandinOptions::default();
+    let t = template_param("Cell", "T");
+    let param = u(t_generic_named("Cell", vec![u(t)]));
+    let arg = u(t_generic_named("Cell", vec![prelude::TYPE_INT]));
+    template::standin(param, arg, &w, &mut state, &opts);
+    let bounds = state.bounds_for(key_for("Cell", "T"));
+    assert_eq!(bounds[0].kind, BoundKind::Equality);
+    assert_eq!(bounds[0].equality_bound_classlike, Some(atom("Cell")));
+}
+
+#[test]
+fn covariant_object_walk_does_not_set_equality_classlike() {
+    let mut w = MockWorld::new();
+    w.with_templates("Container", &[("T", Variance::Covariant)]);
+    let mut state = StandinState::new();
+    let opts = StandinOptions::default();
+    let t = template_param("Container", "T");
+    let param = u(t_generic_named("Container", vec![u(t)]));
+    let arg = u(t_generic_named("Container", vec![prelude::TYPE_INT]));
+    template::standin(param, arg, &w, &mut state, &opts);
+    let bounds = state.bounds_for(key_for("Container", "T"));
+    assert_eq!(bounds[0].kind, BoundKind::Lower);
+    assert_eq!(bounds[0].equality_bound_classlike, None);
+}
+
+#[test]
+fn top_level_invariant_walk_outside_class_has_no_classlike() {
+    let cb = empty_world();
+    let mut state = StandinState::new();
+    let opts = StandinOptions::default();
+    let t = u(template_param("Free", "T"));
+    template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
+    let bounds = state.bounds_for(key_for("Free", "T"));
+    assert_eq!(bounds[0].kind, BoundKind::Equality);
+    assert_eq!(bounds[0].equality_bound_classlike, None);
+}
+
+#[test]
+fn span_from_options_propagates_to_recorded_bound() {
+    let cb = empty_world();
+    let mut state = StandinState::new();
+    let span = mago_span::Span::dummy(10, 20);
+    let opts = StandinOptions::default().with_span(span);
+    let t = u(template_param("Box", "T"));
+    template::standin(t, prelude::TYPE_INT, &cb, &mut state, &opts);
+    let bounds = state.bounds_for(key_for("Box", "T"));
+    assert_eq!(bounds[0].span, Some(span));
+}
+
+#[test]
+fn span_threads_through_nested_walk() {
+    let mut w = MockWorld::new();
+    w.with_templates("Box", &[("T", Variance::Covariant)]);
+    let mut state = StandinState::new();
+    let span = mago_span::Span::dummy(100, 110);
+    let opts = StandinOptions::default().with_span(span);
+    let t = template_param("Box", "T");
+    let param = u(t_generic_named("Box", vec![u(t_list(u(t), false))]));
+    let arg = u(t_generic_named("Box", vec![u(t_list(prelude::TYPE_INT, false))]));
+    template::standin(param, arg, &w, &mut state, &opts);
+    let bounds = state.bounds_for(key_for("Box", "T"));
+    assert_eq!(bounds[0].span, Some(span));
+    assert_eq!(bounds[0].depth, 2);
 }
 
 #[test]

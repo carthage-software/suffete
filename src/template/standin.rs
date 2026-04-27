@@ -41,6 +41,7 @@
 use std::collections::BTreeMap;
 
 use mago_atom::Atom;
+use mago_span::Span;
 
 use crate::ElementId;
 use crate::ElementKind;
@@ -77,6 +78,16 @@ pub struct Bound {
     /// §6.2). The top of the parameter type is depth `0`; each descent
     /// into a generic-parameter application increments by one.
     pub depth: u32,
+    /// For [`BoundKind::Equality`] bounds, the class whose template
+    /// parameter declaration introduced the equality (the class whose
+    /// type-arg position is invariant). `None` for non-equality bounds
+    /// and for equality bounds collected outside any class context (e.g.
+    /// at the top level of a free-function call).
+    pub equality_bound_classlike: Option<Atom>,
+    /// Source location of the binding site (the call argument expression
+    /// that produced this bound). `None` when the caller did not supply
+    /// one — span propagation is opt-in via [`StandinOptions::span`].
+    pub span: Option<Span>,
 }
 
 /// Identity of a template parameter inside the inference environment.
@@ -103,11 +114,15 @@ pub struct StandinOptions {
     /// recorded). Defaults to `8`, which is enough for realistic PHP
     /// generics while bounding cost on cycles in template constraints.
     pub max_depth: u32,
+    /// Source location of the call-site argument the walk is operating
+    /// on. Stamped onto every recorded [`Bound`]; consumers use it to
+    /// point template-inference diagnostics at the user's code.
+    pub span: Option<Span>,
 }
 
 impl Default for StandinOptions {
     fn default() -> Self {
-        Self { argument_offset: 0, default_variance: Variance::Invariant, max_depth: 8 }
+        Self { argument_offset: 0, default_variance: Variance::Invariant, max_depth: 8, span: None }
     }
 }
 
@@ -127,6 +142,12 @@ impl StandinOptions {
     #[must_use]
     pub const fn with_max_depth(mut self, depth: u32) -> Self {
         self.max_depth = depth;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_span(mut self, span: Span) -> Self {
+        self.span = Some(span);
         self
     }
 }
@@ -174,14 +195,16 @@ pub fn standin<W: World>(
     state: &mut StandinState,
     options: &StandinOptions,
 ) -> TypeId {
-    walk_type(parameter, argument, options.default_variance, 0, world, state, options)
+    walk_type(parameter, argument, options.default_variance, 0, None, world, state, options)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn walk_type<W: World>(
     parameter: TypeId,
     argument: TypeId,
     variance: Variance,
     depth: u32,
+    introducing_class: Option<Atom>,
     world: &W,
     state: &mut StandinState,
     options: &StandinOptions,
@@ -199,7 +222,7 @@ fn walk_type<W: World>(
 
     for &p_elem in p_type.elements {
         let projected = project_argument(p_elem, argument);
-        match walk_element(p_elem, projected, variance, depth, world, state, options) {
+        match walk_element(p_elem, projected, variance, depth, introducing_class, world, state, options) {
             Walk::Unchanged => new_elements.push(p_elem),
             Walk::Single(e) => {
                 changed = true;
@@ -248,22 +271,26 @@ enum Walk {
     Many(Vec<ElementId>),
 }
 
+#[allow(clippy::too_many_arguments)]
 fn walk_element<W: World>(
     parameter: ElementId,
     argument: TypeId,
     variance: Variance,
     depth: u32,
+    introducing_class: Option<Atom>,
     world: &W,
     state: &mut StandinState,
     options: &StandinOptions,
 ) -> Walk {
     match parameter.kind() {
-        ElementKind::GenericParameter => walk_generic_parameter(parameter, argument, variance, depth, state, options),
+        ElementKind::GenericParameter => {
+            walk_generic_parameter(parameter, argument, variance, depth, introducing_class, state, options)
+        }
         ElementKind::Object => walk_object(parameter, argument, depth, world, state, options),
-        ElementKind::List => walk_list(parameter, argument, depth, world, state, options),
-        ElementKind::Array => walk_keyed_array(parameter, argument, depth, world, state, options),
-        ElementKind::Iterable => walk_iterable(parameter, argument, depth, world, state, options),
-        ElementKind::Callable => walk_callable(parameter, argument, depth, world, state, options),
+        ElementKind::List => walk_list(parameter, argument, depth, introducing_class, world, state, options),
+        ElementKind::Array => walk_keyed_array(parameter, argument, depth, introducing_class, world, state, options),
+        ElementKind::Iterable => walk_iterable(parameter, argument, depth, introducing_class, world, state, options),
+        ElementKind::Callable => walk_callable(parameter, argument, depth, introducing_class, world, state, options),
         _ => Walk::Unchanged,
     }
 }
@@ -277,6 +304,7 @@ fn walk_generic_parameter(
     argument: TypeId,
     variance: Variance,
     depth: u32,
+    introducing_class: Option<Atom>,
     state: &mut StandinState,
     options: &StandinOptions,
 ) -> Walk {
@@ -287,7 +315,18 @@ fn walk_generic_parameter(
         Variance::Contravariant => BoundKind::Upper,
         Variance::Invariant => BoundKind::Equality,
     };
-    state.record(key, Bound { kind, ty: argument, argument_offset: options.argument_offset, depth });
+    let equality_bound_classlike = if matches!(kind, BoundKind::Equality) { introducing_class } else { None };
+    state.record(
+        key,
+        Bound {
+            kind,
+            ty: argument,
+            argument_offset: options.argument_offset,
+            depth,
+            equality_bound_classlike,
+            span: options.span,
+        },
+    );
 
     let constraint = info.constraint;
     let elements = constraint.as_ref().elements;
@@ -332,7 +371,7 @@ fn walk_object<W: World>(
         let a_arg = projected_object_arg(p_info.name, &a_info, idx, world);
         let variance = world.template_parameter_at(p_info.name, idx).map(|p| p.variance).unwrap_or(Variance::Invariant);
         let refined = match a_arg {
-            Some(t) => walk_type(p_arg, t, variance, depth + 1, world, state, options),
+            Some(t) => walk_type(p_arg, t, variance, depth + 1, Some(p_info.name), world, state, options),
             None => p_arg,
         };
         if refined != p_arg {
@@ -393,6 +432,7 @@ fn walk_list<W: World>(
     parameter: ElementId,
     argument: TypeId,
     depth: u32,
+    introducing_class: Option<Atom>,
     world: &W,
     state: &mut StandinState,
     options: &StandinOptions,
@@ -410,7 +450,8 @@ fn walk_list<W: World>(
         return Walk::Unchanged;
     };
 
-    let refined = walk_type(p_info.element_type, a_elem_t, Variance::Covariant, depth + 1, world, state, options);
+    let refined =
+        walk_type(p_info.element_type, a_elem_t, Variance::Covariant, depth + 1, introducing_class, world, state, options);
     if refined == p_info.element_type {
         return Walk::Unchanged;
     }
@@ -423,6 +464,7 @@ fn walk_iterable<W: World>(
     parameter: ElementId,
     argument: TypeId,
     depth: u32,
+    introducing_class: Option<Atom>,
     world: &W,
     state: &mut StandinState,
     options: &StandinOptions,
@@ -446,8 +488,10 @@ fn walk_iterable<W: World>(
         return Walk::Unchanged;
     };
 
-    let new_key = walk_type(p_info.key_type, a_key, Variance::Covariant, depth + 1, world, state, options);
-    let new_value = walk_type(p_info.value_type, a_value, Variance::Covariant, depth + 1, world, state, options);
+    let new_key =
+        walk_type(p_info.key_type, a_key, Variance::Covariant, depth + 1, introducing_class, world, state, options);
+    let new_value =
+        walk_type(p_info.value_type, a_value, Variance::Covariant, depth + 1, introducing_class, world, state, options);
     if new_key == p_info.key_type && new_value == p_info.value_type {
         return Walk::Unchanged;
     }
@@ -468,6 +512,7 @@ fn walk_keyed_array<W: World>(
     parameter: ElementId,
     argument: TypeId,
     depth: u32,
+    introducing_class: Option<Atom>,
     world: &W,
     state: &mut StandinState,
     options: &StandinOptions,
@@ -491,11 +536,15 @@ fn walk_keyed_array<W: World>(
     };
 
     let new_key = match (p_info.key_param, arg.key) {
-        (Some(p_k), Some(a_k)) => Some(walk_type(p_k, a_k, Variance::Covariant, depth + 1, world, state, options)),
+        (Some(p_k), Some(a_k)) => {
+            Some(walk_type(p_k, a_k, Variance::Covariant, depth + 1, introducing_class, world, state, options))
+        }
         _ => p_info.key_param,
     };
     let new_value = match (p_info.value_param, arg.value) {
-        (Some(p_v), Some(a_v)) => Some(walk_type(p_v, a_v, Variance::Covariant, depth + 1, world, state, options)),
+        (Some(p_v), Some(a_v)) => {
+            Some(walk_type(p_v, a_v, Variance::Covariant, depth + 1, introducing_class, world, state, options))
+        }
         _ => p_info.value_param,
     };
 
@@ -508,7 +557,9 @@ fn walk_keyed_array<W: World>(
         for entry in p_entries {
             let arg_value = a_entries.iter().find(|e| e.key == entry.key).map(|e| e.value);
             let refined_value = match arg_value {
-                Some(av) => walk_type(entry.value, av, Variance::Covariant, depth + 1, world, state, options),
+                Some(av) => {
+                    walk_type(entry.value, av, Variance::Covariant, depth + 1, introducing_class, world, state, options)
+                }
                 None => entry.value,
             };
             if refined_value != entry.value {
@@ -547,6 +598,7 @@ fn walk_callable<W: World>(
     parameter: ElementId,
     argument: TypeId,
     depth: u32,
+    introducing_class: Option<Atom>,
     world: &W,
     state: &mut StandinState,
     options: &StandinOptions,
@@ -576,8 +628,16 @@ fn walk_callable<W: World>(
     let p_sig = *i.get_signature(p_sig_id);
     let a_sig = *i.get_signature(a_sig_id);
 
-    let new_return =
-        walk_type(p_sig.return_type, a_sig.return_type, Variance::Covariant, depth + 1, world, state, options);
+    let new_return = walk_type(
+        p_sig.return_type,
+        a_sig.return_type,
+        Variance::Covariant,
+        depth + 1,
+        introducing_class,
+        world,
+        state,
+        options,
+    );
 
     let new_param_list = p_sig.parameters.map(|pid| {
         let p_params = i.get_param_list(pid);
@@ -588,7 +648,16 @@ fn walk_callable<W: World>(
         for (idx, p_param) in p_params.iter().enumerate() {
             let arg_param_type = a_params.get(idx).map(|p| p.type_);
             let refined = match arg_param_type {
-                Some(at) => walk_type(p_param.type_, at, Variance::Contravariant, depth + 1, world, state, options),
+                Some(at) => walk_type(
+                    p_param.type_,
+                    at,
+                    Variance::Contravariant,
+                    depth + 1,
+                    introducing_class,
+                    world,
+                    state,
+                    options,
+                ),
                 None => p_param.type_,
             };
             if refined != p_param.type_ {
