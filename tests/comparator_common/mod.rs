@@ -14,11 +14,13 @@ use suffete::FlowFlags;
 use suffete::TypeId;
 use suffete::element::payload::ArrayKey;
 use suffete::element::payload::KnownItemEntry;
+use suffete::element::payload::Visibility;
 use suffete::interner::interner;
 use suffete::lattice;
 use suffete::lattice::LatticeOptions;
 use suffete::lattice::LatticeReport;
 use suffete::prelude;
+use suffete::world::ClassProperty;
 use suffete::world::EnumBacking;
 use suffete::world::NullWorld;
 use suffete::world::TemplateParameter;
@@ -54,9 +56,10 @@ pub struct MockWorld {
     /// `class -> {method, method, ...}` for methods declared directly on
     /// the class. Inheritance is walked via `ancestors` at query time.
     methods: HashMap<Atom, HashSet<Atom>>,
-    /// `(class, property) -> declared type` for properties declared
-    /// directly on the class. Inheritance walked at query time.
-    properties: HashMap<(Atom, Atom), TypeId>,
+    /// Per-class ordered list of declared properties. Each entry
+    /// carries the name, declared type, and visibility. Inheritance
+    /// is walked at query time across `ancestors`.
+    properties: HashMap<Atom, Vec<ClassProperty>>,
     /// `enum -> backing kind` for declared enums.
     enums: HashMap<Atom, EnumBacking>,
     /// `(class, alias_name) -> alias body type` for declared `@type`
@@ -175,12 +178,24 @@ impl MockWorld {
         self
     }
 
-    /// Declare that `class` has a property `name: type` (directly;
-    /// inheritance is walked at query time).
+    /// Declare a public property `name: type` on `class`. Use
+    /// [`with_visible_property`](Self::with_visible_property) to set a
+    /// non-default visibility.
     pub fn with_property(&mut self, class: &str, name: &str, type_: TypeId) -> &mut Self {
+        self.with_visible_property(class, name, type_, Visibility::Public)
+    }
+
+    /// Declare a property with explicit visibility.
+    pub fn with_visible_property(
+        &mut self,
+        class: &str,
+        name: &str,
+        type_: TypeId,
+        visibility: Visibility,
+    ) -> &mut Self {
         let n = atom(class);
         self.ancestors.entry(n).or_default().insert(n);
-        self.properties.insert((n, atom(name)), type_);
+        self.properties.entry(n).or_default().push(ClassProperty { name: atom(name), type_, visibility });
         self
     }
 
@@ -221,6 +236,36 @@ impl MockWorld {
     pub fn with_global_constant(&mut self, name: &str, type_: TypeId) -> &mut Self {
         self.global_constants.insert(atom(name), type_);
         self
+    }
+
+    /// Collect every property declared on `class` or one of its
+    /// ancestors, ordered by depth-first declaration. Subclass
+    /// declarations precede ancestor declarations of the same name.
+    fn collect_visible_properties(&self, class: Atom) -> Vec<ClassProperty> {
+        let Some(ancestors) = self.ancestors.get(&class) else {
+            return Vec::new();
+        };
+
+        let mut chain: Vec<Atom> = vec![class];
+        for &a in ancestors {
+            if a != class {
+                chain.push(a);
+            }
+        }
+
+        let mut seen: HashSet<Atom> = HashSet::new();
+        let mut out: Vec<ClassProperty> = Vec::new();
+        for c in chain {
+            if let Some(props) = self.properties.get(&c) {
+                for p in props {
+                    if seen.insert(p.name) {
+                        out.push(*p);
+                    }
+                }
+            }
+        }
+
+        out
     }
 
     fn recompute_closure(&mut self) {
@@ -292,8 +337,15 @@ impl World for MockWorld {
     }
 
     fn class_property_type(&self, class: Atom, property: Atom) -> Option<TypeId> {
-        let ancestors = self.ancestors.get(&class)?;
-        ancestors.iter().find_map(|a| self.properties.get(&(*a, property)).copied())
+        self.collect_visible_properties(class).into_iter().find(|p| p.name == property).map(|p| p.type_)
+    }
+
+    fn class_property_count(&self, class: Atom) -> usize {
+        self.collect_visible_properties(class).len()
+    }
+
+    fn class_property_at(&self, class: Atom, position: usize) -> Option<ClassProperty> {
+        self.collect_visible_properties(class).into_iter().nth(position)
     }
 
     fn enum_backing(&self, enum_name: Atom) -> Option<EnumBacking> {

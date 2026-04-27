@@ -26,6 +26,7 @@ pub use self::template::TemplateParameter;
 pub use self::template::Variance;
 
 use crate::TypeId;
+use crate::element::payload::Visibility;
 
 /// What suffete needs to know about the codebase being analyzed.
 ///
@@ -113,6 +114,24 @@ pub trait World {
     /// signature. `None` when the name is unknown. Used by
     /// [`crate::expand`] to resolve `GlobalReference` atoms.
     fn global_constant_type(&self, name: Atom) -> Option<TypeId>;
+
+    /// How many properties `class` declares or inherits (visible from
+    /// `class`'s scope).
+    fn class_property_count(&self, class: Atom) -> usize;
+
+    /// The `position`-th property of `class`, walking the inheritance
+    /// closure in declaration order. Used by [`crate::expand`] to
+    /// build the shape returned by `properties-of<C>`.
+    fn class_property_at(&self, class: Atom, position: usize) -> Option<ClassProperty>;
+}
+
+/// One declared property of a class-like, returned by
+/// [`World::class_property_at`].
+#[derive(Debug, Clone, Copy)]
+pub struct ClassProperty {
+    pub name: Atom,
+    pub type_: TypeId,
+    pub visibility: Visibility,
 }
 
 /// What an enum case carries beyond its `name`. PHP enums are either
@@ -181,6 +200,14 @@ impl World for NullWorld {
     }
 
     fn global_constant_type(&self, _name: Atom) -> Option<TypeId> {
+        None
+    }
+
+    fn class_property_count(&self, _class: Atom) -> usize {
+        0
+    }
+
+    fn class_property_at(&self, _class: Atom, _position: usize) -> Option<ClassProperty> {
         None
     }
 }

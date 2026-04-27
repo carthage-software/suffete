@@ -42,6 +42,7 @@ use crate::element::payload::ClassLikeStringSpecifier;
 use crate::element::payload::ConditionalInfo;
 use crate::element::payload::DerivedInfo;
 use crate::element::payload::IterableInfo;
+use crate::element::payload::KeyedArrayFlags;
 use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::KnownItemEntry;
 use crate::element::payload::ListInfo;
@@ -203,9 +204,7 @@ fn expand_derived<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) 
     match info {
         DerivedInfo::KeyOf(target) => type_to_expansion(eval_key_of(target, world, ctx)),
         DerivedInfo::ValueOf(target) => type_to_expansion(eval_value_of(target, world, ctx)),
-        DerivedInfo::IndexAccess { target, index } => {
-            type_to_expansion(eval_index_access(target, index, world, ctx))
-        }
+        DerivedInfo::IndexAccess { target, index } => type_to_expansion(eval_index_access(target, index, world, ctx)),
         DerivedInfo::IntMask(operands) => type_to_expansion(eval_int_mask(operands, world, ctx)),
         DerivedInfo::IntMaskOf(target) => type_to_expansion(eval_int_mask_of(target, world, ctx)),
         DerivedInfo::TemplateType { object: _, class_name, template_name } => {
@@ -214,7 +213,14 @@ fn expand_derived<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) 
                 None => Expansion::Unchanged,
             }
         }
-        DerivedInfo::PropertiesOf { .. } | DerivedInfo::New(_) => Expansion::Unchanged,
+        DerivedInfo::PropertiesOf { target, visibility } => match eval_properties_of(target, visibility, world, ctx) {
+            Some(t) => type_to_expansion(t),
+            None => Expansion::Unchanged,
+        },
+        DerivedInfo::New(target) => match eval_new(target, world, ctx) {
+            Some(t) => type_to_expansion(t),
+            None => Expansion::Unchanged,
+        },
     }
 }
 
@@ -256,8 +262,7 @@ fn expand_conditional<W: World>(elem: ElementId, world: &W, ctx: &ExpansionConte
     let test_passes = refines(subject, target, world, opts, &mut report);
     let test_disjoint = !overlaps(subject, target, world, opts, &mut report);
 
-    let (chosen_then, chosen_otherwise) =
-        if info.negated { (otherwise_t, then_t) } else { (then_t, otherwise_t) };
+    let (chosen_then, chosen_otherwise) = if info.negated { (otherwise_t, then_t) } else { (then_t, otherwise_t) };
 
     let result = if test_passes {
         chosen_then
@@ -484,6 +489,97 @@ fn eval_template_type<W: World>(
     Some(expand_with(parameter.upper_bound.unwrap_or(TYPE_MIXED), world, ctx))
 }
 
+/// `properties-of<C>` per spec §7.3: enumerate `C`'s declared
+/// properties and produce a sealed `array{name: type, ...}` shape.
+/// `visibility` filters the enumeration; `None` keeps every visible
+/// property.
+fn eval_properties_of<W: World>(
+    target: TypeId,
+    visibility: Option<crate::element::payload::Visibility>,
+    world: &W,
+    ctx: &ExpansionContext,
+) -> Option<TypeId> {
+    let target = expand_with(target, world, ctx);
+    let class = single_object_or_reference_name(target)?;
+
+    let count = world.class_property_count(class);
+    let mut entries: Vec<KnownItemEntry> = Vec::with_capacity(count);
+    for position in 0..count {
+        let Some(property) = world.class_property_at(class, position) else {
+            continue;
+        };
+
+        if let Some(required) = visibility
+            && property.visibility != required
+        {
+            continue;
+        }
+
+        entries.push(KnownItemEntry { key: ArrayKey::String(property.name), value: property.type_, optional: false });
+    }
+
+    entries.sort_by_key(|e| e.key);
+
+    let i = interner();
+    let info = KeyedArrayInfo {
+        key_param: None,
+        value_param: None,
+        known_items: Some(i.intern_known_items(&entries)),
+        flags: KeyedArrayFlags::default(),
+    };
+
+    Some(TypeId::union(&[i.intern_array(info)]))
+}
+
+/// `new<C>` per spec §7.3: the type produced by `new C(...)`. The
+/// constructor-driven template inference path is left for a later
+/// stage; this first cut produces `Object(C)` (with `mixed` filled in
+/// for any templates `C` declares) so the result at least has the
+/// right nominal class. Returns `None` when the operand can't be
+/// reduced to a single class-like name (e.g. a class-string union),
+/// leaving the atom unexpanded.
+fn eval_new<W: World>(target: TypeId, world: &W, ctx: &ExpansionContext) -> Option<TypeId> {
+    let target = expand_with(target, world, ctx);
+    let class = extract_class_name_from_class_string_or_object(target)?;
+
+    let arity = world.template_parameter_arity(class);
+    let i = interner();
+    let info = if arity == 0 {
+        ObjectInfo { name: class, type_args: None, intersections: None, flags: ObjectFlags::default() }
+    } else {
+        let args: Vec<TypeId> = (0..arity)
+            .map(|p| world.template_parameter_at(class, p).and_then(|t| t.upper_bound).unwrap_or(TYPE_MIXED))
+            .collect();
+        ObjectInfo {
+            name: class,
+            type_args: Some(i.intern_type_list(&args)),
+            intersections: None,
+            flags: ObjectFlags::default(),
+        }
+    };
+    Some(TypeId::union(&[i.intern_object(info)]))
+}
+
+/// Try to read a class-like name from `ty`, accepting either a single
+/// `Object(C)` / `Reference(C)` atom or a single literal class-string
+/// `class-string<Foo>`.
+fn extract_class_name_from_class_string_or_object(ty: TypeId) -> Option<Atom> {
+    let elems = ty.as_ref().elements;
+    if elems.len() != 1 {
+        return None;
+    }
+    let i = interner();
+    match elems[0].kind() {
+        ElementKind::Object => Some(i.get_object(elems[0]).name),
+        ElementKind::Reference => Some(i.get_reference(elems[0]).name),
+        ElementKind::ClassLikeString => match i.get_class_like_string(elems[0]).specifier {
+            ClassLikeStringSpecifier::Literal { value } => Some(value),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn single_object_or_reference_name(ty: TypeId) -> Option<Atom> {
     let elems = ty.as_ref().elements;
     if elems.len() != 1 {
@@ -569,8 +665,7 @@ fn expand_object<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -
         return Expansion::Unchanged;
     }
 
-    let final_flags =
-        if name_changed { info.flags.with_is_static(false).with_is_this(false) } else { info.flags };
+    let final_flags = if name_changed { info.flags.with_is_static(false).with_is_this(false) } else { info.flags };
     let new_info = ObjectInfo {
         name: resolved_name.unwrap_or(info.name),
         type_args: new_args_id,
@@ -692,4 +787,3 @@ fn expand_class_like_string<W: World>(elem: ElementId, world: &W, ctx: &Expansio
     };
     Expansion::Single(i.intern_class_like_string(ClassLikeStringInfo { specifier: new_specifier, ..info }))
 }
-
