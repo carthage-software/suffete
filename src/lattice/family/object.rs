@@ -77,22 +77,12 @@ pub fn refines<W: World>(
 ) -> bool {
     let i = interner();
 
-    if input.kind() == ElementKind::Object {
-        let input_info = *i.get_object(input);
-        if let Some(intersections_id) = input_info.intersections {
-            let head = i.intern_object(ObjectInfo { intersections: None, ..input_info });
-            if element_refines_via_type(head, container, world, options, report) {
-                return true;
-            }
-            for &conjunct in i.get_element_list(intersections_id) {
-                if element_refines_via_type(conjunct, container, world, options, report) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-
+    // Container-intersection rule fires first: input fits `H & C₁ & … &
+    // Cₙ` iff input fits the head AND each conjunct. Running this before
+    // stripping input's intersections is what lets `D&B&A<int> <: B&D`
+    // succeed via a per-conjunct check (each container conjunct is
+    // matched by some input conjunct), instead of short-circuiting on
+    // "no single input conjunct refines the whole container".
     if container.kind() == ElementKind::Object {
         let container_info = *i.get_object(container);
         if let Some(intersections_id) = container_info.intersections {
@@ -106,6 +96,23 @@ pub fn refines<W: World>(
                 }
             }
             return true;
+        }
+    }
+
+    if input.kind() == ElementKind::Object {
+        let input_info = *i.get_object(input);
+        if let Some(intersections_id) = input_info.intersections {
+            let head = i.intern_object(ObjectInfo { intersections: None, ..input_info });
+            if element_refines_via_type(head, container, world, options, report) {
+                return true;
+            }
+
+            for &conjunct in i.get_element_list(intersections_id) {
+                if element_refines_via_type(conjunct, container, world, options, report) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

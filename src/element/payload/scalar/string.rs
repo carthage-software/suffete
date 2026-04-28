@@ -96,6 +96,14 @@ impl StringRefinementFlags {
     pub const fn and(self, other: Self) -> Self {
         Self(self.0 & other.0)
     }
+
+    /// Bitwise OR of two flag sets — keeps a flag when either side has
+    /// it. Used by the meet's string-axis composition.
+    #[inline]
+    #[must_use]
+    pub const fn or(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
 }
 
 // `StringLiteral` is the size driver: `Value(Atom)` is 8 bytes, plus 1 byte

@@ -20,15 +20,16 @@
 //!
 //! Intersection distributes over union (intersection.md §2.1): for each
 //! element on either side we compute pairwise atom meets, drop the
-//! disjoint pairs, and union the surviving atoms via [`crate::join`].
+//! disjoint pairs, and union the surviving atoms.
 //!
 //! Atom-pair meet (intersection.md §2.2) walks these rules in order:
 //!
 //! 1. Reflexivity / `never` / `mixed` / `placeholder`.
 //! 2. Subsumption — if either side refines the other, the more specific
 //!    one is the meet.
-//! 3. Family-specific positive rules (e.g. integer range intersection,
-//!    compositional object intersections).
+//! 3. Family-specific positive rules in [`family`] (integer ranges,
+//!    string axes + numeric-string crossing, list / keyed-array shape
+//!    composition, compositional object intersections).
 //! 4. Otherwise the pair is treated as disjoint (`None`).
 //!
 //! # Soundness vs precision
@@ -41,12 +42,12 @@
 //! [`narrow`]: an unhandled overlap pair will be misreported as
 //! `Impossible`, never as a false `Redundant`/`Narrowed`.
 
+mod family;
+
 use crate::ElementId;
 use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
-use crate::element::payload::ObjectInfo;
-use crate::element::payload::scalar::IntInfo;
 use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
@@ -147,15 +148,12 @@ fn atom_meet<W: World>(
     if a == b {
         return Some(a);
     }
-
     if a == NEVER || b == NEVER {
         return None;
     }
-
     if a == MIXED || a == PLACEHOLDER {
         return Some(b);
     }
-
     if b == MIXED || b == PLACEHOLDER {
         return Some(a);
     }
@@ -166,7 +164,6 @@ fn atom_meet<W: World>(
     if refines(a_t, b_t, world, options, report) {
         return Some(a);
     }
-
     if refines(b_t, a_t, world, options, report) {
         return Some(b);
     }
@@ -175,93 +172,15 @@ fn atom_meet<W: World>(
 }
 
 fn family_atom_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
-    if a.kind() == ElementKind::Int && b.kind() == ElementKind::Int {
-        return int_meet(a, b);
-    }
-
-    if a.kind() == ElementKind::Object && b.kind() == ElementKind::Object {
-        return Some(compose_object_intersection(a, b));
-    }
-
-    None
-}
-
-/// Intersect two `Int` atoms. Subsumption (e.g. `INT ∧ Range(0,10)`) is
-/// already handled by the caller; this only fires when neither side
-/// refines the other, which means both are bounded ranges or distinct
-/// literals. The result is `Range(max(lo), min(hi))` — collapsed to a
-/// `Literal` when the bounds coincide, or `None` when the interval is
-/// empty.
-fn int_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
-    let i = interner();
-    let (al, au) = int_bounds(*i.get_int(a));
-    let (bl, bu) = int_bounds(*i.get_int(b));
-
-    let lo = match (al, bl) {
-        (Some(x), Some(y)) => Some(x.max(y)),
-        (Some(x), None) | (None, Some(x)) => Some(x),
-        (None, None) => None,
-    };
-
-    let hi = match (au, bu) {
-        (Some(x), Some(y)) => Some(x.min(y)),
-        (Some(x), None) | (None, Some(x)) => Some(x),
-        (None, None) => None,
-    };
-
-    match (lo, hi) {
-        (Some(l), Some(h)) if l > h => None,
-        (Some(l), Some(h)) if l == h => Some(ElementId::int_literal(l)),
-        _ => Some(ElementId::int_range(lo, hi)),
-    }
-}
-
-fn int_bounds(info: IntInfo) -> (Option<i64>, Option<i64>) {
-    match info {
-        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),
-        IntInfo::Literal(n) => (Some(n), Some(n)),
-        IntInfo::Range(range_id) => {
-            let r = interner().get_int_range(range_id);
-            (r.lower(), r.upper())
+    match (a.kind(), b.kind()) {
+        (ElementKind::Int, ElementKind::Int) => family::int::int_meet(a, b),
+        (ElementKind::String, ElementKind::String) => family::string::string_meet(a, b),
+        (ElementKind::Numeric, ElementKind::String) | (ElementKind::String, ElementKind::Numeric) => {
+            family::string::numeric_string_meet(a, b)
         }
+        (ElementKind::List, ElementKind::List) => family::array::list_meet(a, b),
+        (ElementKind::Array, ElementKind::Array) => family::array::keyed_array_meet(a, b),
+        (ElementKind::Object, ElementKind::Object) => Some(family::object::compose_object_intersection(a, b)),
+        _ => None,
     }
-}
-
-/// Compositional object intersection (intersection.md §2.3.2): when
-/// neither named object refines the other, the meet collects every
-/// participant (both heads + any pre-existing conjuncts on either
-/// side), strips intersections from each, sorts/dedups, and picks the
-/// canonical smallest as the head with the rest as conjuncts. The
-/// canonical-head choice is what makes the operation commutative.
-///
-/// `final` classes (which would force `Foo & Bar → never` when
-/// unrelated) are not yet exposed by [`World`], so this function never
-/// short-circuits to disjoint. Adding that query is a follow-up.
-fn compose_object_intersection(a: ElementId, b: ElementId) -> ElementId {
-    let i = interner();
-    let a_info = *i.get_object(a);
-    let b_info = *i.get_object(b);
-
-    let mut participants: Vec<ElementId> = Vec::new();
-    participants.push(i.intern_object(ObjectInfo { intersections: None, ..a_info }));
-    if let Some(id) = a_info.intersections {
-        participants.extend_from_slice(i.get_element_list(id));
-    }
-    participants.push(i.intern_object(ObjectInfo { intersections: None, ..b_info }));
-    if let Some(id) = b_info.intersections {
-        participants.extend_from_slice(i.get_element_list(id));
-    }
-
-    participants.sort();
-    participants.dedup();
-
-    // Smallest is the head; the rest are intersections. Both sides of a
-    // commutative `meet` produce the same participant set, so the head
-    // pick is identical.
-    let head_elem = participants.remove(0);
-    let head_info = *i.get_object(head_elem);
-
-    let intersections = if participants.is_empty() { None } else { Some(i.intern_element_list(&participants)) };
-
-    i.intern_object(ObjectInfo { intersections, ..head_info })
 }

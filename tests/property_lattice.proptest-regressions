@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 03bdfd4f2a62f1842729f80e4089b7a24676efbc2b8da0412f18938d051ecacd # shrinks to (world, a, b) = (WorldHandle(MockWorld { ancestors: {u!("A"): {u!("A")}, u!("B"): {u!("B")}, u!("D"): {u!("D")}, u!("Color"): {u!("Color")}, u!("C"): {u!("C")}, u!("E"): {u!("E")}}, traits_used: {}, templates: {}, extended: {}, methods: {}, properties: {}, enums: {u!("Color"): Pure}, class_like_kinds: {}, aliases: {}, class_constants: {}, global_constants: {} }), TypeId(0x000002dd00000000: A<int>), TypeId(0x000002fe00000000: (B&D)|int))

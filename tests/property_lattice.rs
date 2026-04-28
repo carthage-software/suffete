@@ -173,6 +173,23 @@ fn refined_string_type() -> impl Strategy<Value = TypeId> {
     ]
 }
 
+fn literal_float_type() -> impl Strategy<Value = TypeId> {
+    prop_oneof![
+        Just(u(t_lit_float(0.0))),
+        Just(u(t_lit_float(1.5))),
+        Just(u(t_lit_float(-1.5))),
+        Just(u(t_lit_float(42.0))),
+        Just(u(t_unspec_lit_float())),
+    ]
+}
+
+fn intersection_object_type() -> impl Strategy<Value = TypeId> {
+    let heads = ["A", "B", "C"];
+    let conjuncts = [t_named("D"), t_named("E"), t_has_method("doFoo"), t_has_property("id")];
+    (proptest::sample::select(heads.to_vec()), proptest::sample::select(conjuncts.to_vec()))
+        .prop_map(|(head, conjunct)| u(t_named_intersected(head, &[conjunct])))
+}
+
 fn class_object_type() -> impl Strategy<Value = TypeId> {
     proptest::sample::select(CLASSES.to_vec()).prop_map(|name| u(t_named(name)))
 }
@@ -196,10 +213,12 @@ fn arb_type() -> impl Strategy<Value = TypeId> {
         refined_int_type(),
         literal_string_type(),
         refined_string_type(),
+        literal_float_type(),
         class_object_type(),
         enum_type(),
         has_method_type(),
         has_property_type(),
+        intersection_object_type(),
     ];
 
     leaf.prop_recursive(4, 32, 4, |inner| {
@@ -365,6 +384,83 @@ proptest! {
     fn subtract_is_sound((world, a, b) in arb_world_and_pair()) {
         let s = subtract_of(a, b, &world);
         prop_assert!(does_refine(s, a, &world), "subtract(a, b) must refine a");
+    }
+
+    #[test]
+    fn meet_when_overlapping_is_non_empty((world, a, b) in arb_world_and_pair()) {
+        // Precision: when overlaps says A and B share at least one
+        // value, meet must not collapse to NEVER. A failing case
+        // points at a missing family rule for the kinds at play.
+        if !does_overlap(a, b, &world) {
+            return Ok(());
+        }
+        let m = meet_of(a, b, &world);
+        prop_assert!(
+            !does_refine(m, prelude::TYPE_NEVER, &world) || m == prelude::TYPE_NEVER,
+            "meet should not be empty when inputs overlap\n  a = {a}\n  b = {b}\n  meet = {m}"
+        );
+        prop_assert!(
+            m != prelude::TYPE_NEVER,
+            "meet returned NEVER despite overlap\n  a = {a}\n  b = {b}"
+        );
+    }
+
+    #[test]
+    fn meet_subtract_partition((world, a, b) in arb_world_and_pair()) {
+        // (A ∩ B) ∪ (A \ B) ⊇ A: every value of A is either in B
+        // or not, so the union of meet+subtract must contain all of A.
+        // Soundness check: catches cases where the result loses values.
+        let m = meet_of(a, b, &world);
+        let s = subtract_of(a, b, &world);
+        let mut elems: Vec<ElementId> = m.as_ref().elements.to_vec();
+        elems.extend_from_slice(s.as_ref().elements);
+        let union = interner().intern_type(&elems, FlowFlags::EMPTY);
+        prop_assert!(
+            does_refine(a, union, &world),
+            "A should refine meet(A, B) ∪ subtract(A, B)\n  a = {a}\n  b = {b}\n  meet = {m}\n  subtract = {s}\n  union = {union}"
+        );
+    }
+
+    #[test]
+    fn subtract_disjoint_is_identity((world, a, b) in arb_world_and_pair()) {
+        // When A and B are disjoint, A \ B should equal A.
+        if does_overlap(a, b, &world) {
+            return Ok(());
+        }
+        let s = subtract_of(a, b, &world);
+        prop_assert!(
+            does_refine(s, a, &world) && does_refine(a, s, &world),
+            "disjoint subtract should be identity\n  a = {a}\n  b = {b}\n  result = {s}"
+        );
+    }
+
+    #[test]
+    fn subtract_when_subset_is_empty((world, a, b) in arb_world_and_pair()) {
+        // When A <: B, every value of A is also in B, so A \ B ≡ ⊥.
+        // Precision check: catches imprecise subtract.
+        if a == prelude::TYPE_NEVER || !does_refine(a, b, &world) {
+            return Ok(());
+        }
+        let s = subtract_of(a, b, &world);
+        prop_assert!(
+            does_refine(s, prelude::TYPE_NEVER, &world),
+            "subtract(A, B) should be never when A <: B\n  a = {a}\n  b = {b}\n  result = {s}"
+        );
+    }
+
+    #[test]
+    fn meet_then_subtract_same_is_empty((world, a, b) in arb_world_and_pair()) {
+        // (A ∩ B) \ B ≡ ⊥: meet picks values in both; subtracting B
+        // must leave nothing. Precision check.
+        let m = meet_of(a, b, &world);
+        if m == prelude::TYPE_NEVER {
+            return Ok(());
+        }
+        let s = subtract_of(m, b, &world);
+        prop_assert!(
+            does_refine(s, prelude::TYPE_NEVER, &world),
+            "subtract(meet(A, B), B) should be never\n  a = {a}\n  b = {b}\n  meet = {m}\n  result = {s}"
+        );
     }
 
     #[test]
