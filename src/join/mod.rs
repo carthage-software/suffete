@@ -87,12 +87,15 @@ use crate::prelude::VOID;
 use crate::world::NullWorld;
 
 /// Compute the join (least upper bound) of a slice of elements with the
-/// default (purely-structural) options.
+/// canonical preset ([`JoinOptions::default`]): payload-level merges
+/// (range merging, string-axis merging, scalar synthesis, list and
+/// keyed-array element-type unions), subtype-driven absorption, and
+/// the standard 128 / 32 literal/shape thresholds. Use [`compute_with`]
+/// with [`JoinOptions::structural`] for sort + dedup only.
 ///
-/// Returns a freshly-allocated, sorted, deduplicated [`Vec`] with the
-/// canonicalization rules applied. Empty input collapses to `[NEVER]` so
-/// callers always receive a non-empty multiset suitable for [`Type`]
-/// construction.
+/// Returns a freshly-allocated, sorted, deduplicated [`Vec`]. Empty
+/// input collapses to `[NEVER]` so callers always receive a non-empty
+/// multiset suitable for [`Type`] construction.
 ///
 /// [`Type`]: crate::Type
 pub fn compute(elements: &[ElementId]) -> Vec<ElementId> {
@@ -167,10 +170,15 @@ pub fn compute_with(elements: &[ElementId], options: &JoinOptions) -> Vec<Elemen
     out
 }
 
-/// Caller-controlled toggles for [`compute_with`] (report §19). All
-/// fields default to "off" so [`compute`] keeps its purely-structural
-/// behaviour.
-#[derive(Debug, Clone, Copy, Default)]
+/// Caller-controlled toggles for [`compute_with`] (report §19).
+///
+/// [`Default`] returns the canonical preset — every payload-level merge
+/// rule on, with the standard 128-literal / 32-array thresholds — so a
+/// plain [`compute`] call gives the lattice-canonical form. Use
+/// [`JoinOptions::structural`] when you want a single rule in isolation
+/// (typical for option-coverage tests) or to skip the payload-level work
+/// for callers that only need sort + dedup + same-kind dominator.
+#[derive(Debug, Clone, Copy)]
 pub struct JoinOptions {
     /// Merge adjacent integer literals and ranges into wider ranges
     /// (e.g. `0 | 1 | 2` → `int<0, 2>`). Touches Int-kind atoms only.
@@ -217,7 +225,56 @@ pub struct JoinOptions {
     pub merge_keyed_array_params: bool,
 }
 
+impl Default for JoinOptions {
+    /// The canonical preset: every payload-level merge / absorption rule
+    /// enabled, standard literal thresholds (128 ints / 128 strings /
+    /// 128 floats / 32 array shapes), `overwrite_empty_array` and
+    /// `rewrite_int_keyed_to_list` left off (they change the *shape* of
+    /// the output, not just collapse equivalent forms, so they remain
+    /// opt-in).
+    fn default() -> Self {
+        Self {
+            merge_int_ranges: true,
+            int_literal_collapse_threshold: Some(128),
+            string_literal_collapse_threshold: Some(128),
+            float_literal_collapse_threshold: Some(128),
+            array_shape_collapse_threshold: Some(32),
+            rewrite_int_keyed_to_list: false,
+            merge_array_shapes: true,
+            overwrite_empty_array: false,
+            absorb_refinements: true,
+            merge_string_axes: true,
+            synthesise_scalar: true,
+            merge_list_element_types: true,
+            merge_keyed_array_params: true,
+        }
+    }
+}
+
 impl JoinOptions {
+    /// All payload-level rules off, all thresholds disabled. The
+    /// resulting [`compute_with`] call performs only the structural
+    /// canonicalisation (sort, dedup, same-kind dominator absorption,
+    /// `void | null → null`, `true | false → bool`). Useful for testing
+    /// a single rule in isolation.
+    pub const fn structural() -> Self {
+        Self {
+            merge_int_ranges: false,
+            int_literal_collapse_threshold: None,
+            string_literal_collapse_threshold: None,
+            float_literal_collapse_threshold: None,
+            array_shape_collapse_threshold: None,
+            rewrite_int_keyed_to_list: false,
+            merge_array_shapes: false,
+            overwrite_empty_array: false,
+            absorb_refinements: false,
+            merge_string_axes: false,
+            synthesise_scalar: false,
+            merge_list_element_types: false,
+            merge_keyed_array_params: false,
+        }
+    }
+
     #[must_use]
     pub const fn with_merge_int_ranges(mut self, on: bool) -> Self {
         self.merge_int_ranges = on;
@@ -1210,11 +1267,14 @@ mod tests {
 
     #[test]
     fn sorts_and_dedupes() {
+        // Use the structural-only preset so the merge passes don't
+        // collapse the adjacent literals into a range.
         let a = ElementId::int_literal(99);
         let b = ElementId::int_literal(100);
-        let r1 = compute(&[a, b]);
-        let r2 = compute(&[b, a]);
-        let r3 = compute(&[a, b, a, b, a]);
+        let opts = JoinOptions::structural();
+        let r1 = compute_with(&[a, b], &opts);
+        let r2 = compute_with(&[b, a], &opts);
+        let r3 = compute_with(&[a, b, a, b, a], &opts);
         assert_eq!(r1, r2);
         assert_eq!(r1, r3);
         assert_eq!(r1.len(), 2);

@@ -368,9 +368,13 @@ proptest! {
     }
 
     #[test]
-    fn join_is_idempotent_at_element_level((world, a) in arb_world_and_type()) {
+    fn structural_join_is_idempotent_at_element_level((world, a) in arb_world_and_type()) {
+        // The structural-only preset (sort + dedup + same-kind dominator)
+        // produces a type equivalent to the original. The canonical
+        // preset is allowed to widen (e.g. `lower | upper → string`).
         let elems = a.as_ref().elements;
-        let canon = suffete::join::compute(elems);
+        let opts = suffete::join::JoinOptions::structural();
+        let canon = suffete::join::compute_with(elems, &opts);
         let rebuilt = interner().intern_type(&canon, FlowFlags::EMPTY);
         prop_assert!(
             does_refine(rebuilt, a, &world),
@@ -379,6 +383,19 @@ proptest! {
         prop_assert!(
             does_refine(a, rebuilt, &world),
             "original should refine rebuilt\n  a = {a}\n  rebuilt = {rebuilt}"
+        );
+    }
+
+    #[test]
+    fn canonical_join_widens_or_preserves((world, a) in arb_world_and_type()) {
+        // The full canonical preset must produce a supertype of the
+        // original (it's a join), but may strictly widen it.
+        let elems = a.as_ref().elements;
+        let canon = suffete::join::compute(elems);
+        let rebuilt = interner().intern_type(&canon, FlowFlags::EMPTY);
+        prop_assert!(
+            does_refine(a, rebuilt, &world),
+            "original should refine canonical\n  a = {a}\n  rebuilt = {rebuilt}"
         );
     }
 

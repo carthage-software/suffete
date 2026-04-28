@@ -262,21 +262,13 @@ impl TypeBuilder {
         crate::interner::interner().intern_type(&self.elements, self.flags)
     }
 
-    /// Finalise the buffer through the join's payload-driven merge
-    /// rules: refined-int range merging, string-axis collapse,
-    /// scalar synthesis, list/keyed-array element-type union, and
+    /// Finalise the buffer through the join's canonical preset:
+    /// refined-int range merging, string-axis collapse, scalar
+    /// synthesis, list / keyed-array element-type union, and
     /// subtype-driven absorption. Use [`build`](Self::build) when the
     /// caller does not want these collapses applied.
     pub fn build_canonical(self) -> TypeId {
-        let opts = crate::join::JoinOptions::default()
-            .with_absorb_refinements(true)
-            .with_merge_int_ranges(true)
-            .with_merge_string_axes(true)
-            .with_merge_array_shapes(true)
-            .with_merge_list_element_types(true)
-            .with_merge_keyed_array_params(true)
-            .with_synthesise_scalar(true);
-        let canon = crate::join::compute_with(&self.elements, &opts);
+        let canon = crate::join::compute(&self.elements);
         crate::interner::interner().intern_type(&canon, self.flags)
     }
 }

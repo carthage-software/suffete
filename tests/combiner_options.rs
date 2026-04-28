@@ -46,7 +46,7 @@ fn ut(elem: ElementId) -> TypeId {
 #[test]
 fn overwrite_empty_array_drops_when_other_array_present() {
     let other = t_array_with_params(ut(t_string()), ut(t_int()));
-    let opts = join::JoinOptions::default().with_overwrite_empty_array(true);
+    let opts = join::JoinOptions::structural().with_overwrite_empty_array(true);
     let out = join::compute_with(&[t_empty_array(), other], &opts);
     assert_eq!(out.len(), 1);
     assert_eq!(out[0], other);
@@ -54,7 +54,7 @@ fn overwrite_empty_array_drops_when_other_array_present() {
 
 #[test]
 fn overwrite_empty_array_keeps_when_alone() {
-    let opts = join::JoinOptions::default().with_overwrite_empty_array(true);
+    let opts = join::JoinOptions::structural().with_overwrite_empty_array(true);
     let out = join::compute_with(&[t_empty_array()], &opts);
     assert_eq!(out, vec![t_empty_array()]);
 }
@@ -62,7 +62,7 @@ fn overwrite_empty_array_keeps_when_alone() {
 #[test]
 fn overwrite_empty_array_off_keeps_both() {
     let other = t_array_with_params(ut(t_string()), ut(t_int()));
-    let out = join::compute_with(&[t_empty_array(), other], &join::JoinOptions::default());
+    let out = join::compute_with(&[t_empty_array(), other], &join::JoinOptions::structural());
     let mut sorted = out.clone();
     sorted.sort();
     let mut expected = vec![t_empty_array(), other];
@@ -73,7 +73,7 @@ fn overwrite_empty_array_off_keeps_both() {
 #[test]
 fn string_literal_collapse_fires_above_threshold() {
     let lits = (0..5).map(|n| t_lit_string(&format!("s{n}"))).collect::<Vec<_>>();
-    let opts = join::JoinOptions::default().with_string_literal_collapse_threshold(3);
+    let opts = join::JoinOptions::structural().with_string_literal_collapse_threshold(3);
     let out = join::compute_with(&lits, &opts);
     assert_eq!(out, vec![prelude::STRING]);
 }
@@ -81,7 +81,7 @@ fn string_literal_collapse_fires_above_threshold() {
 #[test]
 fn string_literal_collapse_at_or_below_threshold_keeps_literals() {
     let lits = (0..3).map(|n| t_lit_string(&format!("s{n}"))).collect::<Vec<_>>();
-    let opts = join::JoinOptions::default().with_string_literal_collapse_threshold(3);
+    let opts = join::JoinOptions::structural().with_string_literal_collapse_threshold(3);
     let out = join::compute_with(&lits, &opts);
     let mut sorted = out.clone();
     sorted.sort();
@@ -92,14 +92,14 @@ fn string_literal_collapse_at_or_below_threshold_keeps_literals() {
 
 #[test]
 fn merge_int_ranges_collapses_consecutive_literals() {
-    let opts = join::JoinOptions::default().with_merge_int_ranges(true);
+    let opts = join::JoinOptions::structural().with_merge_int_ranges(true);
     let out = join::compute_with(&[t_lit_int(0), t_lit_int(1), t_lit_int(2), t_lit_int(3)], &opts);
     assert_eq!(out, vec![ElementId::int_range(Some(0), Some(3))]);
 }
 
 #[test]
 fn merge_int_ranges_with_gap_keeps_separate() {
-    let opts = join::JoinOptions::default().with_merge_int_ranges(true);
+    let opts = join::JoinOptions::structural().with_merge_int_ranges(true);
     let out = join::compute_with(&[t_lit_int(0), t_lit_int(1), t_lit_int(5)], &opts);
     let mut sorted = out.clone();
     sorted.sort();
@@ -110,7 +110,7 @@ fn merge_int_ranges_with_gap_keeps_separate() {
 
 #[test]
 fn merge_int_ranges_combines_overlapping_ranges() {
-    let opts = join::JoinOptions::default().with_merge_int_ranges(true);
+    let opts = join::JoinOptions::structural().with_merge_int_ranges(true);
     let r1 = ElementId::int_range(Some(0), Some(10));
     let r2 = ElementId::int_range(Some(5), Some(15));
     let out = join::compute_with(&[r1, r2], &opts);
@@ -119,7 +119,7 @@ fn merge_int_ranges_combines_overlapping_ranges() {
 
 #[test]
 fn merge_int_ranges_off_keeps_separate() {
-    let out = join::compute_with(&[t_lit_int(0), t_lit_int(1)], &join::JoinOptions::default());
+    let out = join::compute_with(&[t_lit_int(0), t_lit_int(1)], &join::JoinOptions::structural());
     let mut sorted = out.clone();
     sorted.sort();
     let mut expected = vec![t_lit_int(0), t_lit_int(1)];
@@ -130,7 +130,7 @@ fn merge_int_ranges_off_keeps_separate() {
 #[test]
 fn rewrite_int_keyed_to_list_converts_contiguous_indices() {
     let arr = t_array_with_items(&[(ArrayKey::Int(0), ut(t_int())), (ArrayKey::Int(1), ut(t_string()))]);
-    let opts = join::JoinOptions::default().with_rewrite_int_keyed_to_list(true);
+    let opts = join::JoinOptions::structural().with_rewrite_int_keyed_to_list(true);
     let out = join::compute_with(&[arr], &opts);
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].kind(), suffete::ElementKind::List);
@@ -139,7 +139,7 @@ fn rewrite_int_keyed_to_list_converts_contiguous_indices() {
 #[test]
 fn rewrite_int_keyed_to_list_skips_non_contiguous() {
     let arr = t_array_with_items(&[(ArrayKey::Int(0), ut(t_int())), (ArrayKey::Int(5), ut(t_string()))]);
-    let opts = join::JoinOptions::default().with_rewrite_int_keyed_to_list(true);
+    let opts = join::JoinOptions::structural().with_rewrite_int_keyed_to_list(true);
     let out = join::compute_with(&[arr], &opts);
     assert_eq!(out, vec![arr]);
 }
@@ -147,7 +147,7 @@ fn rewrite_int_keyed_to_list_skips_non_contiguous() {
 #[test]
 fn rewrite_int_keyed_to_list_skips_string_keys() {
     let arr = t_array_with_items(&[(ArrayKey::String(name_atom("name")), ut(t_int()))]);
-    let opts = join::JoinOptions::default().with_rewrite_int_keyed_to_list(true);
+    let opts = join::JoinOptions::structural().with_rewrite_int_keyed_to_list(true);
     let out = join::compute_with(&[arr], &opts);
     assert_eq!(out, vec![arr]);
 }
@@ -156,7 +156,7 @@ fn rewrite_int_keyed_to_list_skips_string_keys() {
 fn merge_array_shapes_combines_overlapping_keys() {
     let a = t_array_with_items(&[(ArrayKey::String(name_atom("k")), ut(t_int()))]);
     let b = t_array_with_items(&[(ArrayKey::String(name_atom("k")), ut(t_string()))]);
-    let opts = join::JoinOptions::default().with_merge_array_shapes(true);
+    let opts = join::JoinOptions::structural().with_merge_array_shapes(true);
     let out = join::compute_with(&[a, b], &opts);
     assert_eq!(out.len(), 1);
     let merged = interner().get_array(out[0]);
@@ -171,7 +171,7 @@ fn merge_array_shapes_combines_overlapping_keys() {
 fn merge_array_shapes_skips_disjoint_keys() {
     let a = t_array_with_items(&[(ArrayKey::String(name_atom("k1")), ut(t_int()))]);
     let b = t_array_with_items(&[(ArrayKey::String(name_atom("k2")), ut(t_string()))]);
-    let opts = join::JoinOptions::default().with_merge_array_shapes(true);
+    let opts = join::JoinOptions::structural().with_merge_array_shapes(true);
     let out = join::compute_with(&[a, b], &opts);
     assert_eq!(out.len(), 2);
 }
@@ -180,7 +180,7 @@ fn merge_array_shapes_skips_disjoint_keys() {
 fn merge_array_shapes_off_keeps_separate() {
     let a = t_array_with_items(&[(ArrayKey::String(name_atom("k")), ut(t_int()))]);
     let b = t_array_with_items(&[(ArrayKey::String(name_atom("k")), ut(t_string()))]);
-    let out = join::compute_with(&[a, b], &join::JoinOptions::default());
+    let out = join::compute_with(&[a, b], &join::JoinOptions::structural());
     assert_eq!(out.len(), 2);
 }
 

@@ -24,51 +24,41 @@ use suffete::interner::interner;
 use suffete::join;
 use suffete::prelude;
 
-/// Combine elements with the test-suite default options: structural
-/// canonicalization plus subtype-driven absorption, integer-range
-/// merging, array-shape merging, and threshold-based literal collapse
-/// at the standard 128 / 128 / 128 thresholds.
+/// Combine via the canonical preset (`join::compute`).
 pub fn combine_default(elements: Vec<ElementId>) -> Vec<ElementId> {
-    let opts = join::JoinOptions::default()
-        .with_absorb_refinements(true)
-        .with_merge_int_ranges(true)
-        .with_merge_string_axes(true)
-        .with_merge_array_shapes(true)
-        .with_synthesise_scalar(true)
-        .with_merge_list_element_types(true)
-        .with_merge_keyed_array_params(true)
-        .with_int_literal_collapse_threshold(128)
-        .with_string_literal_collapse_threshold(128)
-        .with_float_literal_collapse_threshold(128)
-        .with_array_shape_collapse_threshold(128);
-    join::compute_with(&elements, &opts)
+    join::compute(&elements)
 }
 
-/// Combine with a custom integer literal collapse threshold.
+/// Combine in the structural-only preset with a custom integer
+/// literal collapse threshold.
 pub fn combine_with_int_threshold(elements: Vec<ElementId>, threshold: u16) -> Vec<ElementId> {
-    let opts = join::JoinOptions::default().with_int_literal_collapse_threshold(threshold);
+    let opts = join::JoinOptions::structural().with_int_literal_collapse_threshold(threshold);
     join::compute_with(&elements, &opts)
 }
 
-/// Combine with a custom string literal collapse threshold.
+/// Combine in the structural-only preset with a custom string
+/// literal collapse threshold.
 pub fn combine_with_string_threshold(elements: Vec<ElementId>, threshold: u16) -> Vec<ElementId> {
-    let opts = join::JoinOptions::default().with_string_literal_collapse_threshold(threshold);
+    let opts = join::JoinOptions::structural().with_string_literal_collapse_threshold(threshold);
     join::compute_with(&elements, &opts)
 }
 
-/// Combine with a custom float literal collapse threshold.
+/// Combine in the structural-only preset with a custom float literal
+/// collapse threshold.
 pub fn combine_with_float_threshold(elements: Vec<ElementId>, threshold: u16) -> Vec<ElementId> {
-    let opts = join::JoinOptions::default().with_float_literal_collapse_threshold(threshold);
+    let opts = join::JoinOptions::structural().with_float_literal_collapse_threshold(threshold);
     join::compute_with(&elements, &opts)
 }
 
-/// Combine with a custom array shape collapse threshold.
+/// Combine in the structural-only preset with a custom array-shape
+/// collapse threshold.
 pub fn combine_with_array_threshold(elements: Vec<ElementId>, threshold: u16) -> Vec<ElementId> {
-    let opts = join::JoinOptions::default().with_array_shape_collapse_threshold(threshold);
+    let opts = join::JoinOptions::structural().with_array_shape_collapse_threshold(threshold);
     join::compute_with(&elements, &opts)
 }
 
-/// Combine with the `overwrite_empty_array` option enabled.
+/// Combine via the canonical preset with the `overwrite_empty_array`
+/// option enabled (it stays opt-in even in the canonical preset).
 pub fn combine_overwrite(elements: Vec<ElementId>) -> Vec<ElementId> {
     let opts = join::JoinOptions::default().with_overwrite_empty_array(true);
     join::compute_with(&elements, &opts)
