@@ -3,6 +3,7 @@
 //! See `README.md` for what this crate is, what it is not, and its (highly unstable) status.
 
 pub mod builder;
+pub mod cast;
 pub mod compatibility;
 pub mod element;
 pub mod expand;
