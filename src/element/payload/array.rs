@@ -167,8 +167,73 @@ impl std::fmt::Display for KeyedArrayInfo {
 
 impl KeyedArrayInfo {
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
-        let _ = indent;
-        self.to_string()
+        use crate::typed::Typed;
+        let i = crate::interner::interner();
+
+        if let Some(known_id) = self.known_items {
+            let entries = i.get_known_items(known_id);
+            if entries.is_empty() && self.key_param.is_none() && self.value_param.is_none() {
+                return String::from("array{}");
+            }
+
+            let mut out = String::from("array{\n");
+            let inner = indent + 2;
+            let pad = " ".repeat(inner);
+            for entry in entries {
+                out.push_str(&pad);
+                out.push_str(&entry.key.to_string());
+                if entry.optional {
+                    out.push('?');
+                }
+                out.push_str(": ");
+                out.push_str(&entry.value.pretty_with_indent(inner));
+                out.push_str(",\n");
+            }
+            if let (Some(k), Some(v)) = (self.key_param, self.value_param) {
+                out.push_str(&pad);
+                out.push_str("...");
+                if k.is_complex() || v.is_complex() {
+                    let inner2 = inner + 2;
+                    let pad2 = " ".repeat(inner2);
+                    out.push_str("<\n");
+                    out.push_str(&pad2);
+                    out.push_str(&k.pretty_with_indent(inner2));
+                    out.push_str(",\n");
+                    out.push_str(&pad2);
+                    out.push_str(&v.pretty_with_indent(inner2));
+                    out.push_str(",\n");
+                    out.push_str(&pad);
+                    out.push('>');
+                } else {
+                    out.push('<');
+                    out.push_str(&k.pretty_with_indent(inner));
+                    out.push_str(", ");
+                    out.push_str(&v.pretty_with_indent(inner));
+                    out.push('>');
+                }
+                out.push_str(",\n");
+            }
+            out.push_str(&" ".repeat(indent));
+            out.push('}');
+            return out;
+        }
+
+        if let (Some(k), Some(v)) = (self.key_param, self.value_param) {
+            let head = if self.flags.non_empty() { "non-empty-array" } else { "array" };
+            if k.is_complex() || v.is_complex() {
+                let inner = indent + 2;
+                let pad = " ".repeat(inner);
+                return format!(
+                    "{head}<\n{pad}{},\n{pad}{},\n{}>",
+                    k.pretty_with_indent(inner),
+                    v.pretty_with_indent(inner),
+                    " ".repeat(indent),
+                );
+            }
+            return format!("{head}<{}, {}>", k.pretty_with_indent(indent), v.pretty_with_indent(indent));
+        }
+
+        String::from("array{}")
     }
 }
 
@@ -199,7 +264,66 @@ impl std::fmt::Display for ListInfo {
 
 impl ListInfo {
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
-        let _ = indent;
-        self.to_string()
+        use crate::typed::Typed;
+        let i = crate::interner::interner();
+
+        if let Some(known_id) = self.known_elements {
+            let entries = i.get_known_elements(known_id);
+            if entries.is_empty() && self.element_type == crate::prelude::TYPE_NEVER {
+                return String::from("list{}");
+            }
+
+            let mut out = String::from("list{\n");
+            let inner = indent + 2;
+            let pad = " ".repeat(inner);
+            let has_optional = entries.iter().any(|e| e.optional);
+            let include_index = entries.len() > 1 || has_optional;
+
+            for entry in entries {
+                out.push_str(&pad);
+                if include_index {
+                    out.push_str(&entry.index.to_string());
+                    if entry.optional {
+                        out.push('?');
+                    }
+                    out.push_str(": ");
+                }
+                out.push_str(&entry.value.pretty_with_indent(inner));
+                out.push_str(",\n");
+            }
+            if self.element_type != crate::prelude::TYPE_NEVER {
+                out.push_str(&pad);
+                out.push_str("...");
+                if self.element_type.is_complex() {
+                    let inner2 = inner + 2;
+                    out.push_str("<\n");
+                    out.push_str(&" ".repeat(inner2));
+                    out.push_str(&self.element_type.pretty_with_indent(inner2));
+                    out.push_str(",\n");
+                    out.push_str(&pad);
+                    out.push('>');
+                } else {
+                    out.push('<');
+                    out.push_str(&self.element_type.pretty_with_indent(inner));
+                    out.push('>');
+                }
+                out.push_str(",\n");
+            }
+            out.push_str(&" ".repeat(indent));
+            out.push('}');
+            return out;
+        }
+
+        let head = if self.flags.non_empty() { "non-empty-list" } else { "list" };
+        if self.element_type.is_complex() {
+            let inner = indent + 2;
+            return format!(
+                "{head}<\n{}{},\n{}>",
+                " ".repeat(inner),
+                self.element_type.pretty_with_indent(inner),
+                " ".repeat(indent),
+            );
+        }
+        format!("{head}<{}>", self.element_type.pretty_with_indent(indent))
     }
 }

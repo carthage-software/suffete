@@ -206,3 +206,37 @@ fn pretty_three_element_union_stays_inline_with_spaces() {
     let u = u_many(vec![t_int(), t_string(), null()]);
     assert_eq!(Typed::pretty(&u), "int | null | string");
 }
+
+#[test]
+fn pretty_object_shape_breaks_into_lines() {
+    let shape = u(t_object_shape(&[("name", u(t_string()), false), ("age", u(t_int()), false)], true));
+    let pretty = Typed::pretty(&shape);
+    assert!(pretty.contains('\n'), "shape pretty should be multi-line, got: {pretty}");
+    assert!(pretty.starts_with("object{\n"));
+    assert!(pretty.ends_with("}"));
+}
+
+#[test]
+fn pretty_unsealed_shape_includes_dots_line() {
+    let shape = u(t_object_shape(&[("a", u(t_int()), false)], false));
+    let pretty = Typed::pretty(&shape);
+    assert!(pretty.contains("...,\n"), "unsealed shape should have ... line, got: {pretty}");
+}
+
+#[test]
+fn pretty_callable_with_many_params_breaks_into_lines() {
+    use suffete::prelude::TYPE_INT;
+    use suffete::prelude::TYPE_STRING;
+    let sig = u(t_callable(&[TYPE_INT, TYPE_STRING, TYPE_INT, TYPE_STRING], TYPE_INT));
+    let pretty = Typed::pretty(&sig);
+    assert!(pretty.contains('\n'), "callable with >2 params should be multi-line, got: {pretty}");
+    assert!(pretty.contains("callable("));
+    assert!(pretty.contains("): int"));
+}
+
+#[test]
+fn pretty_callable_with_two_params_stays_inline() {
+    use suffete::prelude::TYPE_INT;
+    let sig = u(t_callable(&[TYPE_INT, TYPE_INT], TYPE_INT));
+    assert_eq!(Typed::pretty(&sig), "(callable(int, int): int)");
+}

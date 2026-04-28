@@ -48,16 +48,49 @@ impl std::fmt::Display for CallableInfo {
 
 impl CallableInfo {
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
-        let _ = indent;
-        self.to_string()
+        use crate::typed::Typed;
+        let i = crate::interner::interner();
+        match self {
+            CallableInfo::Signature(sid) | CallableInfo::Closure(sid) => {
+                let sig = i.get_signature(*sid);
+                let is_closure = matches!(self, CallableInfo::Closure(_));
+                let params = sig.parameters.map(|pid| i.get_param_list(pid)).unwrap_or(&[] as _);
+                if params.len() <= 2 {
+                    return self.to_string();
+                }
+                let mut out = String::from("(");
+                if sig.flags.is_pure() {
+                    out.push_str("pure-");
+                }
+                out.push_str(if is_closure { "closure(\n" } else { "callable(\n" });
+                let inner = indent + 2;
+                let pad = " ".repeat(inner);
+                for (idx, p) in params.iter().enumerate() {
+                    if idx > 0 {
+                        out.push_str(",\n");
+                    }
+                    out.push_str(&pad);
+                    if p.flags.variadic() {
+                        out.push_str("...");
+                    }
+                    out.push_str(&p.type_.pretty_with_indent(inner));
+                    if p.flags.has_default() {
+                        out.push('=');
+                    }
+                }
+                out.push('\n');
+                out.push_str(&" ".repeat(indent));
+                out.push_str("): ");
+                out.push_str(&sig.return_type.pretty_with_indent(indent));
+                out.push(')');
+                out
+            }
+            _ => self.to_string(),
+        }
     }
 }
 
-fn render_signature(
-    sig: &super::Signature,
-    is_closure: bool,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
+fn render_signature(sig: &super::Signature, is_closure: bool, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let i = crate::interner::interner();
     f.write_str("(")?;
     if sig.flags.is_pure() {

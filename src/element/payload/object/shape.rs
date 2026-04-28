@@ -89,9 +89,48 @@ impl std::fmt::Display for ObjectShapeInfo {
 
 impl ObjectShapeInfo {
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
-        // First-cut: identical to compact rendering. Multi-line indented
-        // form for shapes with many properties is a future precision win.
-        let _ = indent;
-        self.to_string()
+        use crate::typed::Typed;
+        let i = crate::interner::interner();
+        let entries =
+            self.known_properties.map(|id| i.get_known_properties(id)).unwrap_or(&[] as &[KnownPropertyEntry]);
+        if entries.is_empty() {
+            return if self.flags.sealed() { String::from("object{}") } else { String::from("object{...}") };
+        }
+
+        let mut out = String::from("object{\n");
+        let inner = indent + 2;
+        let pad = " ".repeat(inner);
+        for entry in entries {
+            out.push_str(&pad);
+            out.push_str(entry.name.as_str());
+            if entry.optional {
+                out.push('?');
+            }
+            out.push_str(": ");
+            out.push_str(&entry.value.pretty_with_indent(inner));
+            out.push_str(",\n");
+        }
+        if !self.flags.sealed() {
+            out.push_str(&pad);
+            out.push_str("...,\n");
+        }
+        out.push_str(&" ".repeat(indent));
+        out.push('}');
+
+        // Append intersections (compact) — pretty form for those is the
+        // same as Display.
+        let mut buf = out;
+        if let Some(id) = self.intersections {
+            for &conjunct in i.get_element_list(id) {
+                let s = conjunct.to_string();
+                if conjunct.has_intersection_types() {
+                    buf.push_str(&format!("&({s})"));
+                } else {
+                    buf.push('&');
+                    buf.push_str(&s);
+                }
+            }
+        }
+        buf
     }
 }

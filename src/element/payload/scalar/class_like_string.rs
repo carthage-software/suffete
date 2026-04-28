@@ -62,8 +62,12 @@ impl std::fmt::Display for ClassLikeStringInfo {
         match &self.specifier {
             ClassLikeStringSpecifier::Any => f.write_str(self.kind.as_str()),
             ClassLikeStringSpecifier::Literal { value } => write!(f, "class-string('{}')", value.as_str()),
-            ClassLikeStringSpecifier::OfType { constraint } => write!(f, "{}<{}>", self.kind.as_str(), constraint.as_ref()),
-            ClassLikeStringSpecifier::Generic { constraint } => write!(f, "{}<{}>", self.kind.as_str(), constraint.as_ref()),
+            ClassLikeStringSpecifier::OfType { constraint } => {
+                write!(f, "{}<{}>", self.kind.as_str(), constraint.as_ref())
+            }
+            ClassLikeStringSpecifier::Generic { constraint } => {
+                write!(f, "{}<{}>", self.kind.as_str(), constraint.as_ref())
+            }
         }
     }
 }
