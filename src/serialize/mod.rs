@@ -442,6 +442,25 @@ impl SerializableType {
     }
 }
 
+impl ElementId {
+    /// Build a self-contained structural mirror of `self` suitable for
+    /// persistence. Round-trips through [`SerializableElement::intern`]
+    /// preserving structural content (handle bits are not preserved
+    /// across processes; see [`crate::serialize`] module docs).
+    pub fn to_serializable(self) -> SerializableElement {
+        encode_element(self)
+    }
+}
+
+impl SerializableElement {
+    /// Re-intern this structural form into the process-global interner
+    /// and return a fresh [`ElementId`]. Equivalent (structurally) to
+    /// the original element that produced this `SerializableElement`.
+    pub fn intern(&self) -> ElementId {
+        decode_element(self)
+    }
+}
+
 fn encode_type(ty: TypeId) -> SerializableType {
     ty.to_serializable()
 }
@@ -1164,6 +1183,18 @@ mod serde_impl {
     impl<'de> Deserialize<'de> for TypeId {
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
             Ok(SerializableType::deserialize(d)?.intern())
+        }
+    }
+
+    impl Serialize for ElementId {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            self.to_serializable().serialize(s)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for ElementId {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            Ok(SerializableElement::deserialize(d)?.intern())
         }
     }
 }

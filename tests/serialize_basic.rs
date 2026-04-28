@@ -134,6 +134,20 @@ fn restored_within_same_process_uses_same_slot() {
     assert_eq!(ty, restored, "same process should re-intern to identical handle");
 }
 
+#[test]
+fn element_id_round_trips_via_serializable() {
+    let foo = t_named("Foo");
+    let restored = foo.to_serializable().intern();
+    assert_eq!(foo, restored, "element re-interned in the same process should match");
+}
+
+#[test]
+fn element_id_with_generic_args_round_trips() {
+    let box_int = t_generic_named("Box", vec![u(t_int())]);
+    let restored = box_int.to_serializable().intern();
+    assert_eq!(box_int, restored);
+}
+
 #[cfg(feature = "serde")]
 #[test]
 fn serde_round_trip_via_json() {
@@ -141,4 +155,13 @@ fn serde_round_trip_via_json() {
     let json = serde_json::to_string(&ty).expect("serialize");
     let restored: TypeId = serde_json::from_str(&json).expect("deserialize");
     assert!(ty.content_eq(restored));
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn serde_element_id_round_trip_via_json() {
+    let elem = t_named("Bar");
+    let json = serde_json::to_string(&elem).expect("serialize");
+    let restored: suffete::ElementId = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(elem, restored);
 }

@@ -849,6 +849,8 @@ dependencies = [
  "mago-atom",
  "mago-span",
  "ordered-float",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
