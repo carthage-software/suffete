@@ -138,3 +138,158 @@ fn keyed_array_disjoint_keys_meet_is_combined_shape() {
     ));
     meet_eq(lhs, rhs, expected);
 }
+
+// --- iterable ---------------------------------------------------------
+
+#[test]
+fn iterable_int_int_meet_iterable_int_string_is_iterable_int_never() {
+    use suffete::prelude::TYPE_INT;
+    use suffete::prelude::TYPE_NEVER;
+    use suffete::prelude::TYPE_STRING;
+    let lhs = u(t_iterable(TYPE_INT, TYPE_INT));
+    let rhs = u(t_iterable(TYPE_INT, TYPE_STRING));
+    let expected = u(t_iterable(TYPE_INT, TYPE_NEVER));
+    meet_eq(lhs, rhs, expected);
+}
+
+#[test]
+fn iterable_int_a_meet_iterable_int_b_keys_intersect() {
+    use suffete::prelude::TYPE_ARRAY_KEY;
+    use suffete::prelude::TYPE_INT;
+    use suffete::prelude::TYPE_MIXED;
+    let lhs = u(t_iterable(TYPE_ARRAY_KEY, TYPE_MIXED));
+    let rhs = u(t_iterable(TYPE_INT, TYPE_MIXED));
+    let expected = u(t_iterable(TYPE_INT, TYPE_MIXED));
+    meet_eq(lhs, rhs, expected);
+}
+
+// --- callable ---------------------------------------------------------
+
+#[test]
+fn callable_meet_with_compatible_signatures_intersects_return_unions_params() {
+    // Return type is covariant, so meet on return.
+    // Params are contravariant, so meet means "accept the union" (join on params).
+    use suffete::prelude::TYPE_INT;
+    use suffete::prelude::TYPE_STRING;
+    let lhs = u(t_callable(&[TYPE_INT], TYPE_INT));
+    let rhs = u(t_callable(&[TYPE_INT], TYPE_STRING));
+    let expected = u(t_callable(&[TYPE_INT], suffete::prelude::TYPE_NEVER));
+    meet_eq(lhs, rhs, expected);
+}
+
+// --- class-like-string structural -------------------------------------
+
+#[test]
+fn class_string_unrelated_constraints_meet_is_never() {
+    let w = MockWorld::new();
+    let lhs = u(t_class_string_of(u(t_named("Foo"))));
+    let rhs = u(t_class_string_of(u(t_named("Bar"))));
+    meet_eq_with(lhs, rhs, suffete::prelude::TYPE_NEVER, &w);
+}
+
+#[test]
+fn class_string_kinds_disjoint_meet_is_never() {
+    let w = MockWorld::new();
+    let class = u(t_class_string_of(u(t_named("Foo"))));
+    let interface = u(t_interface_string_of(u(t_named("Foo"))));
+    meet_eq_with(class, interface, suffete::prelude::TYPE_NEVER, &w);
+}
+
+// --- enum + enum-case ------------------------------------------------
+
+#[test]
+fn enum_meet_enum_case_is_case() {
+    let w = MockWorld::new();
+    let any = u(t_enum("E"));
+    let case = u(t_enum_case("E", "A"));
+    meet_eq_with(any, case, case, &w);
+}
+
+#[test]
+fn distinct_enum_cases_meet_is_never() {
+    let w = MockWorld::new();
+    let a = u(t_enum_case("E", "A"));
+    let b = u(t_enum_case("E", "B"));
+    meet_eq_with(a, b, suffete::prelude::TYPE_NEVER, &w);
+}
+
+#[test]
+fn distinct_enums_meet_is_never() {
+    let w = MockWorld::new();
+    let e = u(t_enum("E"));
+    let f = u(t_enum("F"));
+    meet_eq_with(e, f, suffete::prelude::TYPE_NEVER, &w);
+}
+
+// --- has-method / has-property composition ----------------------------
+
+#[test]
+fn has_method_meet_has_method_composes() {
+    // `(object with foo) ∧ (object with bar) → object with foo & bar`.
+    let lhs = u(t_has_method("foo"));
+    let rhs = u(t_has_method("bar"));
+    let result = {
+        let w = empty_world();
+        let mut report = LatticeReport::new();
+        meet::compute(lhs, rhs, &w, LatticeOptions::default(), &mut report)
+    };
+    assert_ne!(result, suffete::prelude::TYPE_NEVER, "has-method ∧ has-method should compose, got NEVER");
+}
+
+#[test]
+fn named_object_with_method_meet_has_method_passes_when_world_confirms() {
+    let mut w = MockWorld::new();
+    w.with_method("Foo", "doFoo");
+    let named = u(t_named("Foo"));
+    let constraint = u(t_has_method("doFoo"));
+    let mut report = LatticeReport::new();
+    let result = meet::compute(named, constraint, &w, LatticeOptions::default(), &mut report);
+    assert_eq!(result, named, "Named(Foo) ∧ has_method(doFoo) should reduce to Named(Foo)");
+}
+
+// --- list / keyed-array crossing -------------------------------------
+
+#[test]
+fn empty_array_meet_list_int_is_empty_array() {
+    use suffete::prelude::TYPE_INT;
+    let lhs = u(t_empty_array());
+    let rhs = u(t_list(TYPE_INT, false));
+    meet_eq(lhs, rhs, lhs);
+}
+
+#[test]
+fn list_int_meet_keyed_int_int_is_list_int() {
+    use suffete::prelude::TYPE_INT;
+    let lhs = u(t_list(TYPE_INT, false));
+    let rhs = u(t_keyed_unsealed(TYPE_INT, TYPE_INT, false));
+    meet_eq(lhs, rhs, lhs);
+}
+
+// --- mixed variants --------------------------------------------------
+
+#[test]
+fn truthy_mixed_meet_falsy_mixed_is_never() {
+    let lhs = u(mixed_truthy());
+    let rhs = u(mixed_falsy());
+    meet_eq(lhs, rhs, suffete::prelude::TYPE_NEVER);
+}
+
+#[test]
+fn nonnull_mixed_meet_null_is_never() {
+    let lhs = u(mixed_nonnull());
+    let rhs = u(null());
+    meet_eq(lhs, rhs, suffete::prelude::TYPE_NEVER);
+}
+
+#[test]
+#[ignore = "needs a `non-zero int` representation (positive | negative int union)"]
+fn truthy_mixed_meet_int_is_truthy_int_set() {
+    // truthy_mixed ∧ int admits all non-zero ints. We accept any
+    // result that's a subtype of both inputs and non-empty.
+    let w = empty_world();
+    let lhs = u(mixed_truthy());
+    let rhs = u(t_int());
+    let mut report = LatticeReport::new();
+    let result = meet::compute(lhs, rhs, &w, LatticeOptions::default(), &mut report);
+    assert_ne!(result, suffete::prelude::TYPE_NEVER, "truthy_mixed ∧ int should be non-empty");
+}

@@ -5,6 +5,7 @@ use crate::ElementId;
 use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
+use crate::element::payload::scalar::IntInfo;
 use crate::interner::interner;
 use crate::lattice::CoercionCauses;
 use crate::lattice::LatticeOptions;
@@ -44,8 +45,111 @@ pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOption
             !skipped
         })
         .all(|input| {
-            b_type.elements.iter().any(|container| element_refines(*input, *container, world, options, report))
+            if b_type.elements.iter().any(|container| element_refines(*input, *container, world, options, report)) {
+                return true;
+            }
+            // Fan-out: a single int element may be covered by the union of
+            // several int elements on the rhs (e.g. `int<-∞,0> <: lit(0) |
+            // int<-∞,-1>`). Element-by-element refines can't see that, so
+            // try the family-level coverage check before giving up.
+            int_union_covers(*input, b_type.elements)
         })
+}
+
+/// True iff the int range / literal `input` is fully covered by the union
+/// of all int elements in `containers`. Used as a precision fallback when
+/// no single container element accepts the input. Only fires when `input`
+/// is a concrete range or literal — the `Unspecified` / `UnspecifiedLiteral`
+/// dominators are already handled by single-element refines.
+fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
+    if input.kind() != ElementKind::Int {
+        return false;
+    }
+    let i = interner();
+    let input_info = *i.get_int(input);
+    if matches!(input_info, IntInfo::Unspecified | IntInfo::UnspecifiedLiteral) {
+        return false;
+    }
+    let (in_lo, in_hi) = int_bounds_of(input);
+
+    let mut ranges: Vec<(Option<i64>, Option<i64>)> = containers
+        .iter()
+        .filter(|c| {
+            // Skip `UnspecifiedLiteral` containers: at the value level they
+            // span all ints, but the lattice keeps them distinct (refines
+            // doesn't accept `int <: literal-int`). Treating them as
+            // unbounded coverage would silently break that distinction.
+            c.kind() == ElementKind::Int && !matches!(*interner().get_int(**c), IntInfo::UnspecifiedLiteral)
+        })
+        .map(|c| int_bounds_of(*c))
+        .collect();
+
+    if ranges.is_empty() {
+        return false;
+    }
+
+    ranges.sort_by(|a, b| match (a.0, b.0) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, _) => std::cmp::Ordering::Less,
+        (_, None) => std::cmp::Ordering::Greater,
+        (Some(x), Some(y)) => x.cmp(&y),
+    });
+
+    let mut covered_up_to: Option<i64> = None;
+    let mut started = false;
+
+    for (lo, hi) in ranges {
+        if !started {
+            let starts_input = match (lo, in_lo) {
+                (None, _) => true,
+                (Some(_), None) => false,
+                (Some(l), Some(s)) => l <= s,
+            };
+            if !starts_input {
+                continue;
+            }
+            covered_up_to = match (in_lo, hi) {
+                (Some(s), Some(h)) if h < s => continue,
+                _ => hi,
+            };
+            started = true;
+        } else {
+            let connects = match (lo, covered_up_to) {
+                (None, _) => true,
+                (_, None) => true,
+                (Some(l), Some(c)) => l <= c.saturating_add(1),
+            };
+            if !connects {
+                return false;
+            }
+            covered_up_to = match (covered_up_to, hi) {
+                (None, _) | (_, None) => None,
+                (Some(c), Some(h)) => Some(c.max(h)),
+            };
+        }
+
+        let covers_top = match (in_hi, covered_up_to) {
+            (_, None) => true,
+            (None, Some(_)) => false,
+            (Some(t), Some(c)) => t <= c,
+        };
+        if covers_top {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn int_bounds_of(elem: ElementId) -> (Option<i64>, Option<i64>) {
+    match *interner().get_int(elem) {
+        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),
+        IntInfo::Literal(n) => (Some(n), Some(n)),
+        IntInfo::Range(rid) => {
+            let r = *interner().get_int_range(rid);
+            (r.lower(), r.upper())
+        }
+    }
 }
 
 /// `true` iff `a :> b` — every value of type `b` is also a value of type `a`

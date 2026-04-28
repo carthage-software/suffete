@@ -20,11 +20,19 @@ pub(in crate::meet) fn string_meet(a: ElementId, b: ElementId) -> Option<Element
     let a_info = *i.get_string(a);
     let b_info = *i.get_string(b);
 
+    let opposite_casings =
+        matches!((a_info.casing, b_info.casing), (StringCasing::Lowercase, StringCasing::Uppercase) | (StringCasing::Uppercase, StringCasing::Lowercase));
+
     let casing = match (a_info.casing, b_info.casing) {
         (StringCasing::Lowercase, StringCasing::Lowercase) => StringCasing::Lowercase,
         (StringCasing::Uppercase, StringCasing::Uppercase) => StringCasing::Uppercase,
         (StringCasing::Unspecified, c) | (c, StringCasing::Unspecified) => c,
-        _ => return Some(ElementId::string_literal("")),
+        // Opposite fixed casings: no surviving casing constraint; the
+        // remaining values must contain neither lowercase nor uppercase
+        // ASCII chars. Suffete doesn't model that constraint directly,
+        // so we erase the casing axis and let the literal-vs-flags /
+        // literal-vs-casing checks below decide the precise outcome.
+        _ => StringCasing::Unspecified,
     };
 
     let flags = a_info.flags.or(b_info.flags);
@@ -46,9 +54,27 @@ pub(in crate::meet) fn string_meet(a: ElementId, b: ElementId) -> Option<Element
         (StringLiteral::None, StringLiteral::None) => StringLiteral::None,
     };
 
+    // Opposite-casing collapse: when neither side fixed a literal value,
+    // the only string in both sets is `""`. With a literal on one side,
+    // fall through — the literal-vs-flags / literal-vs-casing checks
+    // below will reject it iff the literal violates the casing it carries.
+    if opposite_casings && matches!(literal, StringLiteral::None | StringLiteral::Unspecified) {
+        return Some(ElementId::string_literal(""));
+    }
+
     let merged = StringInfo { literal, casing, flags };
     if !literal_satisfies_flags(merged.literal, merged.flags) {
         return None;
+    }
+    if opposite_casings
+        && let StringLiteral::Value(v) = merged.literal
+    {
+        let s = v.as_str();
+        // Literal must satisfy BOTH original casings — i.e. carry no
+        // ASCII letters at all.
+        if s.chars().any(|c| c.is_ascii_alphabetic()) {
+            return None;
+        }
     }
     if !literal_satisfies_casing(merged.literal, merged.casing) {
         return None;

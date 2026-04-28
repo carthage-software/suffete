@@ -4,6 +4,9 @@
 //! kinds and delegates here.
 
 pub(super) mod array;
+pub(super) mod callable;
+pub(super) mod has_member;
 pub(super) mod int;
+pub(super) mod iterable;
 pub(super) mod object;
 pub(super) mod string;

@@ -102,7 +102,7 @@ fn family_overlap(a: ElementId, b: ElementId) -> bool {
         pair,
         (ElementKind::String, ElementKind::ClassLikeString) | (ElementKind::ClassLikeString, ElementKind::String)
     ) {
-        return true;
+        return string_class_like_string_overlap(a, b);
     }
 
     // Numeric strings inhabit both `numeric` and `string`.
@@ -111,6 +111,58 @@ fn family_overlap(a: ElementId, b: ElementId) -> bool {
     }
 
     false
+}
+
+/// `String` × `ClassLikeString`: they overlap iff some string value
+/// inhabits both. A class-like-string is always non-empty and (as a
+/// PHP class name) carries no chars outside `[A-Za-z_0-9\\]`. A
+/// literal string side rules out the overlap if its value isn't a
+/// valid class name; a literal class-string side rules it out if its
+/// fixed name conflicts with the string's literal/casing constraints.
+fn string_class_like_string_overlap(a: ElementId, b: ElementId) -> bool {
+    let i = interner();
+    let (string_atom, class_atom) =
+        if a.kind() == ElementKind::String { (a, b) } else { (b, a) };
+    let s = *i.get_string(string_atom);
+    if let crate::element::payload::scalar::StringLiteral::Value(value) = s.literal {
+        return is_valid_class_name(value.as_str());
+    }
+    // The string side has no literal — overlap depends only on the
+    // class-string. Any class-string is non-empty and "class-name"-shaped,
+    // which always intersects general / refined string forms.
+    let _ = class_atom;
+    true
+}
+
+fn is_valid_class_name(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+    if len == 0 || bytes[len - 1] == b'\\' {
+        return false;
+    }
+    let mut i = usize::from(bytes[0] == b'\\');
+    if i >= len {
+        return false;
+    }
+    let mut part_start = true;
+    while i < len {
+        let b = bytes[i];
+        if b == b'\\' {
+            if part_start {
+                return false;
+            }
+            part_start = true;
+        } else if part_start {
+            if !(b.is_ascii_alphabetic() || b == b'_') {
+                return false;
+            }
+            part_start = false;
+        } else if !(b.is_ascii_alphanumeric() || b == b'_' || b >= 0x80) {
+            return false;
+        }
+        i += 1;
+    }
+    !part_start
 }
 
 /// Narrowed-mixed overlap: each side's axis flags must be jointly

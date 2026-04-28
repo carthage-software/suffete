@@ -180,6 +180,10 @@ fn family_atom_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
         }
         (ElementKind::List, ElementKind::List) => family::array::list_meet(a, b),
         (ElementKind::Array, ElementKind::Array) => family::array::keyed_array_meet(a, b),
+        (ElementKind::Iterable, ElementKind::Iterable) => family::iterable::iterable_meet(a, b),
+        (ElementKind::Callable, ElementKind::Callable) => family::callable::callable_meet(a, b),
+        (ElementKind::HasMethod, ElementKind::HasMethod) => family::has_member::has_method_meet(a, b),
+        (ElementKind::HasProperty, ElementKind::HasProperty) => family::has_member::has_property_meet(a, b),
         (ElementKind::Object, ElementKind::Object) => Some(family::object::compose_object_intersection(a, b)),
         _ => None,
     }
