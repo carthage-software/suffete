@@ -43,11 +43,25 @@
 //! collapse, etc.) require the lattice and a codebase, and are not applied
 //! here.
 
+use std::num::NonZeroU32;
+
 use crate::ElementId;
 use crate::ElementKind;
+use crate::TypeId;
+use crate::element::payload::ArrayKey;
+use crate::element::payload::KeyedArrayFlags;
+use crate::element::payload::KeyedArrayInfo;
+use crate::element::payload::KnownElementEntry;
+use crate::element::payload::KnownItemEntry;
+use crate::element::payload::ListFlags;
+use crate::element::payload::ListInfo;
+use crate::element::payload::scalar::IntInfo;
+use crate::element::payload::scalar::StringLiteral;
+use crate::interner::interner;
 use crate::prelude::BOOL;
 use crate::prelude::CALLABLE;
 use crate::prelude::CLOSED_RESOURCE;
+use crate::prelude::EMPTY_ARRAY;
 use crate::prelude::FALSE;
 use crate::prelude::FLOAT;
 use crate::prelude::INT;
@@ -58,9 +72,11 @@ use crate::prelude::OPEN_RESOURCE;
 use crate::prelude::RESOURCE;
 use crate::prelude::STRING;
 use crate::prelude::TRUE;
+use crate::prelude::TYPE_NEVER;
 use crate::prelude::VOID;
 
-/// Compute the join (least upper bound) of a slice of elements.
+/// Compute the join (least upper bound) of a slice of elements with the
+/// default (purely-structural) options.
 ///
 /// Returns a freshly-allocated, sorted, deduplicated [`Vec`] with the
 /// canonicalization rules applied. Empty input collapses to `[NEVER]` so
@@ -69,11 +85,302 @@ use crate::prelude::VOID;
 ///
 /// [`Type`]: crate::Type
 pub fn compute(elements: &[ElementId]) -> Vec<ElementId> {
+    compute_with(elements, &JoinOptions::default())
+}
+
+/// Compute the join with caller-controlled extended rules per
+/// [`JoinOptions`] (report §19). The structural pass runs first; each
+/// extended rule fires after, gated on its own option, so the analyzer
+/// can pick the simplification aggressiveness per call site.
+pub fn compute_with(elements: &[ElementId], options: &JoinOptions) -> Vec<ElementId> {
     let mut out: Vec<ElementId> = if elements.is_empty() { vec![NEVER] } else { elements.to_vec() };
     out.sort_unstable();
     out.dedup();
     canonicalize(&mut out);
+
+    if options.overwrite_empty_array {
+        apply_overwrite_empty_array(&mut out);
+    }
+    if options.merge_int_ranges {
+        apply_merge_int_ranges(&mut out);
+    }
+    if options.string_literal_collapse_threshold > 0 {
+        apply_string_literal_collapse(&mut out, options.string_literal_collapse_threshold);
+    }
+    if options.merge_array_shapes {
+        apply_merge_array_shapes(&mut out);
+    }
+    if options.rewrite_int_keyed_to_list {
+        apply_rewrite_int_keyed_to_list(&mut out);
+    }
+
+    out.sort_unstable();
+    out.dedup();
     out
+}
+
+/// Caller-controlled toggles for [`compute_with`] (report §19). All
+/// fields default to "off" so [`compute`] keeps its purely-structural
+/// behaviour.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct JoinOptions {
+    /// Merge adjacent integer literals and ranges into wider ranges
+    /// (e.g. `0 | 1 | 2` → `int<0, 2>`). Touches Int-kind atoms only.
+    pub merge_int_ranges: bool,
+    /// When the union contains more than this many `string` literals,
+    /// drop them and add the general `string` form. `0` disables.
+    pub string_literal_collapse_threshold: u16,
+    /// Detect keyed-array shapes whose keys are `0..n-1` integers and
+    /// rewrite them as `list` shapes.
+    pub rewrite_int_keyed_to_list: bool,
+    /// Merge multiple keyed-array shapes that share at least one key
+    /// into a single shape with per-key value unions.
+    pub merge_array_shapes: bool,
+    /// Drop `EMPTY_ARRAY` from the union when another `Array` or `List`
+    /// atom is present.
+    pub overwrite_empty_array: bool,
+}
+
+impl JoinOptions {
+    #[must_use]
+    pub const fn with_merge_int_ranges(mut self, on: bool) -> Self {
+        self.merge_int_ranges = on;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_string_literal_collapse_threshold(mut self, threshold: u16) -> Self {
+        self.string_literal_collapse_threshold = threshold;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_rewrite_int_keyed_to_list(mut self, on: bool) -> Self {
+        self.rewrite_int_keyed_to_list = on;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_merge_array_shapes(mut self, on: bool) -> Self {
+        self.merge_array_shapes = on;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_overwrite_empty_array(mut self, on: bool) -> Self {
+        self.overwrite_empty_array = on;
+        self
+    }
+}
+
+fn apply_overwrite_empty_array(elements: &mut Vec<ElementId>) {
+    let has_other_array =
+        elements.iter().any(|e| *e != EMPTY_ARRAY && matches!(e.kind(), ElementKind::Array | ElementKind::List));
+    if has_other_array {
+        elements.retain(|e| *e != EMPTY_ARRAY);
+    }
+}
+
+fn apply_string_literal_collapse(elements: &mut Vec<ElementId>, threshold: u16) {
+    if elements.contains(&STRING) {
+        return;
+    }
+    let i = interner();
+    let count = elements
+        .iter()
+        .filter(|e| e.kind() == ElementKind::String && matches!(i.get_string(**e).literal, StringLiteral::Value(_)))
+        .count();
+    if count as u32 <= u32::from(threshold) {
+        return;
+    }
+    elements
+        .retain(|e| !(e.kind() == ElementKind::String && matches!(i.get_string(*e).literal, StringLiteral::Value(_))));
+    let pos = elements.binary_search(&STRING).unwrap_or_else(|p| p);
+    elements.insert(pos, STRING);
+}
+
+/// Merge adjacent integer literals and bounded ranges into wider
+/// ranges. Untouched `IntInfo` variants (`Unspecified`,
+/// `UnspecifiedLiteral`) are dominators / virtual forms and stay as-is.
+fn apply_merge_int_ranges(elements: &mut Vec<ElementId>) {
+    let i = interner();
+    let mut intervals: Vec<(Option<i64>, Option<i64>)> = Vec::new();
+    let mut other: Vec<ElementId> = Vec::with_capacity(elements.len());
+    for &el in elements.iter() {
+        if el.kind() != ElementKind::Int {
+            other.push(el);
+            continue;
+        }
+        match *i.get_int(el) {
+            IntInfo::Literal(n) => intervals.push((Some(n), Some(n))),
+            IntInfo::Range(rid) => {
+                let r = *i.get_int_range(rid);
+                intervals.push((r.lower(), r.upper()));
+            }
+            _ => other.push(el),
+        }
+    }
+
+    if intervals.len() < 2 {
+        return;
+    }
+
+    intervals.sort_by(|a, b| match (a.0, b.0) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, _) => std::cmp::Ordering::Less,
+        (_, None) => std::cmp::Ordering::Greater,
+        (Some(x), Some(y)) => x.cmp(&y),
+    });
+
+    let mut merged: Vec<(Option<i64>, Option<i64>)> = Vec::with_capacity(intervals.len());
+    for r in intervals {
+        if let Some(last) = merged.last_mut() {
+            let adjacent = match (last.1, r.0) {
+                (None, _) => true,
+                (Some(_), None) => true,
+                (Some(lu), Some(rl)) => lu.checked_add(1).is_some_and(|n| n >= rl),
+            };
+            if adjacent {
+                last.1 = match (last.1, r.1) {
+                    (None, _) | (_, None) => None,
+                    (Some(a), Some(b)) => Some(a.max(b)),
+                };
+                continue;
+            }
+        }
+        merged.push(r);
+    }
+
+    let mut new_elements: Vec<ElementId> = other;
+    for (lo, hi) in merged {
+        let elem = match (lo, hi) {
+            (Some(l), Some(h)) if l == h => ElementId::int_literal(l),
+            _ => ElementId::int_range(lo, hi),
+        };
+        new_elements.push(elem);
+    }
+    *elements = new_elements;
+}
+
+/// Detect keyed-array atoms whose `known_items` use contiguous integer
+/// keys `0..n-1` (and whose key/value rest types are absent or
+/// list-compatible) and rewrite them as `List` atoms.
+fn apply_rewrite_int_keyed_to_list(elements: &mut [ElementId]) {
+    let i = interner();
+    for el in elements.iter_mut() {
+        if el.kind() != ElementKind::Array {
+            continue;
+        }
+        let info = *i.get_array(*el);
+        if info.key_param.is_some() {
+            continue;
+        }
+        let Some(known_id) = info.known_items else {
+            continue;
+        };
+        let entries = i.get_known_items(known_id);
+        let mut indexed: Vec<(i64, &KnownItemEntry)> = Vec::with_capacity(entries.len());
+        let mut all_int = true;
+        for entry in entries {
+            match entry.key {
+                ArrayKey::Int(n) => indexed.push((n, entry)),
+                _ => {
+                    all_int = false;
+                    break;
+                }
+            }
+        }
+        if !all_int {
+            continue;
+        }
+        indexed.sort_by_key(|(n, _)| *n);
+        if !(0..indexed.len()).all(|idx| indexed[idx].0 == idx as i64) {
+            continue;
+        }
+
+        let known_elements: Vec<KnownElementEntry> = indexed
+            .iter()
+            .map(|(n, entry)| KnownElementEntry { index: *n as u32, value: entry.value, optional: entry.optional })
+            .collect();
+        let known_count = NonZeroU32::new(known_elements.len() as u32);
+        let list_info = ListInfo {
+            element_type: info.value_param.unwrap_or(TYPE_NEVER),
+            known_elements: Some(i.intern_known_elements(&known_elements)),
+            known_count,
+            flags: ListFlags::default().with_non_empty(info.flags.non_empty()),
+        };
+        *el = i.intern_list(list_info);
+    }
+}
+
+/// When the union contains multiple keyed-array atoms that share at
+/// least one literal key, fold them into a single shape whose value at
+/// every shared key is the union of the source values.
+fn apply_merge_array_shapes(elements: &mut Vec<ElementId>) {
+    let i = interner();
+    let mut shapes: Vec<usize> = elements
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, el)| (el.kind() == ElementKind::Array && i.get_array(*el).known_items.is_some()).then_some(idx))
+        .collect();
+
+    if shapes.len() < 2 {
+        return;
+    }
+
+    let head_idx = shapes.remove(0);
+    let head_info = *i.get_array(elements[head_idx]);
+    let head_entries = i.get_known_items(head_info.known_items.unwrap()).to_vec();
+
+    let mut new_known: Vec<KnownItemEntry> = head_entries.clone();
+    let mut absorbed: Vec<usize> = Vec::new();
+    let mut accumulated_non_empty = head_info.flags.non_empty();
+
+    for &shape_idx in &shapes {
+        let other = *i.get_array(elements[shape_idx]);
+        if other.key_param != head_info.key_param || other.value_param != head_info.value_param {
+            continue;
+        }
+        let Some(other_known_id) = other.known_items else { continue };
+        let other_entries = i.get_known_items(other_known_id);
+        let shares_key = other_entries.iter().any(|o| new_known.iter().any(|e| e.key == o.key));
+        if !shares_key {
+            continue;
+        }
+
+        for o_entry in other_entries {
+            if let Some(existing) = new_known.iter_mut().find(|e| e.key == o_entry.key) {
+                let mut elems: Vec<ElementId> = existing.value.as_ref().elements.to_vec();
+                elems.extend_from_slice(o_entry.value.as_ref().elements);
+                existing.value = TypeId::union(&elems);
+                existing.optional = existing.optional || o_entry.optional;
+            } else {
+                new_known.push(*o_entry);
+            }
+        }
+        accumulated_non_empty = accumulated_non_empty || other.flags.non_empty();
+        absorbed.push(shape_idx);
+    }
+
+    if absorbed.is_empty() {
+        return;
+    }
+
+    new_known.sort_by_key(|e| e.key);
+    let merged_info = KeyedArrayInfo {
+        known_items: Some(i.intern_known_items(&new_known)),
+        flags: KeyedArrayFlags::default().with_non_empty(accumulated_non_empty),
+        ..head_info
+    };
+    elements[head_idx] = i.intern_array(merged_info);
+
+    let mut absorbed_set: std::collections::BTreeSet<usize> = absorbed.into_iter().collect();
+    let mut idx = 0;
+    elements.retain(|_| {
+        let keep = !absorbed_set.remove(&idx);
+        idx += 1;
+        keep
+    });
 }
 
 /// Apply the structural canonicalization rules. `elements` must be sorted
