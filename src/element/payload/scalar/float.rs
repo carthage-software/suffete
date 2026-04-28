@@ -34,3 +34,13 @@ impl LiteralFloat {
 
 const _: () = assert!(size_of::<FloatInfo>() <= 16);
 const _: () = assert!(size_of::<LiteralFloat>() == 8);
+
+impl std::fmt::Display for FloatInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FloatInfo::Unspecified => f.write_str("float"),
+            FloatInfo::UnspecifiedLiteral => f.write_str("literal-float"),
+            FloatInfo::Literal(lit) => write!(f, "float({})", lit.value()),
+        }
+    }
+}

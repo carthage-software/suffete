@@ -1,3 +1,6 @@
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::mem::size_of;
 
 /// PHP `resource`, optionally narrowed to open or closed state.
@@ -17,3 +20,13 @@ pub enum ResourceInfo {
 }
 
 const _: () = assert!(size_of::<ResourceInfo>() == 1);
+
+impl Display for ResourceInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(match self {
+            ResourceInfo::Any => "resource",
+            ResourceInfo::Open => "open-resource",
+            ResourceInfo::Closed => "closed-resource",
+        })
+    }
+}

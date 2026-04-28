@@ -56,3 +56,56 @@ pub enum Visibility {
 
 const _: () = assert!(size_of::<DerivedInfo>() <= 32);
 const _: () = assert!(size_of::<Visibility>() == 1);
+
+impl Visibility {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Visibility::Public => "public",
+            Visibility::Protected => "protected",
+            Visibility::Private => "private",
+        }
+    }
+}
+
+impl std::fmt::Display for Visibility {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::fmt::Display for DerivedInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DerivedInfo::KeyOf(t) => write!(f, "key-of<{t}>"),
+            DerivedInfo::ValueOf(t) => write!(f, "value-of<{t}>"),
+            DerivedInfo::PropertiesOf { target, visibility } => match visibility {
+                Some(v) => write!(f, "{}-properties-of<{target}>", v.as_str()),
+                None => write!(f, "properties-of<{target}>"),
+            },
+            DerivedInfo::IndexAccess { target, index } => write!(f, "{target}[{index}]"),
+            DerivedInfo::IntMask(list_id) => {
+                f.write_str("int-mask<")?;
+                let i = crate::interner::interner();
+                for (idx, &t) in i.get_type_list(*list_id).iter().enumerate() {
+                    if idx > 0 {
+                        f.write_str(", ")?;
+                    }
+                    std::fmt::Display::fmt(&t, f)?;
+                }
+                f.write_str(">")
+            }
+            DerivedInfo::IntMaskOf(t) => write!(f, "int-mask-of<{t}>"),
+            DerivedInfo::TemplateType { object, class_name, template_name } => {
+                write!(f, "template-type<{object}, {class_name}, {template_name}>")
+            }
+            DerivedInfo::New(t) => write!(f, "new<{t}>"),
+        }
+    }
+}
+
+impl DerivedInfo {
+    pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
+        let _ = indent;
+        self.to_string()
+    }
+}

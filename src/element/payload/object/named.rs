@@ -62,3 +62,88 @@ impl ObjectFlags {
 // `Atom` is 8 bytes (it wraps `ustr::Ustr`, a thin pointer), so
 // `ObjectInfo` aligns to 8 and lands at 24 bytes total. That's our budget.
 const _: () = assert!(size_of::<ObjectInfo>() <= 24);
+
+impl std::fmt::Display for ObjectInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.flags.is_this() {
+            f.write_str("$this(")?;
+        }
+        f.write_str(self.name.as_str())?;
+        if let Some(args_id) = self.type_args {
+            f.write_str("<")?;
+            let i = crate::interner::interner();
+            for (idx, &arg) in i.get_type_list(args_id).iter().enumerate() {
+                if idx > 0 {
+                    f.write_str(", ")?;
+                }
+                std::fmt::Display::fmt(&arg, f)?;
+            }
+            f.write_str(">")?;
+        }
+        super::render_intersection_chain(self.intersections, f)?;
+        if self.flags.is_this() {
+            f.write_str(")")?;
+        } else if self.flags.is_static() {
+            f.write_str("&static")?;
+        }
+        Ok(())
+    }
+}
+
+impl ObjectInfo {
+    pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
+        use crate::typed::Typed;
+        let i = crate::interner::interner();
+        let mut out = String::new();
+        if self.flags.is_this() {
+            out.push_str("$this(");
+        }
+        out.push_str(self.name.as_str());
+        if let Some(args_id) = self.type_args {
+            let args = i.get_type_list(args_id);
+            let any_complex = args.iter().any(|a| a.is_complex());
+            if any_complex {
+                let inner_indent = indent + 2;
+                let inner_pad = " ".repeat(inner_indent);
+                out.push_str("<\n");
+                for (idx, &arg) in args.iter().enumerate() {
+                    if idx > 0 {
+                        out.push_str(",\n");
+                    }
+                    out.push_str(&inner_pad);
+                    out.push_str(&arg.pretty_with_indent(inner_indent));
+                }
+                out.push_str(",\n");
+                out.push_str(&" ".repeat(indent));
+                out.push('>');
+            } else {
+                out.push('<');
+                for (idx, &arg) in args.iter().enumerate() {
+                    if idx > 0 {
+                        out.push_str(", ");
+                    }
+                    out.push_str(&arg.pretty_with_indent(indent));
+                }
+                out.push('>');
+            }
+        }
+        // Intersections rendered the same as compact for now.
+        if let Some(id) = self.intersections {
+            for &conjunct in i.get_element_list(id) {
+                let s = conjunct.pretty_with_indent(indent);
+                if conjunct.has_intersection_types() {
+                    out.push_str(&format!("&({s})"));
+                } else {
+                    out.push('&');
+                    out.push_str(&s);
+                }
+            }
+        }
+        if self.flags.is_this() {
+            out.push(')');
+        } else if self.flags.is_static() {
+            out.push_str("&static");
+        }
+        out
+    }
+}

@@ -1,6 +1,10 @@
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::mem::size_of;
 
 use crate::handle::define_handle;
+use crate::interner::interner;
 
 define_handle! {
     /// Handle to an interned [`IntRange`]. Pulled out so [`IntInfo`] itself
@@ -110,3 +114,29 @@ impl BoundFlags {
 
 const _: () = assert!(size_of::<IntInfo>() <= 16);
 const _: () = assert!(size_of::<IntRange>() <= 24);
+
+impl Display for IntInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            IntInfo::Unspecified => f.write_str("int"),
+            IntInfo::UnspecifiedLiteral => f.write_str("literal-int"),
+            IntInfo::Literal(n) => write!(f, "int({n})"),
+            IntInfo::Range(rid) => Display::fmt(interner().get_int_range(*rid), f),
+        }
+    }
+}
+
+impl Display for IntRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match (self.lower(), self.upper()) {
+            (Some(1), None) => f.write_str("positive-int"),
+            (Some(0), None) => f.write_str("non-negative-int"),
+            (Some(lo), None) => write!(f, "int<{lo}, max>"),
+            (None, Some(-1)) => f.write_str("negative-int"),
+            (None, Some(0)) => f.write_str("non-positive-int"),
+            (None, Some(hi)) => write!(f, "int<min, {hi}>"),
+            (Some(lo), Some(hi)) => write!(f, "int<{lo}, {hi}>"),
+            (None, None) => f.write_str("int"),
+        }
+    }
+}

@@ -1,3 +1,6 @@
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::mem::size_of;
 
 /// `mixed` and its narrowed forms (`non-null-mixed`, `truthy-mixed`,
@@ -90,3 +93,24 @@ pub enum Truthiness {
 }
 
 const _: () = assert!(size_of::<MixedInfo>() == 1);
+
+impl Display for MixedInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let label = if self.is_empty() {
+            match self.truthiness() {
+                Truthiness::Truthy => "empty-truthy-mixed",
+                Truthiness::Falsy => "empty-falsy-mixed",
+                Truthiness::Undetermined if self.is_non_null() => "empty-nonnull",
+                Truthiness::Undetermined => "empty-mixed",
+            }
+        } else {
+            match self.truthiness() {
+                Truthiness::Truthy => "truthy-mixed",
+                Truthiness::Falsy => "falsy-mixed",
+                Truthiness::Undetermined if self.is_non_null() => "nonnull",
+                Truthiness::Undetermined => "mixed",
+            }
+        };
+        f.write_str(label)
+    }
+}

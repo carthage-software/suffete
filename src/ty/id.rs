@@ -182,3 +182,31 @@ define_handle! {
     /// parameter type lists, conditional/derived input lists).
     TypeListId
 }
+
+impl std::fmt::Display for TypeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.as_ref(), f)
+    }
+}
+
+impl crate::typed::Typed for TypeId {
+    fn pretty_with_indent(&self, indent: usize) -> String {
+        crate::typed::Typed::pretty_with_indent(self.as_ref(), indent)
+    }
+
+    fn intersection_types(&self) -> &'static [crate::ElementId] {
+        &[]
+    }
+
+    fn has_intersection_types(&self) -> bool {
+        false
+    }
+
+    fn can_be_intersected(&self) -> bool {
+        false
+    }
+
+    fn is_complex(&self) -> bool {
+        crate::typed::Typed::is_complex(self.as_ref())
+    }
+}

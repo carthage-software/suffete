@@ -45,3 +45,25 @@ pub enum ClassLikeStringSpecifier {
 const _: () = assert!(size_of::<ClassLikeStringSpecifier>() <= 16);
 const _: () = assert!(size_of::<ClassLikeStringInfo>() <= 24);
 const _: () = assert!(size_of::<ClassLikeKind>() == 1);
+
+impl ClassLikeKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            ClassLikeKind::Class => "class-string",
+            ClassLikeKind::Interface => "interface-string",
+            ClassLikeKind::Enum => "enum-string",
+            ClassLikeKind::Trait => "trait-string",
+        }
+    }
+}
+
+impl std::fmt::Display for ClassLikeStringInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.specifier {
+            ClassLikeStringSpecifier::Any => f.write_str(self.kind.as_str()),
+            ClassLikeStringSpecifier::Literal { value } => write!(f, "class-string('{}')", value.as_str()),
+            ClassLikeStringSpecifier::OfType { constraint } => write!(f, "{}<{}>", self.kind.as_str(), constraint.as_ref()),
+            ClassLikeStringSpecifier::Generic { constraint } => write!(f, "{}<{}>", self.kind.as_str(), constraint.as_ref()),
+        }
+    }
+}

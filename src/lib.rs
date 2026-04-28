@@ -21,6 +21,7 @@ pub mod subtract;
 pub mod template;
 pub mod transform;
 pub mod ty;
+pub mod typed;
 pub mod widen;
 pub mod world;
 

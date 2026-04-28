@@ -17,3 +17,17 @@ pub struct ConditionalInfo {
 }
 
 const _: () = assert!(size_of::<ConditionalInfo>() <= 40);
+
+impl std::fmt::Display for ConditionalInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let op = if self.negated { " is not " } else { " is " };
+        write!(f, "({}{}{} ? {} : {})", self.subject, op, self.target, self.then, self.otherwise)
+    }
+}
+
+impl ConditionalInfo {
+    pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
+        let _ = indent;
+        self.to_string()
+    }
+}

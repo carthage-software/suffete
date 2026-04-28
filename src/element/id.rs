@@ -340,3 +340,31 @@ define_handle! {
     /// intersections, etc.).
     ElementListId
 }
+
+impl std::fmt::Display for ElementId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.view(), f)
+    }
+}
+
+impl crate::typed::Typed for ElementId {
+    fn pretty_with_indent(&self, indent: usize) -> String {
+        crate::typed::Typed::pretty_with_indent(&self.view(), indent)
+    }
+
+    fn intersection_types(&self) -> &'static [ElementId] {
+        ElementId::intersection_types(*self)
+    }
+
+    fn has_intersection_types(&self) -> bool {
+        ElementId::has_intersection_types(*self)
+    }
+
+    fn can_be_intersected(&self) -> bool {
+        ElementId::can_be_intersected(*self)
+    }
+
+    fn is_complex(&self) -> bool {
+        crate::typed::Typed::is_complex(&self.view())
+    }
+}

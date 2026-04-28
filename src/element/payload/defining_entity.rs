@@ -30,3 +30,13 @@ pub enum DefiningEntity {
 }
 
 const _: () = assert!(size_of::<DefiningEntity>() <= 24);
+
+impl std::fmt::Display for DefiningEntity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DefiningEntity::ClassLike(name) => f.write_str(name.as_str()),
+            DefiningEntity::Method { class, method } => write!(f, "{}::{}", class.as_str(), method.as_str()),
+            DefiningEntity::Function(name) => f.write_str(name.as_str()),
+        }
+    }
+}

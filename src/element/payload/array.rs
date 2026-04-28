@@ -120,3 +120,86 @@ const _: () = assert!(size_of::<ListInfo>() <= 24);
 const _: () = assert!(size_of::<ArrayKey>() <= 24);
 const _: () = assert!(size_of::<KnownItemEntry>() <= 40);
 const _: () = assert!(size_of::<KnownElementEntry>() <= 24);
+
+impl std::fmt::Display for ArrayKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ArrayKey::Int(n) => write!(f, "{n}"),
+            ArrayKey::String(a) => write!(f, "'{}'", a.as_str()),
+            ArrayKey::Const { class, name } => write!(f, "{}::{}", class.as_str(), name.as_str()),
+        }
+    }
+}
+
+impl std::fmt::Display for KeyedArrayInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let i = crate::interner::interner();
+        if let Some(known_id) = self.known_items {
+            f.write_str("array{")?;
+            let mut first = true;
+            for entry in i.get_known_items(known_id) {
+                if !first {
+                    f.write_str(", ")?;
+                }
+                first = false;
+                std::fmt::Display::fmt(&entry.key, f)?;
+                if entry.optional {
+                    f.write_str("?")?;
+                }
+                f.write_str(": ")?;
+                std::fmt::Display::fmt(&entry.value, f)?;
+            }
+            if let (Some(k), Some(v)) = (self.key_param, self.value_param) {
+                if !first {
+                    f.write_str(", ")?;
+                }
+                write!(f, "...<{}, {}>", k, v)?;
+            }
+            f.write_str("}")
+        } else if let (Some(k), Some(v)) = (self.key_param, self.value_param) {
+            let head = if self.flags.non_empty() { "non-empty-array" } else { "array" };
+            write!(f, "{head}<{k}, {v}>")
+        } else {
+            f.write_str("array{}")
+        }
+    }
+}
+
+impl KeyedArrayInfo {
+    pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
+        let _ = indent;
+        self.to_string()
+    }
+}
+
+impl std::fmt::Display for ListInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let i = crate::interner::interner();
+        if let Some(known_id) = self.known_elements {
+            f.write_str("list{")?;
+            let mut first = true;
+            for entry in i.get_known_elements(known_id) {
+                if !first {
+                    f.write_str(", ")?;
+                }
+                first = false;
+                write!(f, "{}", entry.index)?;
+                if entry.optional {
+                    f.write_str("?")?;
+                }
+                write!(f, ": {}", entry.value)?;
+            }
+            f.write_str("}")
+        } else {
+            let head = if self.flags.non_empty() { "non-empty-list" } else { "list" };
+            write!(f, "{head}<{}>", self.element_type)
+        }
+    }
+}
+
+impl ListInfo {
+    pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
+        let _ = indent;
+        self.to_string()
+    }
+}

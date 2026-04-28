@@ -56,3 +56,42 @@ impl ObjectShapeFlags {
 
 const _: () = assert!(size_of::<ObjectShapeInfo>() <= 16);
 const _: () = assert!(size_of::<KnownPropertyEntry>() <= 24);
+
+impl std::fmt::Display for ObjectShapeInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let i = crate::interner::interner();
+        f.write_str("object{")?;
+        let mut first = true;
+        if let Some(known_id) = self.known_properties {
+            for entry in i.get_known_properties(known_id) {
+                if !first {
+                    f.write_str(", ")?;
+                }
+                first = false;
+                f.write_str(entry.name.as_str())?;
+                if entry.optional {
+                    f.write_str("?")?;
+                }
+                f.write_str(": ")?;
+                std::fmt::Display::fmt(&entry.value, f)?;
+            }
+        }
+        if !self.flags.sealed() {
+            if !first {
+                f.write_str(", ")?;
+            }
+            f.write_str("...")?;
+        }
+        f.write_str("}")?;
+        super::render_intersection_chain(self.intersections, f)
+    }
+}
+
+impl ObjectShapeInfo {
+    pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
+        // First-cut: identical to compact rendering. Multi-line indented
+        // form for shapes with many properties is a future precision win.
+        let _ = indent;
+        self.to_string()
+    }
+}

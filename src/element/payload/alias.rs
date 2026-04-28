@@ -14,3 +14,9 @@ pub struct AliasInfo {
 }
 
 const _: () = assert!(size_of::<AliasInfo>() <= 16);
+
+impl std::fmt::Display for AliasInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}::{}", self.class_name.as_str(), self.alias_name.as_str())
+    }
+}

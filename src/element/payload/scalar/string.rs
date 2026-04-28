@@ -95,3 +95,81 @@ impl StringRefinementFlags {
 const _: () = assert!(size_of::<StringInfo>() <= 24);
 const _: () = assert!(size_of::<StringLiteral>() <= 16);
 const _: () = assert!(size_of::<StringRefinementFlags>() == 1);
+
+impl std::fmt::Display for StringInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let StringLiteral::Value(value) = self.literal {
+            return write!(f, "string('{}')", value.as_str());
+        }
+
+        let label = match self.literal {
+            StringLiteral::Unspecified => label_literal_string(self),
+            StringLiteral::None => label_general_string(self),
+            StringLiteral::Value(_) => unreachable!(),
+        };
+        f.write_str(label)
+    }
+}
+
+fn label_literal_string(info: &StringInfo) -> &'static str {
+    if info.flags.is_truthy() {
+        if info.flags.is_numeric() {
+            "truthy-numeric-literal-string"
+        } else {
+            match info.casing {
+                StringCasing::Lowercase => "truthy-lowercase-literal-string",
+                StringCasing::Uppercase => "truthy-uppercase-literal-string",
+                StringCasing::Unspecified => "truthy-literal-string",
+            }
+        }
+    } else if info.flags.is_numeric() {
+        "numeric-literal-string"
+    } else if info.flags.is_non_empty() {
+        match info.casing {
+            StringCasing::Lowercase => "lowercase-non-empty-literal-string",
+            StringCasing::Uppercase => "uppercase-non-empty-literal-string",
+            StringCasing::Unspecified => "non-empty-literal-string",
+        }
+    } else {
+        match info.casing {
+            StringCasing::Lowercase => "lowercase-literal-string",
+            StringCasing::Uppercase => "uppercase-literal-string",
+            StringCasing::Unspecified => "literal-string",
+        }
+    }
+}
+
+fn label_general_string(info: &StringInfo) -> &'static str {
+    if info.flags.is_callable() {
+        return match info.casing {
+            StringCasing::Lowercase => "lowercase-callable-string",
+            StringCasing::Uppercase => "uppercase-callable-string",
+            StringCasing::Unspecified => "callable-string",
+        };
+    }
+    if info.flags.is_truthy() {
+        if info.flags.is_numeric() {
+            return "truthy-numeric-string";
+        }
+        return match info.casing {
+            StringCasing::Lowercase => "truthy-lowercase-string",
+            StringCasing::Uppercase => "truthy-uppercase-string",
+            StringCasing::Unspecified => "truthy-string",
+        };
+    }
+    if info.flags.is_numeric() {
+        return "numeric-string";
+    }
+    if info.flags.is_non_empty() {
+        return match info.casing {
+            StringCasing::Lowercase => "lowercase-non-empty-string",
+            StringCasing::Uppercase => "uppercase-non-empty-string",
+            StringCasing::Unspecified => "non-empty-string",
+        };
+    }
+    match info.casing {
+        StringCasing::Lowercase => "lowercase-string",
+        StringCasing::Uppercase => "uppercase-string",
+        StringCasing::Unspecified => "string",
+    }
+}
