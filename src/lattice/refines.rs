@@ -23,16 +23,10 @@ use crate::world::World;
 /// the union dispatch (Union-L / Union-R from §4.3), and the structural
 /// scalar lattice (bool / int / float / string / class-like-string /
 /// resource / array-key / numeric / scalar / object-any). Object hierarchy
-/// queries flow through `codebase`; callable variance, array shape rules,
+/// queries flow through `world`; callable variance, array shape rules,
 /// mixed-axis refinements, and template machinery layer in family by
 /// family; what isn't implemented returns `false` conservatively.
-pub fn refines<W: World>(
-    a: TypeId,
-    b: TypeId,
-    codebase: &W,
-    options: LatticeOptions,
-    report: &mut LatticeReport,
-) -> bool {
+pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOptions, report: &mut LatticeReport) -> bool {
     if a == b && !options.ignore_null && !options.ignore_false {
         return true;
     }
@@ -50,21 +44,21 @@ pub fn refines<W: World>(
             !skipped
         })
         .all(|input| {
-            b_type.elements.iter().any(|container| element_refines(*input, *container, codebase, options, report))
+            b_type.elements.iter().any(|container| element_refines(*input, *container, world, options, report))
         })
 }
 
 /// `true` iff `a :> b` — every value of type `b` is also a value of type `a`
-/// (`a` generalizes `b`). Equivalent to `refines(b, a, codebase, options, report)`.
+/// (`a` generalizes `b`). Equivalent to `refines(b, a, world, options, report)`.
 #[inline]
 pub fn generalizes<W: World>(
     a: TypeId,
     b: TypeId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
-    refines(b, a, codebase, options, report)
+    refines(b, a, world, options, report)
 }
 
 /// Decide whether one element refines another, ignoring flow flags.
@@ -80,7 +74,7 @@ pub fn generalizes<W: World>(
 pub(crate) fn element_refines<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -101,7 +95,7 @@ pub(crate) fn element_refines<W: World>(
     if input.kind() == ElementKind::GenericParameter && container.kind() != ElementKind::GenericParameter {
         let constraint = interner().get_generic_parameter(input).constraint;
         let container_type = interner().intern_type(&[container], FlowFlags::EMPTY);
-        let result = refines(constraint, container_type, codebase, options, report);
+        let result = refines(constraint, container_type, world, options, report);
         if !result && container != MIXED && constraint.as_ref().elements.contains(&MIXED) {
             // Reattribute: the input is `T as mixed`, not a structurally
             // nested mixed — the actionable diagnostic is "tighten T's
@@ -113,7 +107,7 @@ pub(crate) fn element_refines<W: World>(
         return result;
     }
 
-    let result = dispatch_refines(input, container, codebase, options, report);
+    let result = dispatch_refines(input, container, world, options, report);
 
     if result {
         if input.kind() == ElementKind::Int && container.kind() == ElementKind::Float {
@@ -150,7 +144,7 @@ fn is_true_union_kind(kind: ElementKind) -> bool {
 fn dispatch_refines<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -160,7 +154,7 @@ fn dispatch_refines<W: World>(
         ElementKind::Int => family::int::refines(input, container),
         ElementKind::Float => family::float::refines(input, container),
         ElementKind::String => family::string::refines(input, container),
-        ElementKind::ClassLikeString => family::class_like_string::refines(input, container),
+        ElementKind::ClassLikeString => family::class_like_string::refines(input, container, world, options, report),
         ElementKind::ArrayKey => family::array_key::refines(input, container),
         ElementKind::Numeric => family::numeric::refines(input, container),
         ElementKind::Scalar => family::scalar::refines(input, container),
@@ -169,10 +163,10 @@ fn dispatch_refines<W: World>(
         | ElementKind::Enum
         | ElementKind::ObjectShape
         | ElementKind::HasMethod
-        | ElementKind::HasProperty => family::object::refines(input, container, codebase, options, report),
-        ElementKind::Array | ElementKind::List => family::array::refines(input, container, codebase, options, report),
-        ElementKind::Iterable => family::iterable::refines(input, container, codebase, options, report),
-        ElementKind::Callable => family::callable::refines(input, container, codebase, options, report),
+        | ElementKind::HasProperty => family::object::refines(input, container, world, options, report),
+        ElementKind::Array | ElementKind::List => family::array::refines(input, container, world, options, report),
+        ElementKind::Iterable => family::iterable::refines(input, container, world, options, report),
+        ElementKind::Callable => family::callable::refines(input, container, world, options, report),
         ElementKind::Mixed => family::mixed::refines(input, container),
         ElementKind::GenericParameter => family::generic::refines(input, container),
         ElementKind::Variable

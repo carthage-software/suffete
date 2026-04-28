@@ -1,5 +1,5 @@
 //! The boundary between suffete's pure type system and the analyzer's
-//! view of the codebase being analyzed.
+//! view of the world being analyzed.
 //!
 //! Suffete answers questions about types in isolation: "is `int` a
 //! subtype of `float`?", "what is the join of `int|null` and
@@ -26,9 +26,10 @@ pub use self::template::TemplateParameter;
 pub use self::template::Variance;
 
 use crate::TypeId;
+use crate::element::payload::ClassLikeKind;
 use crate::element::payload::Visibility;
 
-/// What suffete needs to know about the codebase being analyzed.
+/// What suffete needs to know about the world being analyzed.
 ///
 /// All methods are queries — single-purpose lookups, never returning
 /// collections. This lets implementations store metadata however they
@@ -99,6 +100,13 @@ pub trait World {
     /// `value` property on an `object{...}` shape) is rejected.
     fn enum_backing(&self, enum_name: Atom) -> Option<EnumBacking>;
 
+    /// What kind of class-like `name` declares (class, interface, enum,
+    /// or trait), or `None` when the world doesn't know `name`. Used by
+    /// the lattice to resolve a class-like-string literal to the right
+    /// element kind: `class-string<E>` where `E` is an enum routes
+    /// through the enum-element family, not the named-object family.
+    fn class_like_kind(&self, name: Atom) -> Option<ClassLikeKind>;
+
     /// The recorded body of `class::alias` (a `@type` alias declared on
     /// the class), or `None` when the alias is unknown. Used by
     /// [`crate::expand`] to substitute alias bodies in place of
@@ -148,7 +156,7 @@ pub enum EnumBacking {
     Backed(TypeId),
 }
 
-/// A no-op [`World`] for queries that don't consult the codebase.
+/// A no-op [`World`] for queries that don't consult the world.
 ///
 /// Every lookup returns the empty / negative answer. Suitable when the
 /// input types contain only scalar / trivial elements and no object /
@@ -189,6 +197,10 @@ impl World for NullWorld {
     }
 
     fn enum_backing(&self, _enum_name: Atom) -> Option<EnumBacking> {
+        None
+    }
+
+    fn class_like_kind(&self, _name: Atom) -> Option<ClassLikeKind> {
         None
     }
 

@@ -49,13 +49,13 @@ use crate::world::World;
 pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
     match container.kind() {
-        ElementKind::List => refines_list(input, container, codebase, options, report),
-        ElementKind::Array => refines_keyed(input, container, codebase, options, report),
+        ElementKind::List => refines_list(input, container, world, options, report),
+        ElementKind::Array => refines_keyed(input, container, world, options, report),
         _ => false,
     }
 }
@@ -63,7 +63,7 @@ pub fn refines<W: World>(
 fn refines_list<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -79,7 +79,7 @@ fn refines_list<W: World>(
     match input.kind() {
         ElementKind::List => {
             let input_info = *i.get_list(input);
-            list_refines_list(input_info, container_info, codebase, options, report)
+            list_refines_list(input_info, container_info, world, options, report)
         }
         // Keyed-vs-list, sealed-list-vs-unsealed-list, etc., land here once
         // the sealed-list / sealed-keyed shape helpers are wired.
@@ -90,7 +90,7 @@ fn refines_list<W: World>(
 fn refines_keyed<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -106,7 +106,7 @@ fn refines_keyed<W: World>(
     match input.kind() {
         ElementKind::Array => {
             let input_info = *i.get_array(input);
-            keyed_refines_keyed(input_info, container_info, codebase, options, report)
+            keyed_refines_keyed(input_info, container_info, world, options, report)
         }
         ElementKind::List => {
             let input_info = *i.get_list(input);
@@ -124,8 +124,8 @@ fn refines_keyed<W: World>(
             if container_info.flags.non_empty() && !input_info.flags.non_empty() {
                 return false;
             }
-            type_refines(int_t, key_param, codebase, options, report)
-                && type_refines(input_info.element_type, value_param, codebase, options, report)
+            type_refines(int_t, key_param, world, options, report)
+                && type_refines(input_info.element_type, value_param, world, options, report)
         }
         _ => false,
     }
@@ -134,7 +134,7 @@ fn refines_keyed<W: World>(
 fn list_refines_list<W: World>(
     input: ListInfo,
     container: ListInfo,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -144,13 +144,13 @@ fn list_refines_list<W: World>(
         return false;
     }
 
-    type_refines(input.element_type, container.element_type, codebase, options, report)
+    type_refines(input.element_type, container.element_type, world, options, report)
 }
 
 fn keyed_refines_keyed<W: World>(
     input: KeyedArrayInfo,
     container: KeyedArrayInfo,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -159,7 +159,7 @@ fn keyed_refines_keyed<W: World>(
     }
 
     if container.is_sealed() {
-        return sealed_refines_sealed(input, container, codebase, options, report);
+        return sealed_refines_sealed(input, container, world, options, report);
     }
 
     let (container_key, container_value) = match (container.key_param, container.value_param) {
@@ -171,20 +171,20 @@ fn keyed_refines_keyed<W: World>(
         let items = interner().get_known_items(items_id);
         for item in items {
             let key_t = key_to_type(item.key);
-            if !type_refines(key_t, container_key, codebase, options, report) {
+            if !type_refines(key_t, container_key, world, options, report) {
                 return false;
             }
-            if !type_refines(item.value, container_value, codebase, options, report) {
+            if !type_refines(item.value, container_value, world, options, report) {
                 return false;
             }
         }
     }
 
     if let (Some(input_key), Some(input_value)) = (input.key_param, input.value_param) {
-        if !type_refines(input_key, container_key, codebase, options, report) {
+        if !type_refines(input_key, container_key, world, options, report) {
             return false;
         }
-        if !type_refines(input_value, container_value, codebase, options, report) {
+        if !type_refines(input_value, container_value, world, options, report) {
             return false;
         }
     }
@@ -195,7 +195,7 @@ fn keyed_refines_keyed<W: World>(
 fn sealed_refines_sealed<W: World>(
     input: KeyedArrayInfo,
     container: KeyedArrayInfo,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -231,7 +231,7 @@ fn sealed_refines_sealed<W: World>(
                     return false;
                 }
 
-                if !type_refines(input_item.value, container_item.value, codebase, options, report) {
+                if !type_refines(input_item.value, container_item.value, world, options, report) {
                     return false;
                 }
             }

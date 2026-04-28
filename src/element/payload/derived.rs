@@ -4,7 +4,7 @@ use crate::TypeId;
 use crate::TypeListId;
 
 /// Type-level functions over other types: deferred computations that, given
-/// the codebase, produce a concrete type.
+/// the world, produce a concrete type.
 ///
 /// Each variant is its own deferred operation. Largest payload here is
 /// [`Self::TemplateType`] at three [`TypeId`]s (12 bytes), so the whole enum

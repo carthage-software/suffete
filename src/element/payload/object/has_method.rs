@@ -6,7 +6,7 @@ use crate::ElementListId;
 
 /// "Some object that has a method named `M`", produced by `method_exists`
 /// narrowing. Subtype of [`ObjectInfo`](super::ObjectInfo) `Any`; subtype of a
-/// specific [`ObjectInfo`](super::ObjectInfo) iff the codebase confirms that
+/// specific [`ObjectInfo`](super::ObjectInfo) iff the world confirms that
 /// class has the method.
 ///
 /// Carries an optional intersection list so structural narrowings can chain

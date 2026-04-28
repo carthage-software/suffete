@@ -8,7 +8,7 @@ use crate::interner::interner;
 
 define_handle! {
     /// Handle to an interned [`IntRange`]. Pulled out so [`IntInfo`] itself
-    /// stays small. Most ranges in real codebases are well-known
+    /// stays small. Most ranges in real worlds are well-known
     /// (`positive-int`, `non-zero-int`, etc.) and dedupe to one entry.
     IntRangeId
 }
@@ -16,7 +16,7 @@ define_handle! {
 /// `int`, `literal-int`, integer literals, and bounded integer ranges.
 ///
 /// `Range` carries an [`IntRangeId`] handle (not the bounds inline) so this
-/// enum stays at 16 bytes per slot. Most ranges in real codebases are
+/// enum stays at 16 bytes per slot. Most ranges in real worlds are
 /// well-known (`positive-int`, `non-zero-int`, …) and dedupe to one entry in
 /// the `IntRange` interner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

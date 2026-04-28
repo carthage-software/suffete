@@ -1,4 +1,4 @@
-//! Object hierarchy. Mago tests use `codebase_from_php(php_source)`; we
+//! Object hierarchy. Mago tests use `world_from_php(php_source)`; we
 //! substitute hand-built [`MockWorld`] hierarchies declared inline.
 
 mod comparator_common;
@@ -240,7 +240,7 @@ fn many_class_hierarchy_non_relations() {
 
 // Sanity check that MockWorld reports the closure correctly.
 #[test]
-fn mock_codebase_transitive_closure() {
+fn mock_world_transitive_closure() {
     let cb = animal_hierarchy();
     assert!(cb.descends_from(name("Cocker"), name("Animal")));
     assert!(cb.descends_from(name("Cocker"), name("Mammal")));

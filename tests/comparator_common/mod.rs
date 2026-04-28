@@ -63,6 +63,10 @@ pub struct MockWorld {
     properties: HashMap<Atom, Vec<ClassProperty>>,
     /// `enum -> backing kind` for declared enums.
     enums: HashMap<Atom, EnumBacking>,
+    /// `name -> declared class-like kind` (interface / trait when set
+    /// explicitly; classes and enums are inferred). Names absent here
+    /// are treated as plain classes when they appear in `ancestors`.
+    class_like_kinds: HashMap<Atom, suffete::element::payload::ClassLikeKind>,
     /// `(class, alias_name) -> alias body type` for declared `@type`
     /// aliases. Body may itself contain other aliases, references, or
     /// derived types — expansion is recursive.
@@ -83,6 +87,7 @@ impl MockWorld {
             methods: HashMap::new(),
             properties: HashMap::new(),
             enums: HashMap::new(),
+            class_like_kinds: HashMap::new(),
             aliases: HashMap::new(),
             class_constants: HashMap::new(),
             global_constants: HashMap::new(),
@@ -125,6 +130,24 @@ impl MockWorld {
     pub fn declare(&mut self, name: &str) -> &mut Self {
         let n = atom(name);
         self.ancestors.entry(n).or_default().insert(n);
+        self
+    }
+
+    /// Tag `name` as an interface so [`World::class_like_kind`] returns
+    /// `Interface`. Implicitly declares `name` for the ancestor closure.
+    pub fn declare_interface(&mut self, name: &str) -> &mut Self {
+        let n = atom(name);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.class_like_kinds.insert(n, suffete::element::payload::ClassLikeKind::Interface);
+        self
+    }
+
+    /// Tag `name` as a trait so [`World::class_like_kind`] returns
+    /// `Trait`. Implicitly declares `name` for the ancestor closure.
+    pub fn declare_trait(&mut self, name: &str) -> &mut Self {
+        let n = atom(name);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.class_like_kinds.insert(n, suffete::element::payload::ClassLikeKind::Trait);
         self
     }
 
@@ -353,6 +376,19 @@ impl World for MockWorld {
         self.enums.get(&enum_name).copied()
     }
 
+    fn class_like_kind(&self, name: Atom) -> Option<suffete::element::payload::ClassLikeKind> {
+        if let Some(k) = self.class_like_kinds.get(&name) {
+            return Some(*k);
+        }
+        if self.enums.contains_key(&name) {
+            return Some(suffete::element::payload::ClassLikeKind::Enum);
+        }
+        if self.ancestors.contains_key(&name) {
+            return Some(suffete::element::payload::ClassLikeKind::Class);
+        }
+        None
+    }
+
     fn alias_body(&self, class: Atom, alias: Atom) -> Option<TypeId> {
         self.aliases.get(&(class, alias)).copied()
     }
@@ -372,17 +408,17 @@ pub fn empty_world() -> NullWorld {
     NullWorld
 }
 
-/// `lattice::refines(input, container, codebase, default options, _)`.
-pub fn is_contained<W: World>(input: TypeId, container: TypeId, codebase: &W) -> bool {
+/// `lattice::refines(input, container, world, default options, _)`.
+pub fn is_contained<W: World>(input: TypeId, container: TypeId, world: &W) -> bool {
     let mut report = LatticeReport::new();
-    lattice::refines(input, container, codebase, LatticeOptions::default(), &mut report)
+    lattice::refines(input, container, world, LatticeOptions::default(), &mut report)
 }
 
 /// As [`is_contained`], but returns the [`LatticeReport`] alongside the
 /// boolean answer so tests can inspect coercion flags.
-pub fn is_contained_capturing<W: World>(input: TypeId, container: TypeId, codebase: &W) -> (bool, LatticeReport) {
+pub fn is_contained_capturing<W: World>(input: TypeId, container: TypeId, world: &W) -> (bool, LatticeReport) {
     let mut report = LatticeReport::new();
-    let v = lattice::refines(input, container, codebase, LatticeOptions::default(), &mut report);
+    let v = lattice::refines(input, container, world, LatticeOptions::default(), &mut report);
     (v, report)
 }
 
@@ -392,46 +428,46 @@ pub fn is_contained_capturing<W: World>(input: TypeId, container: TypeId, codeba
 pub fn is_contained_with<W: World>(
     input: TypeId,
     container: TypeId,
-    codebase: &W,
+    world: &W,
     ignore_null: bool,
     ignore_false: bool,
     inside_assertion: bool,
 ) -> bool {
     let options = LatticeOptions { ignore_null, ignore_false, inside_assertion };
     let mut report = LatticeReport::new();
-    lattice::refines(input, container, codebase, options, &mut report)
+    lattice::refines(input, container, world, options, &mut report)
 }
 
 /// Element-vs-element refinement query: wraps both in singleton unions and
 /// calls [`is_contained`].
-pub fn atomic_is_contained<W: World>(input: ElementId, container: ElementId, codebase: &W) -> bool {
+pub fn atomic_is_contained<W: World>(input: ElementId, container: ElementId, world: &W) -> bool {
     let i = interner();
     let it = i.intern_type(&[input], FlowFlags::EMPTY);
     let ct = i.intern_type(&[container], FlowFlags::EMPTY);
-    is_contained(it, ct, codebase)
+    is_contained(it, ct, world)
 }
 
-pub fn overlaps<W: World>(a: TypeId, b: TypeId, codebase: &W) -> bool {
+pub fn overlaps<W: World>(a: TypeId, b: TypeId, world: &W) -> bool {
     let mut report = LatticeReport::new();
-    lattice::overlaps(a, b, codebase, LatticeOptions::default(), &mut report)
+    lattice::overlaps(a, b, world, LatticeOptions::default(), &mut report)
 }
 
-pub fn atomic_overlaps<W: World>(a: ElementId, b: ElementId, codebase: &W) -> bool {
+pub fn atomic_overlaps<W: World>(a: ElementId, b: ElementId, world: &W) -> bool {
     let i = interner();
     let at = i.intern_type(&[a], FlowFlags::EMPTY);
     let bt = i.intern_type(&[b], FlowFlags::EMPTY);
-    overlaps(at, bt, codebase)
+    overlaps(at, bt, world)
 }
 
 pub fn atomic_is_contained_capturing<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &W,
+    world: &W,
 ) -> (bool, LatticeReport) {
     let i = interner();
     let it = i.intern_type(&[input], FlowFlags::EMPTY);
     let ct = i.intern_type(&[container], FlowFlags::EMPTY);
-    is_contained_capturing(it, ct, codebase)
+    is_contained_capturing(it, ct, world)
 }
 
 #[track_caller]
@@ -586,6 +622,26 @@ pub fn t_trait_string() -> ElementId {
 }
 pub fn t_lit_class_string(name: &str) -> ElementId {
     ElementId::class_string_literal(name)
+}
+
+pub fn t_class_string_of(constraint: TypeId) -> ElementId {
+    use suffete::element::payload::ClassLikeKind;
+    use suffete::element::payload::ClassLikeStringInfo;
+    use suffete::element::payload::ClassLikeStringSpecifier;
+    interner().intern_class_like_string(ClassLikeStringInfo {
+        kind: ClassLikeKind::Class,
+        specifier: ClassLikeStringSpecifier::OfType { constraint },
+    })
+}
+
+pub fn t_interface_string_of(constraint: TypeId) -> ElementId {
+    use suffete::element::payload::ClassLikeKind;
+    use suffete::element::payload::ClassLikeStringInfo;
+    use suffete::element::payload::ClassLikeStringSpecifier;
+    interner().intern_class_like_string(ClassLikeStringInfo {
+        kind: ClassLikeKind::Interface,
+        specifier: ClassLikeStringSpecifier::OfType { constraint },
+    })
 }
 
 pub fn t_resource() -> ElementId {

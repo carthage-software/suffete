@@ -12,7 +12,7 @@
 //!   (vacuously true: empty has no entries)
 //!
 //! `iterable` does NOT accept generic `\Traversable` named-objects yet
-//! because that requires codebase-driven hierarchy queries.
+//! because that requires world-driven hierarchy queries.
 
 use crate::ElementId;
 use crate::ElementKind;
@@ -29,7 +29,7 @@ use crate::world::World;
 pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -45,23 +45,21 @@ pub fn refines<W: World>(
     match input.kind() {
         ElementKind::Iterable => {
             let input_info = *i.get_iterable(input);
-            type_refines(input_info.key_type, container_info.key_type, codebase, options, report)
-                && type_refines(input_info.value_type, container_info.value_type, codebase, options, report)
+            type_refines(input_info.key_type, container_info.key_type, world, options, report)
+                && type_refines(input_info.value_type, container_info.value_type, world, options, report)
         }
         ElementKind::List => {
             let input_info = *i.get_list(input);
-            // List values are int-keyed at runtime; the container's key side
-            // must accept `int`.
             let int_t = single_type(INT);
-            type_refines(int_t, container_info.key_type, codebase, options, report)
-                && type_refines(input_info.element_type, container_info.value_type, codebase, options, report)
+            type_refines(int_t, container_info.key_type, world, options, report)
+                && type_refines(input_info.element_type, container_info.value_type, world, options, report)
         }
         ElementKind::Array => {
             let input_info = *i.get_array(input);
             let key = input_info.key_param.unwrap_or_else(|| single_type(ARRAY_KEY));
             let value = input_info.value_param.unwrap_or(container_info.value_type);
-            type_refines(key, container_info.key_type, codebase, options, report)
-                && type_refines(value, container_info.value_type, codebase, options, report)
+            type_refines(key, container_info.key_type, world, options, report)
+                && type_refines(value, container_info.value_type, world, options, report)
         }
         _ => false,
     }
@@ -70,11 +68,11 @@ pub fn refines<W: World>(
 fn type_refines<W: World>(
     a: TypeId,
     b: TypeId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
-    type_refines_outer(a, b, codebase, options, report)
+    type_refines_outer(a, b, world, options, report)
 }
 
 fn single_type(element: ElementId) -> TypeId {

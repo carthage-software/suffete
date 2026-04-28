@@ -1,3 +1,6 @@
 [files]
 extend-exclude = [".git/", "tests/"]
 ignore-hidden = false
+
+[default.extend-words]
+alo = "alo"

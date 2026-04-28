@@ -4,7 +4,7 @@ use mago_atom::Atom;
 
 /// A user-defined `@type` alias: `class_name :: alias_name`.
 ///
-/// Resolves through the codebase (Γ) to the alias body. Two aliases defined
+/// Resolves through the world (Γ) to the alias body. Two aliases defined
 /// identically in different classes are denotationally equivalent; the source
 /// names are retained only for diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

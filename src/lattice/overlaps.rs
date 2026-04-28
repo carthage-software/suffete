@@ -43,20 +43,20 @@ use crate::world::World;
 pub fn overlaps<W: World>(
     a: TypeId,
     b: TypeId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
     let a_type = a.as_ref();
     let b_type = b.as_ref();
 
-    a_type.elements.iter().any(|x| b_type.elements.iter().any(|y| element_overlaps(*x, *y, codebase, options, report)))
+    a_type.elements.iter().any(|x| b_type.elements.iter().any(|y| element_overlaps(*x, *y, world, options, report)))
 }
 
 fn element_overlaps<W: World>(
     a: ElementId,
     b: ElementId,
-    codebase: &W,
+    world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
@@ -73,15 +73,15 @@ fn element_overlaps<W: World>(
     if a.kind() == ElementKind::GenericParameter {
         let constraint = interner().get_generic_parameter(a).constraint;
         let other = interner().intern_type(&[b], FlowFlags::EMPTY);
-        return overlaps(constraint, other, codebase, options, report);
+        return overlaps(constraint, other, world, options, report);
     }
     if b.kind() == ElementKind::GenericParameter {
         let constraint = interner().get_generic_parameter(b).constraint;
         let other = interner().intern_type(&[a], FlowFlags::EMPTY);
-        return overlaps(constraint, other, codebase, options, report);
+        return overlaps(constraint, other, world, options, report);
     }
 
-    if element_refines(a, b, codebase, options, report) || element_refines(b, a, codebase, options, report) {
+    if element_refines(a, b, world, options, report) || element_refines(b, a, world, options, report) {
         return true;
     }
 

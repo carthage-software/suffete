@@ -40,7 +40,7 @@
 //!
 //! Refinement-driven absorptions (`int ∨ Literal(N) → int` once the lattice
 //! decides the literal refines the dominator, range merging, class hierarchy
-//! collapse, etc.) require the lattice and a codebase, and are not applied
+//! collapse, etc.) require the lattice and a world, and are not applied
 //! here.
 
 use std::num::NonZeroU32;

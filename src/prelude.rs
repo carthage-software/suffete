@@ -12,7 +12,7 @@
 //!
 //! Pre-canonicalized well-known unions (e.g. `int|float`, `null|string`,
 //! `-1|0|1`) get fixed [`TypeId`]s for the same reason: lookup-free identity
-//! for the most common types in any PHP codebase. `TypeId` slots are 1-based
+//! for the most common types in any PHP world. `TypeId` slots are 1-based
 //! (slot `0` is reserved as the `NonZero` niche).
 //!
 //! There is intentionally no well-known `Closure` element. A bare `\Closure`
