@@ -62,6 +62,7 @@ use crate::world::World;
 
 /// Outcome of [`narrow`], classifying an assertion-driven difference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SubtractOutcome {
     /// `input ⊆ σ`: every value of the input also satisfies the
     /// predicate being negated, so the negative assertion can never

@@ -81,6 +81,7 @@ impl MixedInfo {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
 pub enum Truthiness {
     #[default]
     Undetermined,

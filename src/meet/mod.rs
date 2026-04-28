@@ -59,6 +59,7 @@ use crate::world::World;
 
 /// Outcome of [`narrow`], classifying an assertion-driven meet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum MeetOutcome {
     /// The input and the narrowing have no values in common. The
     /// assertion `input is σ` cannot hold for any value of `input`.

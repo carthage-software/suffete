@@ -64,6 +64,7 @@ pub struct TemplateParameter {
 ///   exactly (mutual subtyping). The default and only safe choice when
 ///   `T` is used both as input and output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
 pub enum Variance {
     Covariant,
     Contravariant,

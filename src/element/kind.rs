@@ -7,6 +7,7 @@
 /// [`ElementId`](crate::ElementId) (and [`TypeId`](crate::TypeId)) `NonZero`.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ElementKind {
     Null = 1,
     Never,

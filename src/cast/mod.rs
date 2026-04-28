@@ -43,6 +43,7 @@ use crate::world::World;
 
 /// One of PHP's six explicit cast operators.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CastTarget {
     Int,
     Float,

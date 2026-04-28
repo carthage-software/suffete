@@ -15,6 +15,7 @@ pub struct StringInfo {
 /// Three states for the literal-value field: no literal info, came-from-a-
 /// literal-source-but-value-unknown, or exact value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum StringLiteral {
     None,
     Unspecified,
@@ -23,6 +24,7 @@ pub enum StringLiteral {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum StringCasing {
     #[default]
     Unspecified,

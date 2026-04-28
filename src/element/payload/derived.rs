@@ -10,6 +10,7 @@ use crate::TypeListId;
 /// [`Self::TemplateType`] at three [`TypeId`]s (12 bytes), so the whole enum
 /// lands at 16 bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum DerivedInfo {
     /// `key-of<T>`: the key type of an array-like or iterable `T`.
     KeyOf(TypeId),
@@ -46,6 +47,7 @@ pub enum DerivedInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum Visibility {
     Public,
     Protected,

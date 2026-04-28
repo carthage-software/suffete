@@ -8,6 +8,7 @@ use ordered_float::OrderedFloat;
 /// `Hash`. NaN compares equal to NaN at the *type* level here; runtime
 /// `is_nan` semantics are an analyzer concern, not the type system's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum FloatInfo {
     Unspecified,
     UnspecifiedLiteral,

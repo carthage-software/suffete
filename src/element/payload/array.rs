@@ -23,6 +23,7 @@ define_handle! {
 /// `Const` carries an unresolved `Class::CONSTANT` reference; resolution
 /// happens during the population phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum ArrayKey {
     Int(i64),
     String(Atom),

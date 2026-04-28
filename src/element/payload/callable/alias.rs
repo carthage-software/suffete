@@ -19,6 +19,7 @@ define_handle! {
 /// gets its own canonical entry in the [`CallableAliasId`] interner; two
 /// references to the same function/method/closure share one slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CallableAlias {
     Function(Atom),
     Method { class: Atom, method: Atom },

@@ -6,6 +6,7 @@ use std::mem::size_of;
 /// structural.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum ResourceInfo {
     /// `resource`: any resource, regardless of state.
     Any,

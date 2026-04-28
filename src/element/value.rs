@@ -31,6 +31,7 @@ use crate::element::payload::scalar::StringInfo;
 /// `Element` is `Copy` (every variant is either tag-only or a thin pointer),
 /// so consumers can match-then-discard freely.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub enum Element {
     Null,
     Never,

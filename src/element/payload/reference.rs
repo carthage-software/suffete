@@ -39,6 +39,7 @@ pub struct GlobalReference {
 
 /// How a member or global reference picks one or more matching names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum NameSelector {
     Identifier(Atom),
     StartsWith(Atom),

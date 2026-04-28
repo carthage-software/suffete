@@ -16,6 +16,7 @@ define_handle! {
 /// well-known (`positive-int`, `non-zero-int`, …) and dedupe to one entry in
 /// the `IntRange` interner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum IntInfo {
     Unspecified,
     UnspecifiedLiteral,

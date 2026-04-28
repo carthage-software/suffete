@@ -25,8 +25,8 @@
 //! intermediate parent's templates with the child's actual arguments to
 //! that parent. The substitution algorithm is [`crate::template::substitute`].
 
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 use mago_atom::Atom;
 
@@ -40,7 +40,7 @@ use crate::world::World;
 /// Builder collecting direct parent edges before transitive composition.
 #[derive(Debug, Default, Clone)]
 pub struct HierarchyBuilder {
-    edges: HashMap<(Atom, Atom), Vec<TypeId>>,
+    edges: BTreeMap<(Atom, Atom), Vec<TypeId>>,
 }
 
 impl HierarchyBuilder {
@@ -59,16 +59,16 @@ impl HierarchyBuilder {
     /// `world` supplies template-name-to-position lookups for each
     /// intermediate class via [`World::template_parameter_index`].
     pub fn build<W: World>(self, world: &W) -> Hierarchy {
-        let mut parents_of: HashMap<Atom, Vec<Atom>> = HashMap::new();
+        let mut parents_of: BTreeMap<Atom, Vec<Atom>> = BTreeMap::new();
         for &(child, parent) in self.edges.keys() {
             parents_of.entry(child).or_default().push(parent);
         }
 
-        let mut composed: HashMap<(Atom, Atom), Vec<TypeId>> = self.edges.clone();
+        let mut composed: BTreeMap<(Atom, Atom), Vec<TypeId>> = self.edges.clone();
 
         let children: Vec<Atom> = parents_of.keys().copied().collect();
         for child in children {
-            let mut visiting: HashSet<Atom> = HashSet::new();
+            let mut visiting: BTreeSet<Atom> = BTreeSet::new();
             walk(child, &self.edges, &parents_of, &mut composed, &mut visiting, world);
         }
 
@@ -78,10 +78,10 @@ impl HierarchyBuilder {
 
 fn walk<W: World>(
     child: Atom,
-    edges: &HashMap<(Atom, Atom), Vec<TypeId>>,
-    parents_of: &HashMap<Atom, Vec<Atom>>,
-    composed: &mut HashMap<(Atom, Atom), Vec<TypeId>>,
-    visiting: &mut HashSet<Atom>,
+    edges: &BTreeMap<(Atom, Atom), Vec<TypeId>>,
+    parents_of: &BTreeMap<Atom, Vec<Atom>>,
+    composed: &mut BTreeMap<(Atom, Atom), Vec<TypeId>>,
+    visiting: &mut BTreeSet<Atom>,
     world: &W,
 ) {
     if !visiting.insert(child) {
@@ -138,7 +138,7 @@ fn walk<W: World>(
 /// O(1) lookup keyed on `(child, ancestor)`.
 #[derive(Debug, Clone, Default)]
 pub struct Hierarchy {
-    composed: HashMap<(Atom, Atom), Vec<TypeId>>,
+    composed: BTreeMap<(Atom, Atom), Vec<TypeId>>,
 }
 
 impl Hierarchy {

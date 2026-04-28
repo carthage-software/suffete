@@ -22,6 +22,7 @@ define_handle! {
 /// (`(class, method)` pair); `ClassLike` covers a class/interface/trait/enum
 /// declaring class-level templates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum DefiningEntity {
     ClassLike(Atom),
     Method { class: Atom, method: Atom },

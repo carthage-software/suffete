@@ -138,6 +138,7 @@ pub struct ClassProperty {
 /// pure (only `name`) or backed by `int` / `string` (carrying a `value`
 /// property of that scalar type).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum EnumBacking {
     /// Pure enum (`enum X { case A; }`). Cases expose only `name`.
     Pure,

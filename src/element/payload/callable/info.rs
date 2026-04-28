@@ -15,6 +15,7 @@ use super::SignatureId;
 /// not as `Closure(...)` here. `Closure(σ)` is reserved for the case where
 /// the signature `σ` is known.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CallableInfo {
     /// Just `callable`, no signature info.
     Any,

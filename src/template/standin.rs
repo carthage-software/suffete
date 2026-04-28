@@ -54,6 +54,7 @@ use crate::world::World;
 
 /// What kind of bound was recorded on a template parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum BoundKind {
     /// `T ≽ τ` — `T` must be a supertype of `τ`. Collected at
     /// covariant positions.

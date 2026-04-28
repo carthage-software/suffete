@@ -19,6 +19,7 @@ pub struct ClassLikeStringInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum ClassLikeKind {
     Class,
     Interface,
@@ -33,6 +34,7 @@ pub enum ClassLikeKind {
 /// names the template parameter and its scope, so we don't repeat that
 /// information here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ClassLikeStringSpecifier {
     Any,
     Literal { value: Atom },
