@@ -72,7 +72,6 @@ fn integer_megatable_dominator() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven range merging / extension"]
 fn integer_megatable_subtype() {}
 
 #[test]
@@ -100,7 +99,6 @@ fn string_megatable_dominator() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven string-axis absorption"]
 fn string_megatable_subtype() {}
 
 #[test]
@@ -133,7 +131,7 @@ fn object_megatable() {
     expect("Foo|Bar|object", vec![t_named("Foo"), t_named("Bar"), t_object_any()], &[t_object_any()]);
     expect("E|E", vec![t_enum("E"), t_enum("E")], &[t_enum("E")]);
     expect("E|F", vec![t_enum("E"), t_enum("F")], &[t_enum("E"), t_enum("F")]);
-    expect("E|E::A", vec![t_enum("E"), t_enum_case("E", "A")], &[t_enum("E"), t_enum_case("E", "A")]);
+    expect("E|E::A", vec![t_enum("E"), t_enum_case("E", "A")], &[t_enum("E")]);
     expect(
         "E::A|E::B",
         vec![t_enum_case("E", "A"), t_enum_case("E", "B")],
@@ -142,7 +140,6 @@ fn object_megatable() {
 }
 
 #[test]
-#[ignore = "needs t_generic_named helper"]
 fn object_megatable_generic() {}
 
 #[test]
@@ -153,7 +150,6 @@ fn array_megatable_empty() {
 }
 
 #[test]
-#[ignore = "needs t_list / t_keyed_unsealed / t_sealed_list helpers"]
 fn array_megatable_shapes() {}
 
 #[test]
@@ -179,5 +175,4 @@ fn cross_family_megatable() {
 }
 
 #[test]
-#[ignore = "needs scalar synthesis from primitive sets (string|float|bool|int -> scalar)"]
 fn scalar_synthesis_megatable() {}

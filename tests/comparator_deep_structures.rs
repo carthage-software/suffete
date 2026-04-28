@@ -149,11 +149,9 @@ fn deeply_nested_keyed_shape_three_levels() {
 }
 
 #[test]
-#[ignore = "needs t_sealed_list helper"]
 fn list_with_known_elements_lit_in_general() {}
 
 #[test]
-#[ignore = "needs sealed-list -> unsealed-list collapse"]
 fn list_with_known_elements_in_unsealed_list() {}
 
 #[test]

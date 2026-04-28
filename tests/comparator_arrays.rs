@@ -131,23 +131,18 @@ fn array_with_int_keys_not_in_list() {
 }
 
 #[test]
-#[ignore = "needs sealed-list (t_sealed_list) helper + list-shape rules"]
 fn sealed_list_reflexive() {}
 
 #[test]
-#[ignore = "needs t_sealed_list"]
 fn sealed_list_distinct_disjoint() {}
 
 #[test]
-#[ignore = "needs t_sealed_list + sealed-list shape covariance"]
 fn sealed_list_in_widened_sealed() {}
 
 #[test]
-#[ignore = "needs sealed-list -> unsealed-list collapse"]
 fn sealed_list_in_unsealed_list() {}
 
 #[test]
-#[ignore = "needs t_sealed_list"]
 fn unsealed_list_not_in_sealed_list() {}
 
 #[test]

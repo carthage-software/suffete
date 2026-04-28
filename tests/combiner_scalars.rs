@@ -163,8 +163,8 @@ fn equal_literal_ints_collapse() {
 }
 
 #[test]
-fn distinct_literal_ints_kept_apart_under_threshold() {
-    let inputs: Vec<ElementId> = (1..=10).map(t_lit_int).collect();
+fn non_adjacent_literal_ints_kept_apart_under_threshold() {
+    let inputs: Vec<ElementId> = (1..=10_i64).map(|i| t_lit_int(i * 10)).collect();
     let result = combine_default(inputs);
     assert_eq!(result.len(), 10);
 }
@@ -193,34 +193,30 @@ fn equal_literal_strings_collapse() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven numeric absorption"]
-fn numeric_absorbs_int_only_when_first() {
+fn numeric_absorbs_int_either_order() {
     assert_combines_to(vec![t_numeric(), t_int()], vec![t_numeric()]);
-    assert_combines_to(vec![t_int(), t_numeric()], vec![t_int(), t_numeric()]);
+    assert_combines_to(vec![t_int(), t_numeric()], vec![t_numeric()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven numeric absorption"]
-fn numeric_absorbs_float_only_when_first() {
+fn numeric_absorbs_float_either_order() {
     assert_combines_to(vec![t_numeric(), t_float()], vec![t_numeric()]);
-    assert_combines_to(vec![t_float(), t_numeric()], vec![t_float(), t_numeric()]);
+    assert_combines_to(vec![t_float(), t_numeric()], vec![t_numeric()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven numeric absorption"]
-fn numeric_absorbs_literal_int_only_when_first() {
+fn numeric_absorbs_literal_int_either_order() {
     for v in [-5_i64, 0, 5, 100] {
         assert_combines_to(vec![t_numeric(), t_lit_int(v)], vec![t_numeric()]);
-        assert_combines_to(vec![t_lit_int(v), t_numeric()], vec![t_lit_int(v), t_numeric()]);
+        assert_combines_to(vec![t_lit_int(v), t_numeric()], vec![t_numeric()]);
     }
 }
 
 #[test]
-#[ignore = "needs subtype-driven numeric absorption"]
-fn numeric_absorbs_literal_float_only_when_first() {
+fn numeric_absorbs_literal_float_either_order() {
     for v in [-1.0_f64, 0.0, 1.5, 100.0] {
         assert_combines_to(vec![t_numeric(), t_lit_float(v)], vec![t_numeric()]);
-        assert_combines_to(vec![t_lit_float(v), t_numeric()], vec![t_lit_float(v), t_numeric()]);
+        assert_combines_to(vec![t_lit_float(v), t_numeric()], vec![t_numeric()]);
     }
 }
 
@@ -233,21 +229,18 @@ fn numeric_does_not_absorb_string_either_order() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven array-key absorption (int <: array-key)"]
 fn array_key_absorbs_int_either_order() {
     assert_combines_to(vec![t_array_key(), t_int()], vec![t_array_key()]);
     assert_combines_to(vec![t_int(), t_array_key()], vec![t_array_key()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven array-key absorption (string <: array-key)"]
 fn array_key_absorbs_string_either_order() {
     assert_combines_to(vec![t_array_key(), t_string()], vec![t_array_key()]);
     assert_combines_to(vec![t_string(), t_array_key()], vec![t_array_key()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven array-key absorption"]
 fn array_key_absorbs_literal_int_either_order() {
     for v in [-5_i64, 0, 5, 42] {
         assert_combines_to(vec![t_array_key(), t_lit_int(v)], vec![t_array_key()]);
@@ -256,7 +249,6 @@ fn array_key_absorbs_literal_int_either_order() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven array-key absorption"]
 fn array_key_absorbs_literal_string_either_order() {
     for s in ["a", "b", "hello", ""] {
         assert_combines_to(vec![t_array_key(), t_lit_string(s)], vec![t_array_key()]);
@@ -279,43 +271,36 @@ fn array_key_does_not_absorb_bool() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
 fn scalar_absorbs_int_either_order() {
     assert_combines_to(vec![t_scalar(), t_int()], vec![t_scalar()]);
     assert_combines_to(vec![t_int(), t_scalar()], vec![t_scalar()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
 fn scalar_absorbs_string_either_order() {
     assert_combines_to(vec![t_scalar(), t_string()], vec![t_scalar()]);
     assert_combines_to(vec![t_string(), t_scalar()], vec![t_scalar()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
 fn scalar_absorbs_float_either_order() {
     assert_combines_to(vec![t_scalar(), t_float()], vec![t_scalar()]);
     assert_combines_to(vec![t_float(), t_scalar()], vec![t_scalar()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn scalar_absorbs_numeric_only_when_numeric_first() {
+fn scalar_absorbs_numeric_either_order() {
     assert_combines_to(vec![t_numeric(), t_scalar()], vec![t_scalar()]);
-    let result = combine_default(vec![t_scalar(), t_numeric()]);
-    assert_eq!(result.len(), 2);
+    assert_combines_to(vec![t_scalar(), t_numeric()], vec![t_scalar()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
 fn scalar_absorbs_array_key_either_order() {
     assert_combines_to(vec![t_scalar(), t_array_key()], vec![t_scalar()]);
     assert_combines_to(vec![t_array_key(), t_scalar()], vec![t_scalar()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
 fn scalar_absorbs_literals_either_order() {
     assert_combines_to(vec![t_scalar(), t_lit_int(5)], vec![t_scalar()]);
     assert_combines_to(vec![t_lit_int(5), t_scalar()], vec![t_scalar()]);
@@ -326,21 +311,20 @@ fn scalar_absorbs_literals_either_order() {
 }
 
 #[test]
-fn scalar_does_not_absorb_bool_when_scalar_first() {
-    let result = combine_default(vec![t_scalar(), t_bool()]);
-    assert_eq!(result.len(), 2);
+fn scalar_absorbs_bool_either_order() {
+    assert_combines_to(vec![t_scalar(), t_bool()], vec![t_scalar()]);
+    assert_combines_to(vec![t_bool(), t_scalar()], vec![t_scalar()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar absorption (bool <: scalar)"]
-fn scalar_absorbs_bool_when_bool_first() {
+fn scalar_absorbs_true_false_either_order() {
     assert_combines_to(vec![t_bool(), t_scalar()], vec![t_scalar()]);
     assert_combines_to(vec![t_true(), t_scalar()], vec![t_scalar()]);
     assert_combines_to(vec![t_false(), t_scalar()], vec![t_scalar()]);
 }
 
 #[test]
-#[ignore = "needs scalar synthesis from string|float|bool|int"]
+#[ignore = "needs scalar synthesis from primitive set (out of current scope)"]
 fn scalar_synthesised_from_string_float_bool_int() {
     let result = combine_default(vec![t_string(), t_float(), t_bool(), t_int()]);
     assert_eq!(result, vec![t_scalar()]);
@@ -353,23 +337,19 @@ fn scalar_not_synthesised_when_no_unspecified_int() {
 }
 
 #[test]
-fn class_string_kept_separate_from_string() {
-    let result = combine_default(vec![t_class_string(), t_string()]);
-    assert_eq!(result.len(), 2);
-    let result = combine_default(vec![t_string(), t_class_string()]);
-    assert_eq!(result.len(), 2);
+fn class_string_absorbed_by_string() {
+    assert_combines_to(vec![t_class_string(), t_string()], vec![t_string()]);
+    assert_combines_to(vec![t_string(), t_class_string()], vec![t_string()]);
 }
 
 #[test]
-fn class_string_kept_separate_from_array_key() {
-    let result = combine_default(vec![t_class_string(), t_array_key()]);
-    assert_eq!(result.len(), 2);
+fn class_string_absorbed_by_array_key() {
+    assert_combines_to(vec![t_class_string(), t_array_key()], vec![t_array_key()]);
 }
 
 #[test]
-fn class_string_kept_separate_from_scalar() {
-    let result = combine_default(vec![t_class_string(), t_scalar()]);
-    assert_eq!(result.len(), 2);
+fn class_string_absorbed_by_scalar() {
+    assert_combines_to(vec![t_class_string(), t_scalar()], vec![t_scalar()]);
 }
 
 #[test]

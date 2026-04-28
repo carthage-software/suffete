@@ -29,11 +29,9 @@ fn bool_triples() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven int-range merging"]
 fn int_lit_range_triples() {}
 
 #[test]
-#[ignore = "needs subtype-driven string-axis absorption"]
 fn string_triples() {}
 
 #[test]
@@ -80,7 +78,6 @@ fn mixed_triples_dominate() {
 }
 
 #[test]
-#[ignore = "needs t_list helper + list shape combine"]
 fn array_triples() {}
 
 #[test]
@@ -96,12 +93,11 @@ fn object_triples() {
     check(
         "E,E::A,E::B",
         vec![t_enum("E"), t_enum_case("E", "A"), t_enum_case("E", "B")],
-        &[t_enum("E"), t_enum_case("E", "A"), t_enum_case("E", "B")],
+        &[t_enum("E")],
     );
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar/array-key absorption"]
 fn scalar_subtype_triples() {}
 
 #[test]

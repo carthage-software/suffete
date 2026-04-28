@@ -54,7 +54,6 @@ fn idempotent_range() {
 }
 
 #[test]
-#[ignore = "needs range normalization (range[v,v] -> literal(v))"]
 fn singleton_range_normalises_to_literal() {
     for v in [-100_i64, -1, 0, 1, 42, 100] {
         let result = combine_default(vec![t_int_range(v, v), t_int_range(v, v)]);
@@ -118,20 +117,31 @@ fn unspecified_absorbs_unspecified_literal() {
 }
 
 #[test]
-fn two_distinct_literals_kept() {
-    for (a, b) in [(0_i64, 1), (-1, 1), (-100, 100), (10, 20)] {
+fn two_distinct_non_adjacent_literals_kept() {
+    for (a, b) in [(-1_i64, 1), (-100, 100), (10, 20)] {
         let result = combine_default(vec![t_lit_int(a), t_lit_int(b)]);
         assert_eq!(result.len(), 2, "{a} | {b}");
     }
 }
 
 #[test]
-fn n_distinct_literals_kept() {
-    for n in [3_usize, 5, 10, 32, 64] {
-        let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_int(i as i64)).collect();
-        let result = combine_default(inputs);
-        assert_eq!(result.len(), n, "n={n}");
-    }
+fn two_adjacent_literals_merge_to_range() {
+    let result = combine_default(vec![t_lit_int(0), t_lit_int(1)]);
+    assert_eq!(result, vec![t_int_range(0, 1)]);
+}
+
+#[test]
+fn n_consecutive_literals_merge_to_range() {
+    let inputs: Vec<ElementId> = (0..5).map(t_lit_int).collect();
+    let result = combine_default(inputs);
+    assert_eq!(result, vec![t_int_range(0, 4)]);
+}
+
+#[test]
+fn n_non_adjacent_literals_kept() {
+    let inputs: Vec<ElementId> = (0..5).map(|i| t_lit_int(i * 10)).collect();
+    let result = combine_default(inputs);
+    assert_eq!(result.len(), 5);
 }
 
 #[test]
@@ -142,21 +152,19 @@ fn literals_with_duplicates_collapse() {
 }
 
 #[test]
-fn duplicates_in_mixed_literals_dedup() {
+fn duplicates_in_mixed_literals_dedup_then_merge() {
     let inputs = vec![t_lit_int(1), t_lit_int(2), t_lit_int(1), t_lit_int(2), t_lit_int(3)];
     let result = combine_default(inputs);
-    assert_eq!(result.len(), 3);
+    assert_eq!(result, vec![t_int_range(1, 3)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven range merging (overlapping)"]
 fn overlapping_ranges_merge() {
     let result = combine_default(vec![t_int_range(0, 10), t_int_range(5, 15)]);
     assert_eq!(result, vec![t_int_range(0, 15)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven range merging (adjacency)"]
 fn adjacent_ranges_merge() {
     let result = combine_default(vec![t_int_range(0, 10), t_int_range(11, 20)]);
     assert_eq!(result, vec![t_int_range(0, 20)]);
@@ -176,21 +184,18 @@ fn equal_ranges_collapse() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven range absorption (nested)"]
 fn nested_ranges_merge_to_outer() {
     let result = combine_default(vec![t_int_range(0, 100), t_int_range(10, 20)]);
     assert_eq!(result, vec![t_int_range(0, 100)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven range merging (chain)"]
 fn many_ranges_merge_chain() {
     let result = combine_default(vec![t_int_range(0, 10), t_int_range(11, 20), t_int_range(21, 30)]);
     assert_eq!(result, vec![t_int_range(0, 30)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven range absorbs literal inside"]
 fn range_absorbs_literal_inside() {
     for v in 0..=10_i64 {
         assert_combines_to(vec![t_int_range(0, 10), t_lit_int(v)], vec![t_int_range(0, 10)]);
@@ -205,21 +210,18 @@ fn range_keeps_literal_outside() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven range extension by adjacent literal"]
 fn range_extends_with_adjacent_literal() {
     let result = combine_default(vec![t_int_range(0, 10), t_lit_int(11)]);
     assert_eq!(result, vec![t_int_range(0, 11)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven range extension"]
 fn literal_extends_lower_with_adjacent_range() {
     let result = combine_default(vec![t_lit_int(-1), t_int_range(0, 10)]);
     assert_eq!(result, vec![t_int_range(-1, 10)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven from-absorbs-literal-above"]
 fn from_absorbs_literal_above() {
     for v in [0_i64, 1, 5, 10, 100, 1_000_000] {
         assert_combines_to(vec![t_int_from(0), t_lit_int(v)], vec![t_int_from(0)]);
@@ -228,7 +230,6 @@ fn from_absorbs_literal_above() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven from-extension"]
 fn from_with_literal_one_below_extends() {
     for n in [0_i64, 5, 100, -1] {
         let result = combine_default(vec![t_int_from(n), t_lit_int(n - 1)]);
@@ -245,7 +246,6 @@ fn from_keeps_literal_far_below() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven to-absorbs-literal-below"]
 fn to_absorbs_literal_below() {
     for v in [-100_i64, -1, 0] {
         assert_combines_to(vec![t_int_to(0), t_lit_int(v)], vec![t_int_to(0)]);
@@ -254,7 +254,6 @@ fn to_absorbs_literal_below() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven to-extension"]
 fn to_with_literal_one_above_extends() {
     for n in [0_i64, 5, -1, -100] {
         let result = combine_default(vec![t_int_to(n), t_lit_int(n + 1)]);
@@ -271,14 +270,12 @@ fn to_keeps_literal_far_above() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven from+to overlap"]
 fn from_and_to_with_overlap_become_unspecified() {
     let result = combine_default(vec![t_int_from(0), t_int_to(0)]);
     assert_eq!(result, vec![t_int()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven from+to adjacency"]
 fn from_and_to_adjacent_become_unspecified() {
     let result = combine_default(vec![t_int_from(1), t_int_to(0)]);
     assert_eq!(result, vec![t_int()]);
@@ -291,42 +288,36 @@ fn from_and_to_disjoint_kept_apart() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven from-merging"]
 fn from_lo_overrides_higher_from() {
     assert_combines_to(vec![t_int_from(0), t_int_from(5)], vec![t_int_from(0)]);
     assert_combines_to(vec![t_int_from(5), t_int_from(0)], vec![t_int_from(0)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven to-merging"]
 fn to_hi_overrides_lower_to() {
     assert_combines_to(vec![t_int_to(100), t_int_to(50)], vec![t_int_to(100)]);
     assert_combines_to(vec![t_int_to(50), t_int_to(100)], vec![t_int_to(100)]);
 }
 
 #[test]
-#[ignore = "needs alias-equivalence (positive_int == int_from(1))"]
 fn positive_int_is_from_1() {
     let result = combine_default(vec![t_positive_int(), t_int_from(1)]);
     assert_eq!(result, vec![t_positive_int()]);
 }
 
 #[test]
-#[ignore = "needs alias-equivalence (non_negative_int == int_from(0))"]
 fn non_negative_int_is_from_0() {
     let result = combine_default(vec![t_non_negative_int(), t_int_from(0)]);
     assert_eq!(result, vec![t_non_negative_int()]);
 }
 
 #[test]
-#[ignore = "needs alias-equivalence (negative_int == int_to(-1))"]
 fn negative_int_is_to_minus_1() {
     let result = combine_default(vec![t_negative_int(), t_int_to(-1)]);
     assert_eq!(result, vec![t_negative_int()]);
 }
 
 #[test]
-#[ignore = "needs alias-equivalence (non_positive_int == int_to(0))"]
 fn non_positive_int_is_to_0() {
     let result = combine_default(vec![t_non_positive_int(), t_int_to(0)]);
     assert_eq!(result, vec![t_non_positive_int()]);
@@ -339,14 +330,12 @@ fn positive_or_negative_kept_apart() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven non_negative + non_positive -> int"]
 fn non_negative_or_non_positive_become_unspecified() {
     let result = combine_default(vec![t_non_negative_int(), t_non_positive_int()]);
     assert_eq!(result, vec![t_int()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven positive absorbs positive literal"]
 fn positive_absorbs_positive_literal() {
     for v in [1_i64, 5, 100, i64::MAX - 1] {
         assert_combines_to(vec![t_positive_int(), t_lit_int(v)], vec![t_positive_int()]);
@@ -355,14 +344,12 @@ fn positive_absorbs_positive_literal() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven positive + 0 -> non_negative"]
 fn positive_extends_with_zero_to_non_negative() {
     let result = combine_default(vec![t_positive_int(), t_lit_int(0)]);
     assert_eq!(result, vec![t_non_negative_int()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven literal -> unspec_literal absorption"]
 fn unspecified_literal_keeps_with_actual_literal() {
     let result = combine_default(vec![t_int_unspec_lit(), t_lit_int(5)]);
     assert_eq!(result, vec![t_int_unspec_lit()]);
@@ -381,28 +368,24 @@ fn unspecified_literal_with_unspecified_collapses_to_unspecified() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven positive + 0 -> non_negative"]
 fn positive_or_zero_collapses_to_non_negative() {
     let result = combine_default(vec![t_positive_int(), t_lit_int(0)]);
     assert_eq!(result, vec![t_non_negative_int()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven negative + 0 -> non_positive"]
 fn negative_or_zero_collapses_to_non_positive() {
     let result = combine_default(vec![t_negative_int(), t_lit_int(0)]);
     assert_eq!(result, vec![t_non_positive_int()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven range extension by literals"]
 fn small_range_and_literal_extend() {
     let result = combine_default(vec![t_int_range(0, 5), t_lit_int(6), t_lit_int(7)]);
     assert_eq!(result, vec![t_int_range(0, 7)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven range chain merge"]
 fn many_ranges_consecutive_merge() {
     let inputs: Vec<ElementId> = (0..5).map(|i| t_int_range(i * 2, i * 2 + 1)).collect();
     let result = combine_default(inputs);
@@ -425,27 +408,24 @@ fn many_disjoint_literals_kept_apart() {
 
 #[test]
 fn consecutive_literals_merge_to_range() {
-    // mago title is misleading: it asserts len()==5 (no merging happens).
     let inputs: Vec<ElementId> = (1..=5_i64).map(t_lit_int).collect();
     let result = combine_default(inputs);
-    assert_eq!(result.len(), 5);
+    assert_eq!(result, vec![t_int_range(1, 5)]);
 }
 
 #[test]
-fn literal_with_from_merges_correctly() {
+fn literal_far_from_from_kept_apart() {
     let result = combine_default(vec![t_int_from(5), t_lit_int(0)]);
     assert_eq!(result.len(), 2);
 }
 
 #[test]
-#[ignore = "needs subtype-driven from-extension by literal"]
 fn literal_4_with_from_5_merges_to_from_4() {
     let result = combine_default(vec![t_int_from(5), t_lit_int(4)]);
     assert_eq!(result, vec![t_int_from(4)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven to-extension by literal"]
 fn literal_n_minus_1_with_to_n_merges_to_to_n() {
     let result = combine_default(vec![t_int_to(5), t_lit_int(6)]);
     assert_eq!(result, vec![t_int_to(6)]);
@@ -471,7 +451,6 @@ fn literal_min_max() {
 }
 
 #[test]
-#[ignore = "needs threshold-based literal collapse"]
 fn many_distinct_literals_exceed_threshold_generalise() {
     let n = 200_usize;
     let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_int(i as i64)).collect();
@@ -480,15 +459,14 @@ fn many_distinct_literals_exceed_threshold_generalise() {
 }
 
 #[test]
-fn under_threshold_keeps_literals() {
+fn non_adjacent_literals_kept_under_threshold() {
     let n = 100_usize;
-    let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_int(i as i64)).collect();
+    let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_int((i as i64) * 10)).collect();
     let result = combine_default(inputs);
     assert_eq!(result.len(), n);
 }
 
 #[test]
-#[ignore = "needs threshold-based literal collapse"]
 fn custom_low_threshold_generalises_quickly() {
     let n = 10_usize;
     let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_int(i as i64)).collect();
@@ -506,21 +484,18 @@ fn repeated_same_literal_collapses_to_single_literal() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven positive + range -> from extension"]
 fn positive_int_or_range_extends() {
     let result = combine_default(vec![t_positive_int(), t_int_range(-5, 0)]);
     assert_eq!(result, vec![t_int_from(-5)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven negative + range -> to extension"]
 fn negative_int_or_range_extends() {
     let result = combine_default(vec![t_negative_int(), t_int_range(0, 5)]);
     assert_eq!(result, vec![t_int_to(5)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven range chain merge"]
 fn small_subranges_merge_into_named_range() {
     let inputs: Vec<ElementId> = (0..5).map(|i| t_int_range(2 * i + 1, 2 * i + 2)).collect();
     let result = combine_default(inputs);

@@ -28,6 +28,7 @@ mod report;
 
 pub use self::options::LatticeOptions;
 pub use self::overlaps::overlaps;
+pub(crate) use self::refines::element_refines;
 pub use self::refines::generalizes;
 pub use self::refines::refines;
 pub use self::report::CoercionCauses;

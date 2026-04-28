@@ -1,5 +1,6 @@
 use std::num::NonZeroU32;
 
+use crate::Element;
 use crate::ElementKind;
 use crate::TypeId;
 use crate::element::payload::CallableInfo;
@@ -12,6 +13,7 @@ use crate::element::payload::GenericParameterInfo;
 use crate::element::payload::IterableInfo;
 use crate::element::payload::KeyedArrayFlags;
 use crate::element::payload::KeyedArrayInfo;
+use crate::element::payload::KnownElementEntry;
 use crate::element::payload::KnownItemEntry;
 use crate::element::payload::ListFlags;
 use crate::element::payload::ListInfo;
@@ -28,7 +30,9 @@ use crate::element::payload::scalar::StringInfo;
 use crate::element::payload::scalar::StringLiteral;
 use crate::element::payload::scalar::StringRefinementFlags;
 use crate::handle::define_handle;
-use crate::prelude::TYPE_MIXED;
+use crate::interner::interner;
+use crate::prelude::*;
+use crate::typed::Typed;
 
 /// An interned handle to a single [`Element`](crate::Element).
 ///
@@ -39,7 +43,7 @@ use crate::prelude::TYPE_MIXED;
 /// Two `ElementId`s compare equal iff they refer to the same canonical
 /// element; this is the interner's contract. Equality is one `u32` compare,
 /// hashing is trivial.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ElementId(NonZeroU32);
 
 impl ElementId {
@@ -87,9 +91,8 @@ impl ElementId {
     /// happen if the handle was forged or constructed before boot ran for the
     /// well-known constants in question).
     #[inline]
-    pub fn view(self) -> crate::Element {
-        use crate::Element;
-        let i = crate::interner::interner();
+    pub fn view(self) -> Element {
+        let i = interner();
         match self.kind() {
             ElementKind::Null => Element::Null,
             ElementKind::Never => Element::Never,
@@ -102,7 +105,6 @@ impl ElementId {
             ElementKind::Numeric => Element::Numeric,
             ElementKind::ArrayKey => Element::ArrayKey,
             ElementKind::ObjectAny => Element::ObjectAny,
-
             ElementKind::Mixed => Element::Mixed(i.get_mixed(self)),
             ElementKind::Int => Element::Int(i.get_int(self)),
             ElementKind::Float => Element::Float(i.get_float(self)),
@@ -132,13 +134,13 @@ impl ElementId {
     /// Intern an integer literal element (`IntInfo::Literal(value)`).
     #[inline]
     pub fn int_literal(value: i64) -> Self {
-        crate::interner::interner().intern_int(IntInfo::Literal(value))
+        interner().intern_int(IntInfo::Literal(value))
     }
 
     /// Intern a bounded integer range (`IntInfo::Range`). Either bound may be
     /// `None`, denoting open (`-∞` or `+∞`).
     pub fn int_range(lower: Option<i64>, upper: Option<i64>) -> Self {
-        let i = crate::interner::interner();
+        let i = interner();
         let range = i.intern_int_range(IntRange::new(lower, upper));
         i.intern_int(IntInfo::Range(range))
     }
@@ -146,7 +148,7 @@ impl ElementId {
     /// Intern a float literal element (`FloatInfo::Literal(value)`).
     #[inline]
     pub fn float_literal(value: f64) -> Self {
-        crate::interner::interner().intern_float(FloatInfo::Literal(LiteralFloat::new(value)))
+        interner().intern_float(FloatInfo::Literal(LiteralFloat::new(value)))
     }
 
     /// Intern a string literal element with a known value, no casing
@@ -157,7 +159,7 @@ impl ElementId {
             casing: StringCasing::Unspecified,
             flags: StringRefinementFlags::EMPTY,
         };
-        crate::interner::interner().intern_string(info)
+        interner().intern_string(info)
     }
 
     /// Intern a named object element with no type arguments, no
@@ -170,19 +172,19 @@ impl ElementId {
             intersections: None,
             flags: ObjectFlags::default(),
         };
-        crate::interner::interner().intern_object(info)
+        interner().intern_object(info)
     }
 
     /// Intern an enum element ("any case of enum `name`").
     pub fn enum_any(name: &str) -> Self {
         let info = EnumInfo { name: mago_atom::atom(name), case: None };
-        crate::interner::interner().intern_enum(info)
+        interner().intern_enum(info)
     }
 
     /// Intern an enum-case element (`name::case`).
     pub fn enum_case(name: &str, case: &str) -> Self {
         let info = EnumInfo { name: mago_atom::atom(name), case: Some(mago_atom::atom(case)) };
-        crate::interner::interner().intern_enum(info)
+        interner().intern_enum(info)
     }
 
     /// Intern a literal class-string element (`class-string<Foo>` with a
@@ -192,13 +194,13 @@ impl ElementId {
             kind: ClassLikeKind::Class,
             specifier: ClassLikeStringSpecifier::Literal { value: mago_atom::atom(name) },
         };
-        crate::interner::interner().intern_class_like_string(info)
+        interner().intern_class_like_string(info)
     }
 
     /// Intern an `iterable<key, value>` element with no intersections.
     pub fn iterable(key_type: TypeId, value_type: TypeId) -> Self {
         let info = IterableInfo { key_type, value_type, intersections: None };
-        crate::interner::interner().intern_iterable(info)
+        interner().intern_iterable(info)
     }
 
     /// Intern a `list<element>` (or `non-empty-list<element>`) element with
@@ -210,7 +212,21 @@ impl ElementId {
             known_count: None,
             flags: ListFlags::default().with_non_empty(non_empty),
         };
-        crate::interner::interner().intern_list(info)
+        interner().intern_list(info)
+    }
+
+    /// Intern a sealed list element (`list{0: T0, 1: T1, ...}`) with the
+    /// given known entries and no rest element type.
+    pub fn sealed_list(elements: &[KnownElementEntry], non_empty: bool) -> Self {
+        let i = interner();
+        let known_count = NonZeroU32::new(elements.len() as u32);
+        let info = ListInfo {
+            element_type: TYPE_NEVER,
+            known_elements: Some(i.intern_known_elements(elements)),
+            known_count,
+            flags: ListFlags::default().with_non_empty(non_empty),
+        };
+        i.intern_list(info)
     }
 
     /// Intern an unsealed keyed-array element (`array<K, V>` /
@@ -222,13 +238,13 @@ impl ElementId {
             known_items: None,
             flags: KeyedArrayFlags::default().with_non_empty(non_empty),
         };
-        crate::interner::interner().intern_array(info)
+        interner().intern_array(info)
     }
 
     /// Intern a sealed keyed-array element (`array{a: int, b: string, ...}`)
     /// with the given known entries and no rest type.
     pub fn keyed_sealed(items: &[KnownItemEntry], non_empty: bool) -> Self {
-        let i = crate::interner::interner();
+        let i = interner();
         let known = i.intern_known_items(items);
         let info = KeyedArrayInfo {
             key_param: None,
@@ -241,26 +257,27 @@ impl ElementId {
 
     /// Intern an `Any` callable (`callable` with no signature info).
     pub fn callable_any() -> Self {
-        crate::interner::interner().intern_callable(CallableInfo::Any)
+        interner().intern_callable(CallableInfo::Any)
     }
 
     /// Intern a `callable(...)` with a "mixed" signature: parameters
     /// unspecified, return type `mixed`, no `throws`. Common test fixture.
     pub fn callable_mixed() -> Self {
-        let i = crate::interner::interner();
+        let i = interner();
         let sig = i.intern_signature(Signature {
             parameters: None,
             return_type: TYPE_MIXED,
             throws: None,
             flags: SignatureFlags::EMPTY,
         });
+
         i.intern_callable(CallableInfo::Signature(sig))
     }
 
     /// Intern a `Closure(...)` with the same "mixed" signature as
     /// [`callable_mixed`](Self::callable_mixed) but tagged as a closure.
     pub fn closure_mixed() -> Self {
-        let i = crate::interner::interner();
+        let i = interner();
         let sig = i.intern_signature(Signature {
             parameters: None,
             return_type: TYPE_MIXED,
@@ -275,7 +292,7 @@ impl ElementId {
     /// different scopes stay distinct. `constraint` is the upper bound;
     /// pass [`TYPE_MIXED`] for an unbounded parameter.
     pub fn generic_parameter(name: &str, defining_entity: DefiningEntity, constraint: TypeId) -> Self {
-        let i = crate::interner::interner();
+        let i = interner();
         let entity_id = i.intern_defining_entity(defining_entity);
         let info = GenericParameterInfo {
             name: mago_atom::atom(name),
@@ -283,6 +300,7 @@ impl ElementId {
             constraint,
             intersections: None,
         };
+
         i.intern_generic_parameter(info)
     }
 
@@ -294,7 +312,7 @@ impl ElementId {
     /// `ObjectShape`, `HasMethod`, `HasProperty`, `GenericParameter`,
     /// `Reference`. Everything else returns `&[]`.
     pub fn intersection_types(self) -> &'static [ElementId] {
-        let i = crate::interner::interner();
+        let i = interner();
         let id = match self.kind() {
             ElementKind::Object => i.get_object(self).intersections,
             ElementKind::Iterable => i.get_iterable(self).intersections,
@@ -305,6 +323,7 @@ impl ElementId {
             ElementKind::Reference => i.get_reference(self).intersections,
             _ => return &[],
         };
+
         match id {
             Some(list_id) => i.get_element_list(list_id),
             None => &[],
@@ -347,9 +366,24 @@ impl std::fmt::Display for ElementId {
     }
 }
 
-impl crate::typed::Typed for ElementId {
+impl std::fmt::Debug for ElementId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            f.debug_struct("ElementId")
+                .field("raw", &format_args!("{:#010x}", self.0.get()))
+                .field("kind", &self.kind())
+                .field("slot", &self.slot())
+                .field("display", &format_args!("{}", self))
+                .finish()
+        } else {
+            write!(f, "ElementId({:#010x} = {:?}: {})", self.0.get(), self.kind(), self)
+        }
+    }
+}
+
+impl Typed for ElementId {
     fn pretty_with_indent(&self, indent: usize) -> String {
-        crate::typed::Typed::pretty_with_indent(&self.view(), indent)
+        Typed::pretty_with_indent(&self.view(), indent)
     }
 
     fn intersection_types(&self) -> &'static [ElementId] {
@@ -365,6 +399,6 @@ impl crate::typed::Typed for ElementId {
     }
 
     fn is_complex(&self) -> bool {
-        crate::typed::Typed::is_complex(&self.view())
+        Typed::is_complex(&self.view())
     }
 }

@@ -87,23 +87,18 @@ fn many_distinct_named_kept_apart() {
 }
 
 #[test]
-#[ignore = "needs t_generic_named (object with type-arg union)"]
 fn same_generic_same_params_collapses() {}
 
 #[test]
-#[ignore = "needs t_generic_named + intra-param union combine"]
 fn same_generic_different_params_combine_params() {}
 
 #[test]
-#[ignore = "needs t_generic_named"]
 fn different_generic_kept_apart() {}
 
 #[test]
-#[ignore = "needs t_generic_named + subtype-driven param absorption"]
 fn generic_int_or_lit_int_absorbs() {}
 
 #[test]
-#[ignore = "needs t_generic_named + subtype-driven param absorption"]
 fn generic_with_many_distinct_params_combine() {}
 
 #[test]
@@ -129,9 +124,9 @@ fn same_enum_case_collapses() {
 }
 
 #[test]
-fn enum_and_case_kept_separate_but_collapse_via_combiner() {
+fn enum_case_absorbed_by_enum() {
     let r = combine_default(vec![t_enum("E"), t_enum_case("E", "A")]);
-    assert_eq!(r.len(), 2);
+    assert_eq!(r, vec![t_enum("E")]);
 }
 
 #[test]

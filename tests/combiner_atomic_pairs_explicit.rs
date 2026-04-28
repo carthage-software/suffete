@@ -81,7 +81,7 @@ fn p_lit_0_lit_0() {
 }
 #[test]
 fn p_lit_0_lit_1() {
-    check(vec![t_lit_int(0), t_lit_int(1)], &[t_lit_int(0), t_lit_int(1)]);
+    check(vec![t_lit_int(0), t_lit_int(1)], &[t_int_range(0, 1)]);
 }
 #[test]
 fn p_lit_neg_lit_pos() {
@@ -115,23 +115,29 @@ fn p_positive_negative() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven non_neg + non_pos -> int"]
-fn p_non_neg_non_pos() {}
+fn p_non_neg_non_pos() {
+    check(vec![t_non_negative_int(), t_non_positive_int()], &[t_int()]);
+}
 #[test]
-#[ignore = "needs subtype-driven positive + 0 -> non_negative"]
-fn p_pos_lit_0() {}
+fn p_pos_lit_0() {
+    check(vec![t_positive_int(), t_lit_int(0)], &[t_non_negative_int()]);
+}
 #[test]
-#[ignore = "needs subtype-driven negative + 0 -> non_positive"]
-fn p_neg_lit_0() {}
+fn p_neg_lit_0() {
+    check(vec![t_negative_int(), t_lit_int(0)], &[t_non_positive_int()]);
+}
 #[test]
-#[ignore = "needs subtype-driven positive + literal(-1) -> {literal(-1), positive}"]
-fn p_pos_lit_neg_1() {}
+fn p_pos_lit_neg_1() {
+    check(vec![t_positive_int(), t_lit_int(-1)], &[t_lit_int(-1), t_positive_int()]);
+}
 #[test]
-#[ignore = "needs subtype-driven range merging"]
-fn p_range_overlap() {}
+fn p_range_overlap() {
+    check(vec![t_int_range(0, 5), t_int_range(3, 10)], &[t_int_range(0, 10)]);
+}
 #[test]
-#[ignore = "needs subtype-driven range merging"]
-fn p_range_adjacent() {}
+fn p_range_adjacent() {
+    check(vec![t_int_range(0, 5), t_int_range(6, 10)], &[t_int_range(0, 10)]);
+}
 
 #[test]
 fn p_range_disjoint() {
@@ -139,11 +145,13 @@ fn p_range_disjoint() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven from+to overlap -> int"]
-fn p_from_to_overlap() {}
+fn p_from_to_overlap() {
+    check(vec![t_int_from(0), t_int_to(5)], &[t_int()]);
+}
 #[test]
-#[ignore = "needs subtype-driven from+to adjacency -> int"]
-fn p_from_to_adjacent() {}
+fn p_from_to_adjacent() {
+    check(vec![t_int_from(5), t_int_to(4)], &[t_int()]);
+}
 
 #[test]
 fn p_from_to_disjoint() {
@@ -151,11 +159,13 @@ fn p_from_to_disjoint() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven from-extension by literal"]
-fn p_from_lit_extends() {}
+fn p_from_lit_extends() {
+    check(vec![t_int_from(5), t_lit_int(4)], &[t_int_from(4)]);
+}
 #[test]
-#[ignore = "needs subtype-driven to-extension by literal"]
-fn p_to_lit_extends() {}
+fn p_to_lit_extends() {
+    check(vec![t_int_to(5), t_lit_int(6)], &[t_int_to(6)]);
+}
 
 #[test]
 fn p_string_string() {
@@ -191,55 +201,62 @@ fn p_lit_uppercase_kept() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven non-empty -> string downgrade"]
-fn p_string_non_empty() {}
+fn p_string_non_empty() {
+    check(vec![t_string(), t_non_empty_string()], &[t_string()]);
+}
 #[test]
-#[ignore = "needs subtype-driven non-empty -> string downgrade"]
-fn p_non_empty_string() {}
+fn p_non_empty_string() {
+    check(vec![t_non_empty_string(), t_string()], &[t_string()]);
+}
 #[test]
-#[ignore = "needs subtype-driven non-empty absorbs non-empty literal"]
-fn p_non_empty_lit_hi() {}
+fn p_non_empty_lit_hi() {
+    check(vec![t_non_empty_string(), t_lit_string("hi")], &[t_non_empty_string()]);
+}
 #[test]
-#[ignore = "needs subtype-driven non-empty absorbs non-empty literal"]
-fn p_non_empty_lit_0() {}
+fn p_non_empty_lit_0() {
+    check(vec![t_non_empty_string(), t_lit_string("0")], &[t_non_empty_string()]);
+}
 #[test]
 fn p_non_empty_lit_empty() {
-    // Both literals retained (no subtype-driven absorption); string("") and
-    // non-empty-string survive distinct.
     check(vec![t_non_empty_string(), t_lit_string("")], &[t_non_empty_string(), t_lit_string("")]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven empty-literal -> string downgrade"]
-fn p_lit_empty_non_empty() {}
+fn p_lit_empty_non_empty() {
+    check(vec![t_lit_string(""), t_non_empty_string()], &[t_lit_string(""), t_non_empty_string()]);
+}
 #[test]
-#[ignore = "needs subtype-driven numeric-string -> string downgrade"]
-fn p_numeric_string() {}
+fn p_numeric_string() {
+    check(vec![t_numeric_string(), t_string()], &[t_string()]);
+}
 #[test]
-#[ignore = "needs subtype-driven numeric-string absorbs numeric literal"]
-fn p_numeric_lit_123() {}
+fn p_numeric_lit_123() {
+    check(vec![t_numeric_string(), t_lit_string("123")], &[t_numeric_string()]);
+}
 #[test]
 fn p_numeric_lit_abc() {
-    // No axis-aware absorption: both kept.
     check(vec![t_numeric_string(), t_lit_string("abc")], &[t_numeric_string(), t_lit_string("abc")]);
 }
 #[test]
-#[ignore = "needs subtype-driven lowercase absorbs lowercase literal"]
-fn p_lower_lit_hi_lower() {}
+fn p_lower_lit_hi_lower() {
+    check(vec![t_lower_string(), t_lit_string("hi")], &[t_lower_string()]);
+}
 #[test]
 fn p_lower_lit_hi_upper() {
     check(vec![t_lower_string(), t_lit_string("HI")], &[t_lower_string(), t_lit_string("HI")]);
 }
 #[test]
-#[ignore = "needs subtype-driven uppercase absorbs uppercase literal"]
-fn p_upper_lit_hi_upper() {}
+fn p_upper_lit_hi_upper() {
+    check(vec![t_upper_string(), t_lit_string("HI")], &[t_upper_string()]);
+}
 #[test]
 fn p_upper_lit_hi_lower() {
     check(vec![t_upper_string(), t_lit_string("hi")], &[t_lit_string("hi"), t_upper_string()]);
 }
 #[test]
-#[ignore = "needs subtype-driven truthy absorbs truthy literal"]
-fn p_truthy_lit_hi_lower() {}
+fn p_truthy_lit_hi_lower() {
+    check(vec![t_truthy_string(), t_lit_string("hi")], &[t_truthy_string()]);
+}
 #[test]
 fn p_truthy_lit_0() {
     check(vec![t_truthy_string(), t_lit_string("0")], &[t_lit_string("0"), t_truthy_string()]);
@@ -249,17 +266,21 @@ fn p_truthy_lit_empty() {
     check(vec![t_truthy_string(), t_lit_string("")], &[t_lit_string(""), t_truthy_string()]);
 }
 #[test]
-#[ignore = "needs subtype-driven lower|upper -> string"]
-fn p_lower_upper() {}
+fn p_lower_upper() {
+    check(vec![t_lower_string(), t_upper_string()], &[t_lower_string(), t_upper_string()]);
+}
 #[test]
-#[ignore = "needs subtype-driven truthy <: non-empty"]
-fn p_non_empty_truthy() {}
+fn p_non_empty_truthy() {
+    check(vec![t_non_empty_string(), t_truthy_string()], &[t_non_empty_string()]);
+}
 #[test]
-#[ignore = "needs subtype-driven truthy <: non-empty"]
-fn p_truthy_non_empty() {}
+fn p_truthy_non_empty() {
+    check(vec![t_truthy_string(), t_non_empty_string()], &[t_non_empty_string()]);
+}
 #[test]
-#[ignore = "needs subtype-driven non-empty + lower -> string"]
-fn p_non_empty_lower() {}
+fn p_non_empty_lower() {
+    check(vec![t_non_empty_string(), t_lower_string()], &[t_non_empty_string(), t_lower_string()]);
+}
 
 #[test]
 fn p_float_float() {
@@ -308,39 +329,46 @@ fn p_float_bool() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven numeric absorption"]
-fn p_numeric_int() {}
+fn p_numeric_int() {
+    check(vec![t_numeric(), t_int()], &[t_numeric()]);
+}
 #[test]
 fn p_int_numeric() {
-    check(vec![t_int(), t_numeric()], &[t_int(), t_numeric()]);
+    check(vec![t_int(), t_numeric()], &[t_numeric()]);
 }
 #[test]
-#[ignore = "needs subtype-driven numeric absorption"]
-fn p_numeric_float() {}
+fn p_numeric_float() {
+    check(vec![t_numeric(), t_float()], &[t_numeric()]);
+}
 #[test]
 fn p_float_numeric() {
-    check(vec![t_float(), t_numeric()], &[t_float(), t_numeric()]);
+    check(vec![t_float(), t_numeric()], &[t_numeric()]);
 }
 #[test]
-#[ignore = "needs subtype-driven numeric absorption"]
-fn p_numeric_lit_int() {}
+fn p_numeric_lit_int() {
+    check(vec![t_numeric(), t_lit_int(5)], &[t_numeric()]);
+}
 #[test]
 fn p_lit_int_numeric() {
-    check(vec![t_lit_int(5), t_numeric()], &[t_lit_int(5), t_numeric()]);
+    check(vec![t_lit_int(5), t_numeric()], &[t_numeric()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven array-key absorption"]
-fn p_ak_int() {}
+fn p_ak_int() {
+    check(vec![t_array_key(), t_int()], &[t_array_key()]);
+}
 #[test]
-#[ignore = "needs subtype-driven array-key absorption"]
-fn p_int_ak() {}
+fn p_int_ak() {
+    check(vec![t_int(), t_array_key()], &[t_array_key()]);
+}
 #[test]
-#[ignore = "needs subtype-driven array-key absorption"]
-fn p_ak_string() {}
+fn p_ak_string() {
+    check(vec![t_array_key(), t_string()], &[t_array_key()]);
+}
 #[test]
-#[ignore = "needs subtype-driven array-key absorption"]
-fn p_string_ak() {}
+fn p_string_ak() {
+    check(vec![t_string(), t_array_key()], &[t_array_key()]);
+}
 #[test]
 fn p_ak_float() {
     check(vec![t_array_key(), t_float()], &[t_array_key(), t_float()]);
@@ -355,57 +383,69 @@ fn p_ak_null() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_scalar_int() {}
+fn p_scalar_int() {
+    check(vec![t_scalar(), t_int()], &[t_scalar()]);
+}
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_int_scalar() {}
+fn p_int_scalar() {
+    check(vec![t_int(), t_scalar()], &[t_scalar()]);
+}
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_scalar_string() {}
+fn p_scalar_string() {
+    check(vec![t_scalar(), t_string()], &[t_scalar()]);
+}
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_string_scalar() {}
+fn p_string_scalar() {
+    check(vec![t_string(), t_scalar()], &[t_scalar()]);
+}
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_scalar_float() {}
+fn p_scalar_float() {
+    check(vec![t_scalar(), t_float()], &[t_scalar()]);
+}
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_float_scalar() {}
+fn p_float_scalar() {
+    check(vec![t_float(), t_scalar()], &[t_scalar()]);
+}
 #[test]
 fn p_scalar_numeric() {
-    check(vec![t_scalar(), t_numeric()], &[t_numeric(), t_scalar()]);
+    check(vec![t_scalar(), t_numeric()], &[t_scalar()]);
 }
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_numeric_scalar() {}
+fn p_numeric_scalar() {
+    check(vec![t_numeric(), t_scalar()], &[t_scalar()]);
+}
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_scalar_ak() {}
+fn p_scalar_ak() {
+    check(vec![t_scalar(), t_array_key()], &[t_scalar()]);
+}
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_ak_scalar() {}
+fn p_ak_scalar() {
+    check(vec![t_array_key(), t_scalar()], &[t_scalar()]);
+}
 #[test]
 fn p_scalar_bool() {
-    check(vec![t_scalar(), t_bool()], &[t_bool(), t_scalar()]);
+    check(vec![t_scalar(), t_bool()], &[t_scalar()]);
 }
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_bool_scalar() {}
+fn p_bool_scalar() {
+    check(vec![t_bool(), t_scalar()], &[t_scalar()]);
+}
 #[test]
 fn p_scalar_true() {
-    check(vec![t_scalar(), t_true()], &[t_scalar(), t_true()]);
+    check(vec![t_scalar(), t_true()], &[t_scalar()]);
 }
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_true_scalar() {}
+fn p_true_scalar() {
+    check(vec![t_true(), t_scalar()], &[t_scalar()]);
+}
 #[test]
 fn p_scalar_false() {
-    check(vec![t_scalar(), t_false()], &[t_false(), t_scalar()]);
+    check(vec![t_scalar(), t_false()], &[t_scalar()]);
 }
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
-fn p_false_scalar() {}
+fn p_false_scalar() {
+    check(vec![t_false(), t_scalar()], &[t_scalar()]);
+}
 
 #[test]
 fn p_null_null() {
@@ -547,19 +587,19 @@ fn p_cs_es() {
 }
 #[test]
 fn p_cs_string() {
-    check(vec![t_class_string(), t_string()], &[t_class_string(), t_string()]);
+    check(vec![t_class_string(), t_string()], &[t_string()]);
 }
 #[test]
 fn p_string_cs() {
-    check(vec![t_string(), t_class_string()], &[t_class_string(), t_string()]);
+    check(vec![t_string(), t_class_string()], &[t_string()]);
 }
 #[test]
 fn p_cs_ak() {
-    check(vec![t_class_string(), t_array_key()], &[t_array_key(), t_class_string()]);
+    check(vec![t_class_string(), t_array_key()], &[t_array_key()]);
 }
 #[test]
 fn p_cs_scalar() {
-    check(vec![t_class_string(), t_scalar()], &[t_class_string(), t_scalar()]);
+    check(vec![t_class_string(), t_scalar()], &[t_scalar()]);
 }
 #[test]
 fn p_cs_int() {
@@ -641,7 +681,7 @@ fn p_e_f() {
 }
 #[test]
 fn p_e_ea() {
-    check(vec![t_enum("E"), t_enum_case("E", "A")], &[t_enum("E"), t_enum_case("E", "A")]);
+    check(vec![t_enum("E"), t_enum_case("E", "A")], &[t_enum("E")]);
 }
 #[test]
 fn p_ea_ea() {
@@ -661,26 +701,53 @@ fn p_arr_empty_empty() {
     check(vec![t_empty_array(), t_empty_array()], &[t_empty_array()]);
 }
 #[test]
-#[ignore = "needs t_list helper"]
-fn p_arr_list_int() {}
+fn p_arr_list_int() {
+    use suffete::prelude::TYPE_INT;
+    check(vec![t_list(TYPE_INT, false)], &[t_list(TYPE_INT, false)]);
+}
 #[test]
-#[ignore = "needs t_list helper"]
-fn p_arr_list_int_x2() {}
+fn p_arr_list_int_x2() {
+    use suffete::prelude::TYPE_INT;
+    check(vec![t_list(TYPE_INT, false), t_list(TYPE_INT, false)], &[t_list(TYPE_INT, false)]);
+}
 #[test]
-#[ignore = "needs t_list + element-type union combine"]
-fn p_arr_list_int_string() {}
+#[ignore = "needs list element-type union combine in join (out of scope)"]
+fn p_arr_list_int_string() {
+    use suffete::prelude::TYPE_INT;
+    use suffete::prelude::TYPE_STRING;
+    use suffete::FlowFlags;
+    use suffete::interner::interner;
+    let int_or_string = interner().intern_type(
+        &[suffete::prelude::INT, suffete::prelude::STRING],
+        FlowFlags::EMPTY,
+    );
+    check(
+        vec![t_list(TYPE_INT, false), t_list(TYPE_STRING, false)],
+        &[t_list(int_or_string, false)],
+    );
+}
 #[test]
-#[ignore = "needs t_list helper"]
-fn p_arr_ne_list_int() {}
+fn p_arr_ne_list_int() {
+    use suffete::prelude::TYPE_INT;
+    check(vec![t_list(TYPE_INT, true)], &[t_list(TYPE_INT, true)]);
+}
 #[test]
-#[ignore = "needs t_list helper"]
-fn p_arr_ne_list_x2() {}
+fn p_arr_ne_list_x2() {
+    use suffete::prelude::TYPE_INT;
+    check(vec![t_list(TYPE_INT, true), t_list(TYPE_INT, true)], &[t_list(TYPE_INT, true)]);
+}
 #[test]
-#[ignore = "needs non-empty list + general list -> general"]
-fn p_arr_ne_with_e() {}
+fn p_arr_ne_with_e() {
+    use suffete::prelude::TYPE_INT;
+    check(vec![t_list(TYPE_INT, true), t_list(TYPE_INT, false)], &[t_list(TYPE_INT, false)]);
+}
 #[test]
-#[ignore = "needs t_list helper"]
-fn p_arr_empty_with_list() {}
+fn p_arr_empty_with_list() {
+    use suffete::prelude::TYPE_INT;
+    check(vec![t_empty_array(), t_list(TYPE_INT, false)], &[t_list(TYPE_INT, false)]);
+}
 #[test]
-#[ignore = "needs subtype-driven empty_array <: list"]
-fn p_arr_list_with_empty() {}
+fn p_arr_list_with_empty() {
+    use suffete::prelude::TYPE_INT;
+    check(vec![t_list(TYPE_INT, false), t_empty_array()], &[t_list(TYPE_INT, false)]);
+}

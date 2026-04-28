@@ -164,7 +164,7 @@ fn many_nevers_collapse() {
 fn never_with_many_others_disappears() {
     let mut inputs = vec![never()];
     for i in 0..5 {
-        inputs.push(t_lit_int(i));
+        inputs.push(t_lit_int(i * 10));
     }
     let r = combine_default(inputs);
     assert_eq!(r.len(), 5);

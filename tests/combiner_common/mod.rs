@@ -14,43 +14,60 @@
 //! | `t_int()`                    | `prelude::INT`                                |
 //! | `assert_combines_to(in, ex)` | sort-and-compare both sides as `&[ElementId]` |
 
+use mago_atom::atom;
 use suffete::ElementId;
+use suffete::FlowFlags;
+use suffete::TypeId;
+use suffete::element::payload::ArrayKey;
+use suffete::element::payload::KnownItemEntry;
+use suffete::interner::interner;
 use suffete::join;
 use suffete::prelude;
 
-/// Combine elements via the structural canonicalization pass. Mirrors mago's
-/// `combine(Vec<TAtomic>) -> Vec<TAtomic>` signature.
+/// Combine elements with the test-suite default options: structural
+/// canonicalization plus subtype-driven absorption, integer-range
+/// merging, array-shape merging, and threshold-based literal collapse
+/// at the standard 128 / 128 / 128 thresholds.
 pub fn combine_default(elements: Vec<ElementId>) -> Vec<ElementId> {
-    join::compute(&elements)
+    let opts = join::JoinOptions::default()
+        .with_absorb_refinements(true)
+        .with_merge_int_ranges(true)
+        .with_merge_array_shapes(true)
+        .with_int_literal_collapse_threshold(128)
+        .with_string_literal_collapse_threshold(128)
+        .with_float_literal_collapse_threshold(128)
+        .with_array_shape_collapse_threshold(128);
+    join::compute_with(&elements, &opts)
 }
 
 /// Combine with a custom integer literal collapse threshold.
-///
-/// Suffete does not yet implement threshold-based literal collapse; the
-/// threshold argument is accepted for porting symmetry but ignored. Tests
-/// that depend on the threshold actually triggering must be `#[ignore]`'d
-/// until the feature lands.
-pub fn combine_with_int_threshold(elements: Vec<ElementId>, _threshold: u16) -> Vec<ElementId> {
-    combine_default(elements)
+pub fn combine_with_int_threshold(elements: Vec<ElementId>, threshold: u16) -> Vec<ElementId> {
+    let opts = join::JoinOptions::default().with_int_literal_collapse_threshold(threshold);
+    join::compute_with(&elements, &opts)
 }
 
-/// Combine with a custom string literal collapse threshold. See
-/// [`combine_with_int_threshold`] for the threshold caveat.
-pub fn combine_with_string_threshold(elements: Vec<ElementId>, _threshold: u16) -> Vec<ElementId> {
-    combine_default(elements)
+/// Combine with a custom string literal collapse threshold.
+pub fn combine_with_string_threshold(elements: Vec<ElementId>, threshold: u16) -> Vec<ElementId> {
+    let opts = join::JoinOptions::default().with_string_literal_collapse_threshold(threshold);
+    join::compute_with(&elements, &opts)
 }
 
-/// Combine with a custom array shape collapse threshold. See
-/// [`combine_with_int_threshold`] for the threshold caveat.
-pub fn combine_with_array_threshold(elements: Vec<ElementId>, _threshold: u16) -> Vec<ElementId> {
-    combine_default(elements)
+/// Combine with a custom float literal collapse threshold.
+pub fn combine_with_float_threshold(elements: Vec<ElementId>, threshold: u16) -> Vec<ElementId> {
+    let opts = join::JoinOptions::default().with_float_literal_collapse_threshold(threshold);
+    join::compute_with(&elements, &opts)
 }
 
-/// Combine with the `overwrite_empty_array` option enabled. Suffete does
-/// not yet model this combiner option; tests depending on it must be
-/// `#[ignore]`'d.
+/// Combine with a custom array shape collapse threshold.
+pub fn combine_with_array_threshold(elements: Vec<ElementId>, threshold: u16) -> Vec<ElementId> {
+    let opts = join::JoinOptions::default().with_array_shape_collapse_threshold(threshold);
+    join::compute_with(&elements, &opts)
+}
+
+/// Combine with the `overwrite_empty_array` option enabled.
 pub fn combine_overwrite(elements: Vec<ElementId>) -> Vec<ElementId> {
-    combine_default(elements)
+    let opts = join::JoinOptions::default().with_overwrite_empty_array(true);
+    join::compute_with(&elements, &opts)
 }
 
 /// Assert that combining `input` produces exactly one element matching
@@ -284,6 +301,103 @@ pub fn t_truthy_string() -> ElementId {
 
 pub fn t_callable_string() -> ElementId {
     prelude::CALLABLE_STRING
+}
+
+pub fn t_list(element: TypeId, non_empty: bool) -> ElementId {
+    ElementId::list(element, non_empty)
+}
+
+pub fn t_sealed_list(elements: &[(TypeId, bool)], non_empty: bool) -> ElementId {
+    use suffete::element::payload::KnownElementEntry;
+    let entries: Vec<KnownElementEntry> = elements
+        .iter()
+        .enumerate()
+        .map(|(idx, (value, optional))| KnownElementEntry { index: idx as u32, value: *value, optional: *optional })
+        .collect();
+    ElementId::sealed_list(&entries, non_empty)
+}
+
+pub fn t_keyed_unsealed(key: TypeId, value: TypeId, non_empty: bool) -> ElementId {
+    ElementId::keyed_unsealed(key, value, non_empty)
+}
+
+pub fn t_keyed_sealed(items: std::collections::BTreeMap<ArrayKey, (bool, TypeId)>, non_empty: bool) -> ElementId {
+    let entries: Vec<KnownItemEntry> =
+        items.into_iter().map(|(key, (optional, value))| KnownItemEntry { key, value, optional }).collect();
+    ElementId::keyed_sealed(&entries, non_empty)
+}
+
+pub fn t_iterable(key: TypeId, value: TypeId) -> ElementId {
+    ElementId::iterable(key, value)
+}
+
+pub fn t_generic_named(name: &str, args: Vec<TypeId>) -> ElementId {
+    use suffete::element::payload::ObjectFlags;
+    use suffete::element::payload::ObjectInfo;
+    let i = interner();
+    let info = ObjectInfo {
+        name: atom(name),
+        type_args: Some(i.intern_type_list(&args)),
+        intersections: None,
+        flags: ObjectFlags::default(),
+    };
+    i.intern_object(info)
+}
+
+pub fn t_callable_mixed() -> ElementId {
+    ElementId::callable_mixed()
+}
+
+pub fn t_closure_mixed() -> ElementId {
+    ElementId::closure_mixed()
+}
+
+pub fn t_callable_sig(params: &[(TypeId, bool, bool, bool)], return_type: TypeId, pure: bool) -> ElementId {
+    use suffete::element::payload::CallableInfo;
+    use suffete::element::payload::ParamFlags;
+    use suffete::element::payload::ParamInfo;
+    use suffete::element::payload::Signature;
+    use suffete::element::payload::SignatureFlags;
+    let i = interner();
+    let info_params: Vec<ParamInfo> = params
+        .iter()
+        .enumerate()
+        .map(|(idx, (ty, has_default, by_ref, variadic))| ParamInfo {
+            name: atom(&format!("p{idx}")),
+            type_: *ty,
+            flags: ParamFlags::EMPTY.with_has_default(*has_default).with_by_reference(*by_ref).with_variadic(*variadic),
+        })
+        .collect();
+    let trailing_variadic = info_params.last().is_some_and(|p| p.flags.variadic());
+    let param_list = if info_params.is_empty() { None } else { Some(i.intern_param_list(&info_params)) };
+    let sig = i.intern_signature(Signature {
+        parameters: param_list,
+        return_type,
+        throws: None,
+        flags: SignatureFlags::EMPTY.with_is_variadic(trailing_variadic).with_is_pure(pure),
+    });
+    i.intern_callable(CallableInfo::Signature(sig))
+}
+
+pub fn t_callable(params: &[TypeId], return_type: TypeId) -> ElementId {
+    let p: Vec<(TypeId, bool, bool, bool)> = params.iter().map(|t| (*t, false, false, false)).collect();
+    t_callable_sig(&p, return_type, false)
+}
+
+pub fn ak_int(n: i64) -> ArrayKey {
+    ArrayKey::Int(n)
+}
+
+pub fn ak_str(s: &str) -> ArrayKey {
+    ArrayKey::String(atom(s))
+}
+
+pub fn u(a: ElementId) -> TypeId {
+    interner().intern_type(&[a], FlowFlags::EMPTY)
+}
+
+pub fn u_many(atoms: Vec<ElementId>) -> TypeId {
+    interner().intern_type(&atoms, FlowFlags::EMPTY)
 }
 
 /// Combine `n` copies of an element and assert the result is exactly `[a]`

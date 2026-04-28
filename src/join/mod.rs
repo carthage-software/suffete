@@ -58,6 +58,10 @@ use crate::element::payload::ListInfo;
 use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::StringLiteral;
 use crate::interner::interner;
+use crate::lattice::CoercionCauses;
+use crate::lattice::LatticeOptions;
+use crate::lattice::LatticeReport;
+use crate::lattice::element_refines;
 use crate::prelude::BOOL;
 use crate::prelude::CALLABLE;
 use crate::prelude::CLOSED_RESOURCE;
@@ -75,6 +79,7 @@ use crate::prelude::STRING;
 use crate::prelude::TRUE;
 use crate::prelude::TYPE_NEVER;
 use crate::prelude::VOID;
+use crate::world::NullWorld;
 
 /// Compute the join (least upper bound) of a slice of elements with the
 /// default (purely-structural) options.
@@ -102,11 +107,23 @@ pub fn compute_with(elements: &[ElementId], options: &JoinOptions) -> Vec<Elemen
     if options.overwrite_empty_array {
         apply_overwrite_empty_array(&mut out);
     }
+    if let Some(t) = options.int_literal_collapse_threshold {
+        apply_int_literal_collapse(&mut out, t);
+    }
+    if let Some(t) = options.string_literal_collapse_threshold {
+        apply_string_literal_collapse(&mut out, t);
+    }
+    if let Some(t) = options.float_literal_collapse_threshold {
+        apply_float_literal_collapse(&mut out, t);
+    }
+    if let Some(t) = options.array_shape_collapse_threshold {
+        apply_array_shape_collapse(&mut out, t);
+    }
     if options.merge_int_ranges {
         apply_merge_int_ranges(&mut out);
     }
-    if options.string_literal_collapse_threshold > 0 {
-        apply_string_literal_collapse(&mut out, options.string_literal_collapse_threshold);
+    if options.absorb_refinements {
+        apply_subtype_absorption(&mut out);
     }
     if options.merge_array_shapes {
         apply_merge_array_shapes(&mut out);
@@ -128,9 +145,19 @@ pub struct JoinOptions {
     /// Merge adjacent integer literals and ranges into wider ranges
     /// (e.g. `0 | 1 | 2` → `int<0, 2>`). Touches Int-kind atoms only.
     pub merge_int_ranges: bool,
+    /// When the union contains more than this many integer literals,
+    /// drop them and add the general `int` form. `None` disables;
+    /// `Some(0)` always collapses if any literals are present.
+    pub int_literal_collapse_threshold: Option<u16>,
     /// When the union contains more than this many `string` literals,
-    /// drop them and add the general `string` form. `0` disables.
-    pub string_literal_collapse_threshold: u16,
+    /// drop them and add the general `string` form.
+    pub string_literal_collapse_threshold: Option<u16>,
+    /// When the union contains more than this many `float` literals,
+    /// drop them and add the general `float` form.
+    pub float_literal_collapse_threshold: Option<u16>,
+    /// When the union contains more than this many array shapes (keyed
+    /// or list), collapse them to the general `array` form.
+    pub array_shape_collapse_threshold: Option<u16>,
     /// Detect keyed-array shapes whose keys are `0..n-1` integers and
     /// rewrite them as `list` shapes.
     pub rewrite_int_keyed_to_list: bool,
@@ -140,6 +167,9 @@ pub struct JoinOptions {
     /// Drop `EMPTY_ARRAY` from the union when another `Array` or `List`
     /// atom is present.
     pub overwrite_empty_array: bool,
+    /// Apply subtype-driven absorption (refined int ranges, refined
+    /// string axes, family hierarchy: numeric/scalar/array-key).
+    pub absorb_refinements: bool,
 }
 
 impl JoinOptions {
@@ -150,8 +180,26 @@ impl JoinOptions {
     }
 
     #[must_use]
+    pub const fn with_int_literal_collapse_threshold(mut self, threshold: u16) -> Self {
+        self.int_literal_collapse_threshold = Some(threshold);
+        self
+    }
+
+    #[must_use]
     pub const fn with_string_literal_collapse_threshold(mut self, threshold: u16) -> Self {
-        self.string_literal_collapse_threshold = threshold;
+        self.string_literal_collapse_threshold = Some(threshold);
+        self
+    }
+
+    #[must_use]
+    pub const fn with_float_literal_collapse_threshold(mut self, threshold: u16) -> Self {
+        self.float_literal_collapse_threshold = Some(threshold);
+        self
+    }
+
+    #[must_use]
+    pub const fn with_array_shape_collapse_threshold(mut self, threshold: u16) -> Self {
+        self.array_shape_collapse_threshold = Some(threshold);
         self
     }
 
@@ -172,6 +220,119 @@ impl JoinOptions {
         self.overwrite_empty_array = on;
         self
     }
+
+    #[must_use]
+    pub const fn with_absorb_refinements(mut self, on: bool) -> Self {
+        self.absorb_refinements = on;
+        self
+    }
+}
+
+/// Drop any element absorbed by another structurally-larger element in
+/// the same multiset (`a <: b` ⇒ drop `a`). Uses the lattice's element
+/// refinement check with [`NullWorld`](crate::world::NullWorld), so only
+/// purely-structural rules fire. Coercion-driven refinements (e.g.
+/// `int <: float` via PHP's runtime int-to-float coercion) do **not**
+/// drive absorption: keeping `int|float` distinct preserves the
+/// information that the value was originally typed as `int`.
+fn apply_subtype_absorption(elements: &mut Vec<ElementId>) {
+    if elements.len() < 2 {
+        return;
+    }
+
+    let world = NullWorld;
+    let opts = LatticeOptions::default();
+    let mut absorbed = vec![false; elements.len()];
+
+    for i in 0..elements.len() {
+        if absorbed[i] {
+            continue;
+        }
+
+        for j in 0..elements.len() {
+            if i == j || absorbed[j] {
+                continue;
+            }
+            let mut report = LatticeReport::new();
+            if element_refines(elements[i], elements[j], &world, opts, &mut report)
+                && !report.causes.contains(CoercionCauses::PHP_RUNTIME_COERCE)
+            {
+                absorbed[i] = true;
+                break;
+            }
+        }
+    }
+
+    let mut idx = 0;
+    elements.retain(|_| {
+        let keep = !absorbed[idx];
+        idx += 1;
+        keep
+    });
+}
+
+fn apply_int_literal_collapse(elements: &mut Vec<ElementId>, threshold: u16) {
+    if elements.contains(&INT) {
+        return;
+    }
+
+    let i = interner();
+    let count = elements
+        .iter()
+        .filter(|e| e.kind() == ElementKind::Int && matches!(i.get_int(**e), IntInfo::Literal(_)))
+        .count();
+
+    if count as u32 <= u32::from(threshold) {
+        return;
+    }
+
+    elements.retain(|e| !(e.kind() == ElementKind::Int && matches!(i.get_int(*e), IntInfo::Literal(_))));
+    let pos = elements.binary_search(&INT).unwrap_or_else(|p| p);
+    elements.insert(pos, INT);
+}
+
+fn apply_float_literal_collapse(elements: &mut Vec<ElementId>, threshold: u16) {
+    use crate::element::payload::scalar::FloatInfo;
+    if elements.contains(&FLOAT) {
+        return;
+    }
+
+    let i = interner();
+    let count = elements
+        .iter()
+        .filter(|e| e.kind() == ElementKind::Float && matches!(i.get_float(**e), FloatInfo::Literal(_)))
+        .count();
+
+    if count as u32 <= u32::from(threshold) {
+        return;
+    }
+
+    elements.retain(|e| !(e.kind() == ElementKind::Float && matches!(i.get_float(*e), FloatInfo::Literal(_))));
+    let pos = elements.binary_search(&FLOAT).unwrap_or_else(|p| p);
+    elements.insert(pos, FLOAT);
+}
+
+fn apply_array_shape_collapse(elements: &mut Vec<ElementId>, threshold: u16) {
+    let shape_count = elements
+        .iter()
+        .filter(|e| matches!(e.kind(), ElementKind::Array | ElementKind::List) && **e != EMPTY_ARRAY)
+        .count();
+
+    if shape_count as u32 <= u32::from(threshold) {
+        return;
+    }
+
+    let i = interner();
+    elements.retain(|e| !(matches!(e.kind(), ElementKind::Array | ElementKind::List) && *e != EMPTY_ARRAY));
+    let general = i.intern_array(KeyedArrayInfo {
+        key_param: Some(crate::prelude::TYPE_ARRAY_KEY),
+        value_param: Some(crate::prelude::TYPE_MIXED),
+        known_items: None,
+        flags: KeyedArrayFlags::default(),
+    });
+
+    let pos = elements.binary_search(&general).unwrap_or_else(|p| p);
+    elements.insert(pos, general);
 }
 
 fn apply_overwrite_empty_array(elements: &mut Vec<ElementId>) {
@@ -222,7 +383,7 @@ fn apply_merge_int_ranges(elements: &mut Vec<ElementId>) {
         }
     }
 
-    if intervals.len() < 2 {
+    if intervals.is_empty() {
         return;
     }
 
@@ -255,6 +416,7 @@ fn apply_merge_int_ranges(elements: &mut Vec<ElementId>) {
     let mut new_elements: Vec<ElementId> = other;
     for (lo, hi) in merged {
         let elem = match (lo, hi) {
+            (None, None) => INT,
             (Some(l), Some(h)) if l == h => ElementId::int_literal(l),
             _ => ElementId::int_range(lo, hi),
         };

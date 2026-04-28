@@ -83,7 +83,7 @@ fn vanilla_then_truthy_mixed_yields_vanilla() {
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (order-dependent: truthy + vanilla → nonnull)"]
+#[ignore = "needs mago Mixed constraint joining (order-dependent)"]
 fn truthy_mixed_then_vanilla_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), mixed()], vec![mixed_nonnull()]);
 }
@@ -104,7 +104,7 @@ fn vanilla_then_nonnull_mixed_yields_vanilla() {
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (order-dependent: nonnull + vanilla → nonnull)"]
+#[ignore = "needs mago Mixed constraint joining (order-dependent)"]
 fn nonnull_mixed_then_vanilla_yields_nonnull() {
     assert_combines_to(vec![mixed_nonnull(), mixed()], vec![mixed_nonnull()]);
 }
@@ -115,63 +115,63 @@ fn vanilla_dominates_many_atoms() {
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (truthy + falsy → nonnull)"]
+#[ignore = "needs mago Mixed constraint joining"]
 fn truthy_or_falsy_mixed_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), mixed_falsy()], vec![mixed_nonnull()]);
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (truthy + non-truthy element relaxes truthiness)"]
+#[ignore = "needs mago Mixed constraint joining"]
 fn truthy_mixed_then_nontruthy_int_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), t_int()], vec![mixed_nonnull()]);
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (order matters: int + truthy keeps truthy)"]
+#[ignore = "needs mago Mixed constraint joining (order-dependent)"]
 fn nontruthy_int_then_truthy_mixed_yields_truthy_mixed() {
     assert_combines_to(vec![t_int(), mixed_truthy()], vec![mixed_truthy()]);
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (truthy + falsy literal relaxes)"]
+#[ignore = "needs mago Mixed constraint joining (truthy mixed + falsy literal)"]
 fn truthy_mixed_then_falsy_string_literal_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), t_lit_string("0")], vec![mixed_nonnull()]);
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (truthy + truthy literal preserves truthy)"]
+#[ignore = "needs mago Mixed constraint joining (truthy preservation)"]
 fn truthy_mixed_then_truthy_literal_preserves_truthy() {
     assert_combines_to(vec![mixed_truthy(), t_lit_string("hello")], vec![mixed_truthy()]);
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (nonnull + null relaxes to vanilla)"]
+#[ignore = "needs mago Mixed constraint joining (nonnull + null -> vanilla)"]
 fn nonnull_mixed_with_null_becomes_vanilla() {
     assert_combines_to(vec![mixed_nonnull(), null()], vec![mixed()]);
     assert_combines_to(vec![null(), mixed_nonnull()], vec![mixed()]);
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (falsy + null preserves falsy since null is falsy)"]
+#[ignore = "needs mago Mixed constraint joining (falsy + null preservation)"]
 fn falsy_mixed_with_null_preserves_falsy() {
     assert_combines_to(vec![mixed_falsy(), null()], vec![mixed_falsy()]);
     assert_combines_to(vec![null(), mixed_falsy()], vec![mixed_falsy()]);
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (truthy + null relaxes truthy to undetermined)"]
+#[ignore = "needs mago Mixed constraint joining (truthy + null -> nonnull)"]
 fn truthy_mixed_first_then_null_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), null()], vec![mixed_nonnull()]);
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (null + truthy → vanilla, order-dependent)"]
+#[ignore = "needs mago Mixed constraint joining (order-dependent)"]
 fn null_first_then_truthy_mixed_yields_vanilla() {
     assert_combines_to(vec![null(), mixed_truthy()], vec![mixed()]);
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (truthy + nonnull → nonnull)"]
+#[ignore = "needs mago Mixed constraint joining (truthy + nonnull -> nonnull)"]
 fn truthy_or_nonnull_mixed_collapses_to_nonnull() {
     assert_combines_to(vec![mixed_truthy(), mixed_nonnull()], vec![mixed_nonnull()]);
 }
@@ -184,7 +184,7 @@ fn never_then_truthy_mixed_yields_truthy() {
 }
 
 #[test]
-#[ignore = "TODO: mago Mixed constraint joining (truthy + never relaxes weirdly)"]
+#[ignore = "needs mago Mixed constraint joining (truthy + never -> nonnull)"]
 fn truthy_mixed_then_never_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), never()], vec![mixed_nonnull()]);
 }

@@ -78,7 +78,6 @@ fn duplicate_literal_floats_collapse() {
 }
 
 #[test]
-#[ignore = "needs threshold-based literal collapse (mago default 128)"]
 fn many_distinct_literals_exceed_threshold_generalise() {
     let n = 200_usize;
     let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_float(i as f64)).collect();
@@ -96,10 +95,9 @@ fn under_threshold_keeps_literals() {
 }
 
 #[test]
-#[ignore = "needs threshold-based literal collapse"]
 fn custom_low_threshold_generalises_quickly() {
     let inputs: Vec<ElementId> = (0..20_usize).map(|i| t_lit_float(i as f64)).collect();
-    let result = combine_with_string_threshold(inputs, 5);
+    let result = combine_with_float_threshold(inputs, 5);
     assert_eq!(result.len(), 1);
     assert_eq!(result[0], t_float());
 }

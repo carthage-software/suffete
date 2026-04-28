@@ -33,7 +33,7 @@ use crate::handle::define_handle;
 /// for content-only comparison, and [`TypeId::with_flags`] /
 /// [`TypeId::with_meta`] to derive related handles in O(1) without
 /// touching the arena.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TypeId(NonZeroU64);
 
 const SLOT_BITS: u32 = 32;
@@ -186,6 +186,28 @@ define_handle! {
 impl std::fmt::Display for TypeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.as_ref(), f)
+    }
+}
+
+impl std::fmt::Debug for TypeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            return f.debug_struct("TypeId")
+                .field("raw", &format_args!("{:#018x}", self.0.get()))
+                .field("slot", &self.slot())
+                .field("flags", &self.flags())
+                .field("meta", &self.meta())
+                .field("display", &format_args!("{}", self))
+                .finish();
+        }
+        write!(f, "TypeId({:#018x}", self.0.get())?;
+        if self.flags() != FlowFlags::EMPTY {
+            write!(f, ", flags={:?}", self.flags())?;
+        }
+        if self.meta() != 0 {
+            write!(f, ", meta={:#x}", self.meta())?;
+        }
+        write!(f, ": {})", self)
     }
 }
 

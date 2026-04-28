@@ -59,7 +59,6 @@ fn string_absorbs_literal_either_order() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption (non-empty-string absorbs non-empty literal)"]
 fn non_empty_absorbs_compatible_literal() {
     for s in ["a", "hi", "0", "Hello"] {
         assert_combines_to(vec![t_non_empty_string(), t_lit_string(s)], vec![t_non_empty_string()]);
@@ -76,13 +75,12 @@ fn non_empty_first_keeps_empty_literal_separate() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven downgrade (non-empty + empty-literal -> general string)"]
+#[ignore = "needs string-axis synthesis: empty_literal + non_empty -> string"]
 fn empty_literal_first_downgrades_non_empty_to_general_string() {
     assert_combines_to(vec![t_lit_string(""), t_non_empty_string()], vec![t_string()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption (numeric-string absorbs numeric literal)"]
 fn numeric_string_absorbs_numeric_literal() {
     for s in ["0", "1", "-1", "123", "1.5", "1e10", "-0", "0.0"] {
         assert_combines_to(vec![t_numeric_string(), t_lit_string(s)], vec![t_numeric_string()]);
@@ -107,7 +105,6 @@ fn non_numeric_literal_first_with_numeric_string_keeps_separate() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption (lowercase-string absorbs lowercase literal)"]
 fn lowercase_string_absorbs_lowercase_literal() {
     for s in ["hi", "abc", "hello"] {
         assert_combines_to(vec![t_lower_string(), t_lit_string(s)], vec![t_lower_string()]);
@@ -115,7 +112,7 @@ fn lowercase_string_absorbs_lowercase_literal() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven downgrade"]
+#[ignore = "needs string-axis synthesis: lower + empty -> string"]
 fn lowercase_with_empty_literal_collapses_to_general_string() {
     assert_combines_to(vec![t_lower_string(), t_lit_string("")], vec![t_string()]);
 }
@@ -130,7 +127,6 @@ fn lowercase_string_first_keeps_uppercase_literal_separate() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption"]
 fn uppercase_string_absorbs_uppercase_literal() {
     for s in ["HI", "ABC", "FOO"] {
         assert_combines_to(vec![t_upper_string(), t_lit_string(s)], vec![t_upper_string()]);
@@ -138,7 +134,7 @@ fn uppercase_string_absorbs_uppercase_literal() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven downgrade"]
+#[ignore = "needs string-axis synthesis: upper + empty -> string"]
 fn uppercase_with_empty_literal_collapses_to_general_string() {
     assert_combines_to(vec![t_upper_string(), t_lit_string("")], vec![t_string()]);
 }
@@ -153,7 +149,6 @@ fn uppercase_string_first_keeps_lowercase_literal_separate() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption"]
 fn truthy_string_absorbs_truthy_literal() {
     for s in ["hi", "abc", "1", "true", "Hello"] {
         assert_combines_to(vec![t_truthy_string(), t_lit_string(s)], vec![t_truthy_string()]);
@@ -169,35 +164,34 @@ fn truthy_string_first_keeps_falsy_literal_separate() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven axis collapse (lower|upper -> string)"]
+#[ignore = "needs string-axis synthesis: lower + upper -> string"]
 fn lower_or_upper_collapses_to_general_string() {
     assert_combines_to(vec![t_lower_string(), t_upper_string()], vec![t_string()]);
     assert_combines_to(vec![t_upper_string(), t_lower_string()], vec![t_string()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven axis collapse"]
+#[ignore = "needs string-axis synthesis: non_empty + lower -> string"]
 fn non_empty_or_lower_collapses_to_general_string() {
     assert_combines_to(vec![t_non_empty_string(), t_lower_string()], vec![t_string()]);
     assert_combines_to(vec![t_lower_string(), t_non_empty_string()], vec![t_string()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption (truthy <: non-empty)"]
 fn truthy_or_non_empty_collapses_to_non_empty() {
     assert_combines_to(vec![t_truthy_string(), t_non_empty_string()], vec![t_non_empty_string()]);
     assert_combines_to(vec![t_non_empty_string(), t_truthy_string()], vec![t_non_empty_string()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven axis collapse"]
+#[ignore = "needs string-axis synthesis: truthy + numeric collapse"]
 fn truthy_or_numeric_collapses() {
     let result = combine_default(vec![t_truthy_string(), t_numeric_string()]);
     assert_eq!(result.len(), 1);
 }
 
 #[test]
-#[ignore = "needs subtype-driven axis collapse"]
+#[ignore = "needs string-axis synthesis: lower + numeric -> string"]
 fn lower_or_numeric_keeps_axes() {
     let result = combine_default(vec![t_lower_string(), t_numeric_string()]);
     assert_eq!(result, vec![t_string()]);
@@ -230,7 +224,6 @@ fn n_distinct_literals_kept() {
 }
 
 #[test]
-#[ignore = "needs threshold-based literal collapse"]
 fn many_distinct_literals_exceed_threshold_generalise() {
     let n = 200_usize;
     let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_string(&format!("s{i}"))).collect();
@@ -247,7 +240,6 @@ fn under_threshold_keeps_literals() {
 }
 
 #[test]
-#[ignore = "needs threshold-based literal collapse"]
 fn custom_low_threshold_generalises_quickly() {
     let inputs: Vec<ElementId> = (0..20_usize).map(|i| t_lit_string(&format!("s{i}"))).collect();
     let result = combine_with_string_threshold(inputs, 5);
@@ -255,7 +247,6 @@ fn custom_low_threshold_generalises_quickly() {
 }
 
 #[test]
-#[ignore = "needs threshold-based literal collapse"]
 fn threshold_zero_immediate_generalisation_when_two_or_more() {
     let inputs = vec![t_lit_string("x"), t_lit_string("y")];
     let result = combine_with_string_threshold(inputs, 0);
@@ -263,21 +254,19 @@ fn threshold_zero_immediate_generalisation_when_two_or_more() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven callable-string + literal axis interaction"]
+#[ignore = "needs string-axis synthesis: callable_string + literal -> truthy_string"]
 fn callable_string_with_literal_keeps_truthy_axis() {
     let result = combine_default(vec![t_callable_string(), t_lit_string("foo")]);
     assert_eq!(result, vec![t_truthy_string()]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption (literal-string absorbs concrete literal)"]
 fn unspec_literal_absorbs_specific_literal() {
     let result = combine_default(vec![t_unspec_lit_string(false), t_lit_string("hi")]);
     assert_eq!(result, vec![t_unspec_lit_string(false)]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption"]
 fn non_empty_unspec_literal_absorbs_specific() {
     let result = combine_default(vec![t_unspec_lit_string(true), t_lit_string("hi")]);
     assert_eq!(result, vec![t_unspec_lit_string(true)]);
@@ -293,7 +282,6 @@ fn many_literals_with_general_collapse() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption (non-empty absorbs non-empty literals)"]
 fn many_compatible_literals_with_non_empty_collapse() {
     let mut inputs = vec![t_non_empty_string()];
     for i in 0..30 {
@@ -303,7 +291,6 @@ fn many_compatible_literals_with_non_empty_collapse() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven partial absorption"]
 fn mixed_compatible_and_incompatible_literals_with_non_empty() {
     let inputs = vec![t_non_empty_string(), t_lit_string("a"), t_lit_string("b"), t_lit_string(""), t_lit_string("c")];
     let result = combine_default(inputs);
@@ -334,7 +321,6 @@ fn lit_lower_with_lit_upper_kept_apart() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption"]
 fn many_lower_literals_with_non_empty_lower_collapse() {
     let inputs: Vec<ElementId> =
         std::iter::once(t_lower_string()).chain((0..20).map(|i| t_lit_string(&format!("s{i}")))).collect();
@@ -342,7 +328,6 @@ fn many_lower_literals_with_non_empty_lower_collapse() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven absorption"]
 fn many_uppercase_literals_with_uppercase_collapse() {
     let inputs: Vec<ElementId> =
         std::iter::once(t_upper_string()).chain((0..20).map(|i| t_lit_string(&format!("S{i}")))).collect();

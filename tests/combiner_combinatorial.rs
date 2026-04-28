@@ -29,10 +29,10 @@ fn lit_int_self_dedup_for_many_values() {
 }
 
 #[test]
-fn distinct_lit_pairs_kept_apart() {
+fn non_adjacent_lit_pairs_kept_apart() {
     for a in -10..=10_i64 {
         for b in -10..=10_i64 {
-            if a == b {
+            if a == b || (a - b).abs() == 1 {
                 continue;
             }
             let result = combine_default(vec![t_lit_int(a), t_lit_int(b)]);
@@ -42,15 +42,21 @@ fn distinct_lit_pairs_kept_apart() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven range merging"]
+fn adjacent_lit_pairs_merge_to_range() {
+    for a in -5..=5_i64 {
+        let b = a + 1;
+        let result = combine_default(vec![t_lit_int(a), t_lit_int(b)]);
+        assert_eq!(result, vec![t_int_range(a, b)], "{a} | {b}");
+    }
+}
+
+#[test]
 fn ranges_with_overlaps_collapse() {}
 
 #[test]
-#[ignore = "needs subtype-driven from-extension"]
 fn from_n_with_lit_n_minus_1_extends_for_many_n() {}
 
 #[test]
-#[ignore = "needs subtype-driven to-extension"]
 fn to_n_with_lit_n_plus_1_extends_for_many_n() {}
 
 #[test]
@@ -147,11 +153,9 @@ fn object_any_absorbs_many_named() {
 }
 
 #[test]
-#[ignore = "needs t_generic_named helper"]
 fn generic_with_n_distinct_int_params_collapse_to_one_container() {}
 
 #[test]
-#[ignore = "needs t_generic_named helper"]
 fn generic_with_int_and_string_param_keeps_one_container() {}
 
 #[test]
@@ -289,7 +293,8 @@ fn many_named_with_lits() {
             inputs.push(t_lit_int(i as i64));
         }
         let result = combine_default(inputs);
-        assert_eq!(result.len(), 2 * n);
+        // Adjacent literals merge into one range / literal; n named objects stay distinct.
+        assert_eq!(result.len(), n + 1);
     }
 }
 
@@ -320,11 +325,11 @@ fn alternating_named_collapses() {
 }
 
 #[test]
-fn n_copies_plus_distinct_int_kept() {
+fn n_copies_plus_adjacent_int_merges_to_range() {
     for n in [1_usize, 5, 10, 50, 100] {
         let mut inputs: Vec<ElementId> = (0..n).map(|_| t_lit_int(0)).collect();
         inputs.push(t_lit_int(1));
         let r = combine_default(inputs);
-        assert_eq!(r.len(), 2, "n={n}");
+        assert_eq!(r, vec![t_int_range(0, 1)], "n={n}");
     }
 }

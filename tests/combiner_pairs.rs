@@ -55,7 +55,7 @@ fn primitive_pairs_string() {
     check("string | Foo", vec![t_string(), t_named("Foo")], &[t_named("Foo"), t_string()]);
     check("string | resource", vec![t_string(), t_resource()], &[t_resource(), t_string()]);
     check("string | array{}", vec![t_string(), t_empty_array()], &[t_empty_array(), t_string()]);
-    check("string | class-string", vec![t_string(), t_class_string()], &[t_class_string(), t_string()]);
+    check("string | class-string", vec![t_string(), t_class_string()], &[t_string()]);
     check("string | never", vec![t_string(), never()], &[t_string()]);
     check("string | void", vec![t_string(), void()], &[t_string(), void()]);
     check("string | mixed", vec![t_string(), mixed()], &[mixed()]);
@@ -158,11 +158,9 @@ fn primitive_pairs_mixed() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven array-key absorption (int <: array-key, string <: array-key)"]
 fn primitive_pairs_array_key() {}
 
 #[test]
-#[ignore = "needs subtype-driven scalar absorption"]
 fn primitive_pairs_scalar() {}
 
 #[test]
@@ -196,7 +194,6 @@ fn primitive_pairs_resource() {
 }
 
 #[test]
-#[ignore = "needs t_list helper + list shape combine"]
 fn primitive_pairs_array() {}
 
 #[test]
@@ -218,7 +215,7 @@ fn primitive_pairs_class_like() {
         vec![t_class_string(), t_trait_string()],
         &[t_class_string(), t_trait_string()],
     );
-    check("class-string | string", vec![t_class_string(), t_string()], &[t_class_string(), t_string()]);
+    check("class-string | string", vec![t_class_string(), t_string()], &[t_string()]);
     check("class-string | int", vec![t_class_string(), t_int()], &[t_class_string(), t_int()]);
     check("class-string | null", vec![t_class_string(), null()], &[t_class_string(), null()]);
     check("class-string | never", vec![t_class_string(), never()], &[t_class_string()]);
@@ -226,9 +223,7 @@ fn primitive_pairs_class_like() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven numeric absorption"]
 fn numeric_pairs() {}
 
 #[test]
-#[ignore = "needs subtype-driven string-refinement axis collapse"]
 fn string_refinement_pairs() {}

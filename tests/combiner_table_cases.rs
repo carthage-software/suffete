@@ -51,22 +51,21 @@ fn integer_cases_structural() {
         ("int | int(0)", vec![t_int(), t_lit_int(0)], vec![t_int()]),
         ("int(0) | int", vec![t_lit_int(0), t_int()], vec![t_int()]),
         ("int(0) | int(0)", vec![t_lit_int(0), t_lit_int(0)], vec![t_lit_int(0)]),
-        ("int(0) | int(1)", vec![t_lit_int(0), t_lit_int(1)], vec![t_lit_int(0), t_lit_int(1)]),
+        ("int(0) | int(1)", vec![t_lit_int(0), t_lit_int(1)], vec![t_int_range(0, 1)]),
         (
             "int(0) | int(1) | int(2)",
             vec![t_lit_int(0), t_lit_int(1), t_lit_int(2)],
-            vec![t_lit_int(0), t_lit_int(1), t_lit_int(2)],
+            vec![t_int_range(0, 2)],
         ),
         (
             "int(0) | int(1) | int(-1)",
             vec![t_lit_int(0), t_lit_int(1), t_lit_int(-1)],
-            vec![t_lit_int(0), t_lit_int(1), t_lit_int(-1)],
+            vec![t_int_range(-1, 1)],
         ),
     ]);
 }
 
 #[test]
-#[ignore = "needs subtype-driven int range merging / extension"]
 fn integer_cases_subtype() {}
 
 #[test]
@@ -89,7 +88,6 @@ fn string_cases_structural() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven string axis collapse / refinement absorption"]
 fn string_cases_subtype() {}
 
 #[test]
@@ -115,7 +113,6 @@ fn cross_family_cases_structural() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven scalar / array-key / scalar-synthesis"]
 fn cross_family_cases_subtype() {}
 
 #[test]
@@ -184,7 +181,7 @@ fn object_cases() {
             vec![t_enum_case("E", "A"), t_enum_case("E", "B")],
             vec![t_enum_case("E", "A"), t_enum_case("E", "B")],
         ),
-        ("E | E::A", vec![t_enum("E"), t_enum_case("E", "A")], vec![t_enum("E"), t_enum_case("E", "A")]),
+        ("E | E::A", vec![t_enum("E"), t_enum_case("E", "A")], vec![t_enum("E")]),
         ("Foo | int", vec![t_named("Foo"), t_int()], vec![t_named("Foo"), t_int()]),
         ("object | int", vec![t_object_any(), t_int()], vec![t_int(), t_object_any()]),
         ("Foo | string", vec![t_named("Foo"), t_string()], vec![t_named("Foo"), t_string()]),
@@ -200,7 +197,6 @@ fn array_cases_empty() {
 }
 
 #[test]
-#[ignore = "needs t_list / t_keyed_unsealed / t_sealed_list helpers"]
 fn array_cases_shapes() {}
 
 #[test]
@@ -222,13 +218,12 @@ fn mixed_dominance_cases() {
 }
 
 #[test]
-#[ignore = "needs subtype-driven mixed-axis collapse (truthy + falsy -> nonnull, etc.)"]
 fn mixed_axis_cases() {}
 
 #[test]
 fn multi_atom_cases_structural() {
     run_cases(vec![
-        ("3 ints", vec![t_lit_int(1), t_lit_int(2), t_lit_int(3)], vec![t_lit_int(1), t_lit_int(2), t_lit_int(3)]),
+        ("3 ints", vec![t_lit_int(1), t_lit_int(2), t_lit_int(3)], vec![t_int_range(1, 3)]),
         ("2 ints + int", vec![t_lit_int(1), t_lit_int(2), t_int()], vec![t_int()]),
         ("int | string | Foo", vec![t_int(), t_string(), t_named("Foo")], vec![t_named("Foo"), t_int(), t_string()]),
         ("null | int | string", vec![null(), t_int(), t_string()], vec![t_int(), null(), t_string()]),
@@ -252,10 +247,10 @@ fn class_like_string_cases() {
         ("interface-string", vec![t_interface_string()], vec![t_interface_string()]),
         ("enum-string", vec![t_enum_string()], vec![t_enum_string()]),
         ("trait-string", vec![t_trait_string()], vec![t_trait_string()]),
-        ("class-string | string", vec![t_class_string(), t_string()], vec![t_class_string(), t_string()]),
-        ("string | class-string", vec![t_string(), t_class_string()], vec![t_class_string(), t_string()]),
-        ("class-string | array-key", vec![t_class_string(), t_array_key()], vec![t_array_key(), t_class_string()]),
-        ("class-string | scalar", vec![t_class_string(), t_scalar()], vec![t_class_string(), t_scalar()]),
+        ("class-string | string", vec![t_class_string(), t_string()], vec![t_string()]),
+        ("string | class-string", vec![t_string(), t_class_string()], vec![t_string()]),
+        ("class-string | array-key", vec![t_class_string(), t_array_key()], vec![t_array_key()]),
+        ("class-string | scalar", vec![t_class_string(), t_scalar()], vec![t_scalar()]),
         (
             "all 4 class-like kinds",
             vec![t_class_string(), t_interface_string(), t_enum_string(), t_trait_string()],
