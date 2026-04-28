@@ -175,8 +175,12 @@ fn cast_to_int(elem: ElementId) -> CastResult {
         },
         ElementKind::Resource => CastResult::lossless(TYPE_INT),
         ElementKind::Array | ElementKind::List => CastResult::lossy(TYPE_INT),
-        ElementKind::Object | ElementKind::Enum | ElementKind::ObjectShape | ElementKind::HasMethod
-        | ElementKind::HasProperty | ElementKind::ObjectAny => CastResult::may_throw(TYPE_INT),
+        ElementKind::Object
+        | ElementKind::Enum
+        | ElementKind::ObjectShape
+        | ElementKind::HasMethod
+        | ElementKind::HasProperty
+        | ElementKind::ObjectAny => CastResult::may_throw(TYPE_INT),
         _ => CastResult::lossy(TYPE_INT),
     }
 }
@@ -201,10 +205,14 @@ fn cast_to_float(elem: ElementId) -> CastResult {
             },
             _ => CastResult::lossy(TYPE_FLOAT),
         },
-        ElementKind::Object | ElementKind::Enum | ElementKind::ObjectShape | ElementKind::HasMethod
-        | ElementKind::HasProperty | ElementKind::ObjectAny | ElementKind::Array | ElementKind::List => {
-            CastResult::may_throw(TYPE_FLOAT)
-        }
+        ElementKind::Object
+        | ElementKind::Enum
+        | ElementKind::ObjectShape
+        | ElementKind::HasMethod
+        | ElementKind::HasProperty
+        | ElementKind::ObjectAny
+        | ElementKind::Array
+        | ElementKind::List => CastResult::may_throw(TYPE_FLOAT),
         _ => CastResult::lossy(TYPE_FLOAT),
     }
 }
@@ -227,8 +235,12 @@ fn cast_to_string<W: World>(elem: ElementId, _world: &W) -> CastResult {
         ElementKind::False | ElementKind::Null | ElementKind::Void => CastResult::lossless(singleton(EMPTY_STRING)),
         ElementKind::Bool => CastResult::lossless(TYPE_STRING),
         ElementKind::Resource => CastResult::lossless(TYPE_STRING),
-        ElementKind::Object | ElementKind::Enum | ElementKind::ObjectShape | ElementKind::HasMethod
-        | ElementKind::HasProperty | ElementKind::ObjectAny => CastResult::may_throw(TYPE_STRING),
+        ElementKind::Object
+        | ElementKind::Enum
+        | ElementKind::ObjectShape
+        | ElementKind::HasMethod
+        | ElementKind::HasProperty
+        | ElementKind::ObjectAny => CastResult::may_throw(TYPE_STRING),
         ElementKind::Array | ElementKind::List => CastResult::may_throw(TYPE_STRING),
         _ => CastResult::lossy(TYPE_STRING),
     }
@@ -263,10 +275,14 @@ fn cast_to_bool(elem: ElementId) -> CastResult {
             _ => CastResult::lossless(TYPE_BOOL),
         },
         ElementKind::Array | ElementKind::List => CastResult::lossless(TYPE_BOOL),
-        ElementKind::Object | ElementKind::Enum | ElementKind::ObjectShape | ElementKind::HasMethod
-        | ElementKind::HasProperty | ElementKind::ObjectAny | ElementKind::Resource | ElementKind::Callable => {
-            CastResult::lossless(singleton(TRUE))
-        }
+        ElementKind::Object
+        | ElementKind::Enum
+        | ElementKind::ObjectShape
+        | ElementKind::HasMethod
+        | ElementKind::HasProperty
+        | ElementKind::ObjectAny
+        | ElementKind::Resource
+        | ElementKind::Callable => CastResult::lossless(singleton(TRUE)),
         _ => CastResult::lossless(TYPE_BOOL),
     }
 }
@@ -275,18 +291,32 @@ fn cast_to_array(elem: ElementId) -> CastResult {
     match elem.kind() {
         ElementKind::Array | ElementKind::List => CastResult::lossless(singleton(elem)),
         ElementKind::Null | ElementKind::Void => CastResult::lossless(singleton(EMPTY_ARRAY)),
-        ElementKind::Int | ElementKind::Float | ElementKind::String | ElementKind::Bool | ElementKind::True
-        | ElementKind::False | ElementKind::Resource | ElementKind::Callable => CastResult::lossy(generic_array_type()),
-        ElementKind::Object | ElementKind::Enum | ElementKind::ObjectShape | ElementKind::HasMethod
-        | ElementKind::HasProperty | ElementKind::ObjectAny => CastResult::lossy(generic_array_type()),
+        ElementKind::Int
+        | ElementKind::Float
+        | ElementKind::String
+        | ElementKind::Bool
+        | ElementKind::True
+        | ElementKind::False
+        | ElementKind::Resource
+        | ElementKind::Callable => CastResult::lossy(generic_array_type()),
+        ElementKind::Object
+        | ElementKind::Enum
+        | ElementKind::ObjectShape
+        | ElementKind::HasMethod
+        | ElementKind::HasProperty
+        | ElementKind::ObjectAny => CastResult::lossy(generic_array_type()),
         _ => CastResult::lossy(generic_array_type()),
     }
 }
 
 fn cast_to_object(elem: ElementId) -> CastResult {
     match elem.kind() {
-        ElementKind::Object | ElementKind::Enum | ElementKind::ObjectShape | ElementKind::HasMethod
-        | ElementKind::HasProperty | ElementKind::ObjectAny => CastResult::lossless(singleton(elem)),
+        ElementKind::Object
+        | ElementKind::Enum
+        | ElementKind::ObjectShape
+        | ElementKind::HasMethod
+        | ElementKind::HasProperty
+        | ElementKind::ObjectAny => CastResult::lossless(singleton(elem)),
         _ => CastResult::lossy(stdclass_type()),
     }
 }
@@ -355,9 +385,5 @@ fn parse_php_float(s: &str) -> Option<f64> {
 }
 
 fn format_php_float(value: f64) -> String {
-    if value == value.trunc() && value.is_finite() {
-        format!("{}", value as i64)
-    } else {
-        format!("{value}")
-    }
+    if value == value.trunc() && value.is_finite() { format!("{}", value as i64) } else { format!("{value}") }
 }

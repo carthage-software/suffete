@@ -54,5 +54,5 @@ pub enum Visibility {
     Private,
 }
 
-const _: () = assert!(size_of::<DerivedInfo>() <= 16);
+const _: () = assert!(size_of::<DerivedInfo>() <= 32);
 const _: () = assert!(size_of::<Visibility>() == 1);

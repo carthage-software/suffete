@@ -93,10 +93,7 @@ fn string_literal_collapse_at_or_below_threshold_keeps_literals() {
 #[test]
 fn merge_int_ranges_collapses_consecutive_literals() {
     let opts = join::JoinOptions::default().with_merge_int_ranges(true);
-    let out = join::compute_with(
-        &[t_lit_int(0), t_lit_int(1), t_lit_int(2), t_lit_int(3)],
-        &opts,
-    );
+    let out = join::compute_with(&[t_lit_int(0), t_lit_int(1), t_lit_int(2), t_lit_int(3)], &opts);
     assert_eq!(out, vec![ElementId::int_range(Some(0), Some(3))]);
 }
 

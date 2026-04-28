@@ -155,7 +155,7 @@ fn alias_preserves_flow_flags() {
     let alias_elem = t_alias("Foo", "Id");
     let ty = interner().intern_type(&[alias_elem], FlowFlags::EMPTY);
     let result = expand::expand(ty, &w);
-    assert_eq!(result.as_ref().flags, FlowFlags::EMPTY);
+    assert_eq!(result.flags(), FlowFlags::EMPTY);
 }
 
 #[test]

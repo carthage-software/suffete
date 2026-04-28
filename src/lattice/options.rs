@@ -36,7 +36,7 @@ impl LatticeOptions {
     /// `ignore_false` mirrors `flags.ignore_falsable_issues()`.
     /// `inside_assertion` stays `false`.
     pub fn of_type(ty: TypeId) -> Self {
-        let f = ty.as_ref().flags;
+        let f = ty.flags();
         Self {
             ignore_null: f.ignore_nullable_issues(),
             ignore_false: f.ignore_falsable_issues(),

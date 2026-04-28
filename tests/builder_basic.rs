@@ -142,7 +142,7 @@ fn set_flags_replaces_flag_set() {
     let mut b = TypeBuilder::new();
     b.push(t_int()).set_flags(FlowFlags::EMPTY);
     let result = b.build();
-    assert_eq!(result.as_ref().flags, FlowFlags::EMPTY);
+    assert_eq!(result.flags(), FlowFlags::EMPTY);
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn modify_flags_lets_caller_mutate_flag_set() {
     let mut b = TypeBuilder::new();
     b.push(t_int()).modify_flags(|_| FlowFlags::EMPTY);
     let result = b.build();
-    assert_eq!(result.as_ref().flags, FlowFlags::EMPTY);
+    assert_eq!(result.flags(), FlowFlags::EMPTY);
 }
 
 #[test]

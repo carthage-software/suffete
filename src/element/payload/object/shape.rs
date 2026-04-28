@@ -49,4 +49,4 @@ impl ObjectShapeFlags {
 }
 
 const _: () = assert!(size_of::<ObjectShapeInfo>() <= 8);
-const _: () = assert!(size_of::<KnownPropertyEntry>() <= 16);
+const _: () = assert!(size_of::<KnownPropertyEntry>() <= 24);

@@ -321,7 +321,9 @@ fn apply_merge_array_shapes(elements: &mut Vec<ElementId>) {
     let mut shapes: Vec<usize> = elements
         .iter()
         .enumerate()
-        .filter_map(|(idx, el)| (el.kind() == ElementKind::Array && i.get_array(*el).known_items.is_some()).then_some(idx))
+        .filter_map(|(idx, el)| {
+            (el.kind() == ElementKind::Array && i.get_array(*el).known_items.is_some()).then_some(idx)
+        })
         .collect();
 
     if shapes.len() < 2 {

@@ -119,7 +119,7 @@ impl ParamFlags {
     }
 }
 
-const _: () = assert!(size_of::<Signature>() <= 16);
-const _: () = assert!(size_of::<ParamInfo>() <= 16);
+const _: () = assert!(size_of::<Signature>() <= 24);
+const _: () = assert!(size_of::<ParamInfo>() <= 24);
 const _: () = assert!(size_of::<SignatureFlags>() == 1);
 const _: () = assert!(size_of::<ParamFlags>() == 1);

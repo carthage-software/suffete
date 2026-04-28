@@ -17,4 +17,4 @@ pub struct IterableInfo {
     pub intersections: Option<ElementListId>,
 }
 
-const _: () = assert!(size_of::<IterableInfo>() <= 16);
+const _: () = assert!(size_of::<IterableInfo>() <= 24);

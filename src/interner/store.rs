@@ -140,18 +140,21 @@ impl Interner {
         }
     }
 
-    /// Intern a [`Type`] from a slice of elements and a set of flow flags.
+    /// Intern a [`Type`] from a slice of elements and pack `flags` onto
+    /// the returned [`TypeId`]. The arena keys on element content only;
+    /// `flags` (and the `meta` field) ride on the handle, so multiple
+    /// flag combinations of the same content share one arena slot.
     ///
     /// Elements are sorted and deduplicated; empty input collapses to
     /// `[NEVER]`. No structural canonicalization is applied: this method
     /// stores whatever multiset the caller hands in.
     ///
     /// Callers that want a canonical union should run the input through
-    /// [`combiner::combine`](crate::combiner::combine) first, or use the
-    /// sugar constructors on [`TypeId`] which do that for you. The interner
-    /// stays decoupled from canonicalization because the subtype lattice is
-    /// preserved under combination, so the comparator answers the same
-    /// questions either way.
+    /// [`crate::join::compute`] first, or use the sugar constructors on
+    /// [`TypeId`] which do that for you. The interner stays decoupled
+    /// from canonicalization because the subtype lattice is preserved
+    /// under combination, so the comparator answers the same questions
+    /// either way.
     pub fn intern_type(&self, elements: &[ElementId], flags: FlowFlags) -> TypeId {
         let mut sorted: Vec<ElementId> = if elements.is_empty() { vec![NEVER] } else { elements.to_vec() };
         sorted.sort_unstable();
@@ -159,11 +162,13 @@ impl Interner {
 
         let list_id = self.element_list.intern(&sorted);
         let static_slice = self.element_list.get(list_id).expect("just-interned slice resolves");
-        let value = Type { elements: static_slice, flags };
-        TypeId::from_slot(self.types.intern(value))
+        let value = Type { elements: static_slice };
+        TypeId::from_parts(self.types.intern(value), flags, 0)
     }
 
-    /// Look up the [`Type`] behind a [`TypeId`].
+    /// Look up the content [`Type`] behind a [`TypeId`]. Returns the
+    /// element-set; the handle's flags and meta are read separately
+    /// via [`TypeId::flags`] and [`TypeId::meta`].
     ///
     /// # Panics
     ///
@@ -451,7 +456,7 @@ mod tests {
         let id = interner().intern_type(&[interner().intern_int(IntInfo::Literal(1729))], FlowFlags::EMPTY);
         let t: &'static Type = id.as_ref();
         assert_eq!(t.elements.len(), 1);
-        assert_eq!(t.flags, FlowFlags::EMPTY);
+        assert_eq!(id.flags(), FlowFlags::EMPTY);
     }
 
     #[test]

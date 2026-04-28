@@ -63,7 +63,7 @@ impl TypeBuilder {
     /// the same `TypeId` without re-interning.
     pub fn from_type(ty: TypeId) -> Self {
         let view = ty.as_ref();
-        Self { elements: view.elements.to_vec(), flags: view.flags, origin: Some(ty), dirty: false }
+        Self { elements: view.elements.to_vec(), flags: ty.flags(), origin: Some(ty), dirty: false }
     }
 
     /// Current element buffer, in mutation order (not yet sorted /

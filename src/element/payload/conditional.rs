@@ -16,4 +16,4 @@ pub struct ConditionalInfo {
     pub negated: bool,
 }
 
-const _: () = assert!(size_of::<ConditionalInfo>() <= 24);
+const _: () = assert!(size_of::<ConditionalInfo>() <= 40);

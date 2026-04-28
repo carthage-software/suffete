@@ -115,8 +115,8 @@ impl ListFlags {
     }
 }
 
-const _: () = assert!(size_of::<KeyedArrayInfo>() <= 16);
-const _: () = assert!(size_of::<ListInfo>() <= 16);
+const _: () = assert!(size_of::<KeyedArrayInfo>() <= 32);
+const _: () = assert!(size_of::<ListInfo>() <= 24);
 const _: () = assert!(size_of::<ArrayKey>() <= 24);
-const _: () = assert!(size_of::<KnownItemEntry>() <= 32);
-const _: () = assert!(size_of::<KnownElementEntry>() <= 16);
+const _: () = assert!(size_of::<KnownItemEntry>() <= 40);
+const _: () = assert!(size_of::<KnownElementEntry>() <= 24);

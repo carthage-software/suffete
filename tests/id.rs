@@ -6,11 +6,11 @@ use suffete::TypeId;
 use suffete::prelude;
 
 #[test]
-fn ids_are_four_bytes_with_niche_optimization() {
+fn ids_are_niche_optimized() {
     assert_eq!(size_of::<ElementId>(), 4);
     assert_eq!(size_of::<Option<ElementId>>(), 4);
-    assert_eq!(size_of::<TypeId>(), 4);
-    assert_eq!(size_of::<Option<TypeId>>(), 4);
+    assert_eq!(size_of::<TypeId>(), 8);
+    assert_eq!(size_of::<Option<TypeId>>(), 8);
 }
 
 #[test]
@@ -54,4 +54,30 @@ fn well_known_int_family_slots_are_ordered() {
     assert_eq!(prelude::INT_ZERO.slot(), 6);
     assert_eq!(prelude::INT_MINUS_ONE.slot(), 8);
     assert_eq!(prelude::INT.kind(), ElementKind::Int);
+}
+
+#[test]
+fn type_id_carries_flags_and_meta_independently_of_arena_slot() {
+    use suffete::FlowFlags;
+
+    let base = prelude::TYPE_INT;
+    let with_by_ref = base.with_flags(FlowFlags::EMPTY.with_by_reference(true));
+    let with_meta_7 = base.with_meta(7);
+    let with_both = with_by_ref.with_meta(7);
+
+    // All four share the same arena slot.
+    assert!(base.content_eq(with_by_ref));
+    assert!(base.content_eq(with_meta_7));
+    assert!(base.content_eq(with_both));
+
+    // But they are distinct TypeIds.
+    assert_ne!(base, with_by_ref);
+    assert_ne!(base, with_meta_7);
+    assert_ne!(with_by_ref, with_meta_7);
+
+    // Accessors round-trip.
+    assert!(with_by_ref.flags().by_reference());
+    assert_eq!(with_meta_7.meta(), 7);
+    assert!(with_both.flags().by_reference());
+    assert_eq!(with_both.meta(), 7);
 }

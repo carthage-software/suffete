@@ -81,7 +81,7 @@ pub(super) fn walk<F: FnMut(ElementId) -> Outcome>(ty: TypeId, f: &mut F) -> Typ
     if !changed {
         return ty;
     }
-    interner().intern_type(&new_elements, view.flags)
+    interner().intern_type(&new_elements, ty.flags())
 }
 
 /// Recurse into every nested `TypeId` carried by `elem`'s payload.

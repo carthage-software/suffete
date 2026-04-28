@@ -437,7 +437,7 @@ fn compare_with_variance<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
-    if input.as_ref().flags.from_template_default() || container.as_ref().flags.from_template_default() {
+    if input.flags().from_template_default() || container.flags().from_template_default() {
         report.add_cause(CoercionCauses::TEMPLATE_DEFAULT);
         return true;
     }
@@ -456,11 +456,10 @@ fn compare_with_variance<W: World>(
 /// with the [`TypeId`] wherever it is later nested, so the variance check
 /// sees it even several layers deep.
 fn mark_default_filled(ty: TypeId) -> TypeId {
-    let view = ty.as_ref();
-    if view.flags.from_template_default() {
+    if ty.flags().from_template_default() {
         return ty;
     }
-    interner().intern_type(view.elements, view.flags.with_from_template_default(true))
+    ty.with_flags(ty.flags().with_from_template_default(true))
 }
 
 /// Build a positional list of default-filled type-arguments for `class`,

@@ -265,7 +265,9 @@ fn resolve_object<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) 
         let arity = world.template_parameter_arity(info.name);
         if arity > 0 {
             let filled: Vec<TypeId> = (0..arity)
-                .map(|pos| world.template_parameter_at(info.name, pos).and_then(|p| p.upper_bound).unwrap_or(TYPE_MIXED))
+                .map(|pos| {
+                    world.template_parameter_at(info.name, pos).and_then(|p| p.upper_bound).unwrap_or(TYPE_MIXED)
+                })
                 .collect();
             info = ObjectInfo { type_args: Some(i.intern_type_list(&filled)), ..info };
             changed = true;

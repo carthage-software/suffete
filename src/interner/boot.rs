@@ -201,7 +201,7 @@ mod tests {
     fn type_int_resolves_to_singleton_int_union() {
         let t = TYPE_INT.as_ref();
         assert_eq!(t.elements, &[INT]);
-        assert_eq!(t.flags, FlowFlags::EMPTY);
+        assert_eq!(TYPE_INT.flags(), FlowFlags::EMPTY);
     }
 
     #[test]
