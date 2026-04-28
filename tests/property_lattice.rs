@@ -258,8 +258,8 @@ fn subtract_of(a: TypeId, b: TypeId, w: &MockWorld) -> TypeId {
 
 proptest! {
     #![proptest_config(ProptestConfig {
-        cases: 64,
-        max_shrink_iters: 100,
+        cases: 512,
+        max_shrink_iters: 1000,
         ..ProptestConfig::default()
     })]
 
