@@ -16,6 +16,7 @@ pub mod lattice;
 pub mod meet;
 pub mod predicates;
 pub mod prelude;
+pub mod serialize;
 pub mod subtract;
 pub mod template;
 pub mod transform;
