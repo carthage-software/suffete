@@ -1,8 +1,5 @@
-//! Most array tests are stubbed. Suffete has the [`KeyedArrayInfo`] payload
-//! but no list/keyed-array constructor helpers, no shape-merging in the
-//! combiner, and no `with_overwrite_empty_array` option. The blocked tests
-//! are kept as `#[ignore]`'d shells so that the porting checklist matches
-//! mago 1:1 and the missing features stay visible.
+//! Array combiner cases: list/keyed-array helpers, shape merging,
+//! and the `overwrite_empty_array` option.
 
 mod combiner_common;
 

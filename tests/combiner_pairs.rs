@@ -1,15 +1,5 @@
 //! Pair-wise combiner cases. Each test runs a list of `(label, input,
-//! expected)` rows. Rows that depend on:
-//!
-//! - subtype-driven absorption (`int <: array-key`, `int <: scalar`,
-//!   `numeric ∨ int → numeric`, axis-aware string refinements)
-//! - array shape construction (`t_list`, `t_keyed_*`)
-//! - object-vs-enum hierarchy (suffete's `object` already absorbs enums via
-//!   the structural object-family rule, while mago keeps `enum(E)` distinct)
-//!
-//! are skipped here and surface in dedicated `#[ignore]`'d shells. Each
-//! `check_skipped` helper drops the row silently to keep the porting
-//! diff readable.
+//! expected)` rows.
 
 mod combiner_common;
 

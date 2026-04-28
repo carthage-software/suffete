@@ -1,6 +1,5 @@
 //! Mega-table combiner cases. Each `expect(label, input, expected)` is one
-//! row. Subtype-driven, range-merging, and array-shape rows are skipped
-//! (covered by the dedicated `#[ignore]`'d shells in other files).
+//! row.
 
 mod combiner_common;
 

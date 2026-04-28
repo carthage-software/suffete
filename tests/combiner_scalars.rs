@@ -324,7 +324,6 @@ fn scalar_absorbs_true_false_either_order() {
 }
 
 #[test]
-#[ignore = "needs scalar synthesis from primitive set (out of current scope)"]
 fn scalar_synthesised_from_string_float_bool_int() {
     let result = combine_default(vec![t_string(), t_float(), t_bool(), t_int()]);
     assert_eq!(result, vec![t_scalar()]);

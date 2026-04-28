@@ -95,7 +95,7 @@ impl Interner {
         let truthy = StringRefinementFlags::EMPTY.with_is_truthy(true).with_is_non_empty(true);
         let numeric = StringRefinementFlags::EMPTY.with_is_numeric(true);
         let truthy_numeric = numeric.with_is_truthy(true).with_is_non_empty(true);
-        let callable = StringRefinementFlags::EMPTY.with_is_callable(true);
+        let callable = StringRefinementFlags::EMPTY.with_is_callable(true).with_is_truthy(true).with_is_non_empty(true);
 
         debug_assert_eq!(self.intern_string(plain), STRING);
         debug_assert_eq!(self.intern_string(with_flags(non_empty)), NON_EMPTY_STRING);

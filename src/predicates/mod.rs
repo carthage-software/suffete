@@ -21,7 +21,7 @@
 //! *effectively* an int after unwrapping generic constraints") belong
 //! to the §5 effective-type queries module, not here.
 
-mod element;
+pub(crate) mod element;
 
 use crate::ElementKind;
 use crate::TypeId;

@@ -219,15 +219,17 @@ fn flat_map_collapsing_all_to_empty_yields_never() {
 }
 
 #[test]
-#[ignore = "needs combiner expansion of join (§19): payload-driven range merging and refinement decomposition"]
-fn build_canonicalises_full_int_and_string_decomposition_to_int_or_string() {
+fn build_canonicalises_full_int_decomposition_to_int() {
     let mut b = TypeBuilder::new();
-    b.push(t_int_range(0, 1))
-        .push(t_int_to(-1))
-        .push(t_int_range(2, 500))
-        .push(t_int_from(500))
-        .push(t_lit_string("hello"))
-        .push(t_non_empty_string())
-        .push(t_lit_string(""));
-    assert_eq!(b.build(), prelude::TYPE_INT_OR_STRING);
+    b.push(t_int_range(0, 1)).push(t_int_to(-1)).push(t_int_range(2, 500)).push(t_int_from(500));
+    assert_eq!(b.build_canonical(), prelude::TYPE_INT);
+}
+
+#[test]
+fn build_canonicalises_string_decomposition_to_string() {
+    // `non_empty` + `lit("")` cover the full string space, so the
+    // canonical form is plain `string`. `lit("hello")` is also subsumed.
+    let mut b = TypeBuilder::new();
+    b.push(t_lit_string("")).push(t_non_empty_string()).push(t_lit_string("hello"));
+    assert_eq!(b.build_canonical(), prelude::TYPE_STRING);
 }

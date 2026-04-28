@@ -1,8 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc bd09d0c595272189771e7a18029d2e5eb34ac3a61340e7283eb201ac97dc4a42 # shrinks to (world, a, b) = (WorldHandle(MockWorld { ancestors: {u!("Color"): {u!("Color")}, u!("B"): {u!("B")}, u!("A"): {u!("A")}, u!("D"): {u!("D")}, u!("E"): {u!("E")}, u!("C"): {u!("C")}}, traits_used: {}, templates: {}, extended: {}, methods: {}, properties: {}, enums: {u!("Color"): Pure}, aliases: {}, class_constants: {}, global_constants: {} }), TypeId(489626271744), TypeId(2022929596416))
-cc ca3d979ea85f97c60f42116efb43c6506b6050ae552cafa1f665ddc5e988a601 # shrinks to (world, a) = (WorldHandle(MockWorld { ancestors: {u!("C"): {u!("C")}, u!("A"): {u!("A")}, u!("Color"): {u!("Color")}, u!("B"): {u!("B")}, u!("D"): {u!("D")}, u!("E"): {u!("E")}}, traits_used: {}, templates: {}, extended: {}, methods: {}, properties: {}, enums: {u!("Color"): Pure}, aliases: {}, class_constants: {}, global_constants: {} }), TypeId(3255585210368))

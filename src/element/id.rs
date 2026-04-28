@@ -31,6 +31,12 @@ use crate::element::payload::scalar::StringLiteral;
 use crate::element::payload::scalar::StringRefinementFlags;
 use crate::handle::define_handle;
 use crate::interner::interner;
+
+/// `true` iff `s` parses as an integer or float — used to derive the
+/// `is_numeric` flag on literal strings.
+fn is_numeric_string(s: &str) -> bool {
+    s.parse::<i64>().is_ok() || s.parse::<f64>().is_ok()
+}
 use crate::prelude::*;
 use crate::typed::Typed;
 
@@ -151,13 +157,30 @@ impl ElementId {
         interner().intern_float(FloatInfo::Literal(LiteralFloat::new(value)))
     }
 
-    /// Intern a string literal element with a known value, no casing
-    /// constraint, no refinement flags.
+    /// Intern a string literal element. Refinement properties
+    /// (`is_numeric`, `is_truthy`, `is_non_empty`) and casing are derived
+    /// from the value: `"hello"` is non-empty and truthy and lowercase;
+    /// `""` is none of those; `"123"` is numeric and truthy.
     pub fn string_literal(value: &str) -> Self {
+        let is_numeric = is_numeric_string(value);
+        let is_non_empty = is_numeric || !value.is_empty();
+        let is_truthy = is_non_empty && value != "0";
+        let has_lower = value.chars().any(|c| c.is_ascii_lowercase());
+        let has_upper = value.chars().any(|c| c.is_ascii_uppercase());
+        let casing = if has_lower && !has_upper {
+            StringCasing::Lowercase
+        } else if has_upper && !has_lower {
+            StringCasing::Uppercase
+        } else {
+            StringCasing::Unspecified
+        };
         let info = StringInfo {
             literal: StringLiteral::Value(mago_atom::atom(value)),
-            casing: StringCasing::Unspecified,
-            flags: StringRefinementFlags::EMPTY,
+            casing,
+            flags: StringRefinementFlags::EMPTY
+                .with_is_numeric(is_numeric)
+                .with_is_truthy(is_truthy)
+                .with_is_non_empty(is_non_empty),
         };
         interner().intern_string(info)
     }

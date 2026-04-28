@@ -1,6 +1,4 @@
-//! Triple-wise combiner cases. Mirrors mago's combiner_triples. Cases that
-//! depend on subtype-driven absorption / range merging / list shape
-//! combine are stubbed `#[ignore]`.
+//! Triple-wise combiner cases.
 
 mod combiner_common;
 
@@ -90,11 +88,7 @@ fn object_triples() {
         &[t_named("Bar"), t_named("Baz"), t_named("Foo")],
     );
     check("Foo,Foo,Bar", vec![t_named("Foo"), t_named("Foo"), t_named("Bar")], &[t_named("Bar"), t_named("Foo")]);
-    check(
-        "E,E::A,E::B",
-        vec![t_enum("E"), t_enum_case("E", "A"), t_enum_case("E", "B")],
-        &[t_enum("E")],
-    );
+    check("E,E::A,E::B", vec![t_enum("E"), t_enum_case("E", "A"), t_enum_case("E", "B")], &[t_enum("E")]);
 }
 
 #[test]
@@ -115,11 +109,8 @@ fn resource_triples() {
 
 #[test]
 fn four_atoms() {
-    // mago expects `[scalar]` due to scalar synthesis from int+string+float+bool.
-    // suffete doesn't synthesise scalar from primitive sets yet, so the four
-    // atoms remain.
     let r = combine_default(vec![t_int(), t_string(), t_float(), t_bool()]);
-    assert_eq!(r.len(), 4);
+    assert_eq!(r, vec![t_scalar()]);
 
     check(
         "int,string,bool,null",

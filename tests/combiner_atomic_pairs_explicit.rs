@@ -1,8 +1,4 @@
 //! Explicit pairwise combiner cases. One test per pair.
-//!
-//! Tests that depend on subtype-driven absorption (numeric/scalar/array-key
-//! lattice, string axis collapse, range merging) and tests that need
-//! `t_list`/`t_keyed_*` shape constructors are stubbed `#[ignore]`.
 
 mod combiner_common;
 
@@ -223,7 +219,7 @@ fn p_non_empty_lit_empty() {
 
 #[test]
 fn p_lit_empty_non_empty() {
-    check(vec![t_lit_string(""), t_non_empty_string()], &[t_lit_string(""), t_non_empty_string()]);
+    check(vec![t_lit_string(""), t_non_empty_string()], &[t_string()]);
 }
 #[test]
 fn p_numeric_string() {
@@ -267,7 +263,7 @@ fn p_truthy_lit_empty() {
 }
 #[test]
 fn p_lower_upper() {
-    check(vec![t_lower_string(), t_upper_string()], &[t_lower_string(), t_upper_string()]);
+    check(vec![t_lower_string(), t_upper_string()], &[t_string()]);
 }
 #[test]
 fn p_non_empty_truthy() {
@@ -279,7 +275,7 @@ fn p_truthy_non_empty() {
 }
 #[test]
 fn p_non_empty_lower() {
-    check(vec![t_non_empty_string(), t_lower_string()], &[t_non_empty_string(), t_lower_string()]);
+    check(vec![t_non_empty_string(), t_lower_string()], &[t_string()]);
 }
 
 #[test]
@@ -711,20 +707,13 @@ fn p_arr_list_int_x2() {
     check(vec![t_list(TYPE_INT, false), t_list(TYPE_INT, false)], &[t_list(TYPE_INT, false)]);
 }
 #[test]
-#[ignore = "needs list element-type union combine in join (out of scope)"]
 fn p_arr_list_int_string() {
-    use suffete::prelude::TYPE_INT;
-    use suffete::prelude::TYPE_STRING;
     use suffete::FlowFlags;
     use suffete::interner::interner;
-    let int_or_string = interner().intern_type(
-        &[suffete::prelude::INT, suffete::prelude::STRING],
-        FlowFlags::EMPTY,
-    );
-    check(
-        vec![t_list(TYPE_INT, false), t_list(TYPE_STRING, false)],
-        &[t_list(int_or_string, false)],
-    );
+    use suffete::prelude::TYPE_INT;
+    use suffete::prelude::TYPE_STRING;
+    let int_or_string = interner().intern_type(&[suffete::prelude::INT, suffete::prelude::STRING], FlowFlags::EMPTY);
+    check(vec![t_list(TYPE_INT, false), t_list(TYPE_STRING, false)], &[t_list(int_or_string, false)]);
 }
 #[test]
 fn p_arr_ne_list_int() {

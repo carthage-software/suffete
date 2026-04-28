@@ -1,7 +1,5 @@
 //! Table-driven combiner cases. Each test runs a vec of `(label, input,
-//! expected)` triples through `run_cases`. Subtype-driven and array-shape
-//! rows are split off into `#[ignore]`'d shells to keep the structural
-//! tests green.
+//! expected)` triples through `run_cases`.
 
 mod combiner_common;
 
@@ -52,16 +50,8 @@ fn integer_cases_structural() {
         ("int(0) | int", vec![t_lit_int(0), t_int()], vec![t_int()]),
         ("int(0) | int(0)", vec![t_lit_int(0), t_lit_int(0)], vec![t_lit_int(0)]),
         ("int(0) | int(1)", vec![t_lit_int(0), t_lit_int(1)], vec![t_int_range(0, 1)]),
-        (
-            "int(0) | int(1) | int(2)",
-            vec![t_lit_int(0), t_lit_int(1), t_lit_int(2)],
-            vec![t_int_range(0, 2)],
-        ),
-        (
-            "int(0) | int(1) | int(-1)",
-            vec![t_lit_int(0), t_lit_int(1), t_lit_int(-1)],
-            vec![t_int_range(-1, 1)],
-        ),
+        ("int(0) | int(1) | int(2)", vec![t_lit_int(0), t_lit_int(1), t_lit_int(2)], vec![t_int_range(0, 2)]),
+        ("int(0) | int(1) | int(-1)", vec![t_lit_int(0), t_lit_int(1), t_lit_int(-1)], vec![t_int_range(-1, 1)]),
     ]);
 }
 

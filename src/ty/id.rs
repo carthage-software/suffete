@@ -192,7 +192,8 @@ impl std::fmt::Display for TypeId {
 impl std::fmt::Debug for TypeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
-            return f.debug_struct("TypeId")
+            return f
+                .debug_struct("TypeId")
                 .field("raw", &format_args!("{:#018x}", self.0.get()))
                 .field("slot", &self.slot())
                 .field("flags", &self.flags())

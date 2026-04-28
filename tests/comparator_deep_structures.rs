@@ -1,6 +1,4 @@
-//! Deep / nested-structure refinement. The `_with_generic_*` cases use
-//! mago's `t_generic_named` helper for templated objects, which suffete
-//! doesn't model yet; those rows are stubbed `#[ignore]`.
+//! Deep / nested-structure refinement coverage.
 
 mod comparator_common;
 

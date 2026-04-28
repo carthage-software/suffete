@@ -2,13 +2,6 @@ mod combiner_common;
 
 use combiner_common::*;
 
-// Tests marked `#[ignore]` exercise mago's order-dependent Mixed constraint
-// joining algebra (e.g., `truthy + vanilla → nonnull` but `vanilla + truthy →
-// vanilla`). Suffete will mirror that behaviour 1-to-1 once the user shares
-// the mago algorithm; until then, we intentionally diverge with the simpler
-// "vanilla MIXED absorbs everything; other Mixed variants stay distinct"
-// behaviour from structural canonicalization.
-
 #[test]
 fn vanilla_mixed_idempotent() {
     for n in 1..=10 {
@@ -83,7 +76,6 @@ fn vanilla_then_truthy_mixed_yields_vanilla() {
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (order-dependent)"]
 fn truthy_mixed_then_vanilla_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), mixed()], vec![mixed_nonnull()]);
 }
@@ -104,7 +96,6 @@ fn vanilla_then_nonnull_mixed_yields_vanilla() {
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (order-dependent)"]
 fn nonnull_mixed_then_vanilla_yields_nonnull() {
     assert_combines_to(vec![mixed_nonnull(), mixed()], vec![mixed_nonnull()]);
 }
@@ -115,63 +106,53 @@ fn vanilla_dominates_many_atoms() {
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining"]
 fn truthy_or_falsy_mixed_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), mixed_falsy()], vec![mixed_nonnull()]);
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining"]
 fn truthy_mixed_then_nontruthy_int_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), t_int()], vec![mixed_nonnull()]);
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (order-dependent)"]
 fn nontruthy_int_then_truthy_mixed_yields_truthy_mixed() {
     assert_combines_to(vec![t_int(), mixed_truthy()], vec![mixed_truthy()]);
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (truthy mixed + falsy literal)"]
 fn truthy_mixed_then_falsy_string_literal_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), t_lit_string("0")], vec![mixed_nonnull()]);
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (truthy preservation)"]
 fn truthy_mixed_then_truthy_literal_preserves_truthy() {
     assert_combines_to(vec![mixed_truthy(), t_lit_string("hello")], vec![mixed_truthy()]);
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (nonnull + null -> vanilla)"]
 fn nonnull_mixed_with_null_becomes_vanilla() {
     assert_combines_to(vec![mixed_nonnull(), null()], vec![mixed()]);
     assert_combines_to(vec![null(), mixed_nonnull()], vec![mixed()]);
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (falsy + null preservation)"]
 fn falsy_mixed_with_null_preserves_falsy() {
     assert_combines_to(vec![mixed_falsy(), null()], vec![mixed_falsy()]);
     assert_combines_to(vec![null(), mixed_falsy()], vec![mixed_falsy()]);
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (truthy + null -> nonnull)"]
 fn truthy_mixed_first_then_null_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), null()], vec![mixed_nonnull()]);
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (order-dependent)"]
 fn null_first_then_truthy_mixed_yields_vanilla() {
     assert_combines_to(vec![null(), mixed_truthy()], vec![mixed()]);
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (truthy + nonnull -> nonnull)"]
 fn truthy_or_nonnull_mixed_collapses_to_nonnull() {
     assert_combines_to(vec![mixed_truthy(), mixed_nonnull()], vec![mixed_nonnull()]);
 }
@@ -184,7 +165,6 @@ fn never_then_truthy_mixed_yields_truthy() {
 }
 
 #[test]
-#[ignore = "needs mago Mixed constraint joining (truthy + never -> nonnull)"]
 fn truthy_mixed_then_never_yields_nonnull() {
     assert_combines_to(vec![mixed_truthy(), never()], vec![mixed_nonnull()]);
 }

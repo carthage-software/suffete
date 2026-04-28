@@ -23,7 +23,7 @@ use crate::interner::interner;
 use crate::prelude;
 
 /// Every value of `elem` is guaranteed truthy at runtime.
-pub(super) fn is_truthy(elem: ElementId) -> bool {
+pub(crate) fn is_truthy(elem: ElementId) -> bool {
     let i = interner();
     match elem.kind() {
         ElementKind::True => true,
@@ -128,7 +128,7 @@ pub(super) fn is_truthy(elem: ElementId) -> bool {
 }
 
 /// Every value of `elem` is guaranteed falsy at runtime.
-pub(super) fn is_falsy(elem: ElementId) -> bool {
+pub(crate) fn is_falsy(elem: ElementId) -> bool {
     let i = interner();
     match elem.kind() {
         ElementKind::True => false,

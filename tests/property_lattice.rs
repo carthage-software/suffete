@@ -211,9 +211,8 @@ fn arb_type() -> impl Strategy<Value = TypeId> {
             inner.clone().prop_map(|t| u(t_generic_named("A", vec![t]))),
             inner.clone().prop_map(|t| u(t_generic_named("B", vec![t]))),
             inner.clone().prop_map(|t| u(t_generic_named("C", vec![t]))),
-            (inner.clone(), inner.clone(), any::<bool>(), any::<bool>()).prop_map(|(a, b, opt_a, sealed)| {
-                u(t_object_shape(&[("x", a, opt_a), ("y", b, false)], sealed))
-            }),
+            (inner.clone(), inner.clone(), any::<bool>(), any::<bool>())
+                .prop_map(|(a, b, opt_a, sealed)| { u(t_object_shape(&[("x", a, opt_a), ("y", b, false)], sealed)) }),
             (inner.clone(), inner.clone()).prop_map(|(p, ret)| u(t_callable(&[p], ret))),
             (inner.clone(), inner.clone()).prop_map(|(a, b)| {
                 let mut elems: Vec<ElementId> = a.as_ref().elements.to_vec();

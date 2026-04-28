@@ -88,6 +88,14 @@ impl StringRefinementFlags {
     pub const fn with_is_callable(self, on: bool) -> Self {
         Self(if on { self.0 | Self::IS_CALLABLE } else { self.0 & !Self::IS_CALLABLE })
     }
+
+    /// Bitwise AND of two flag sets — keeps a flag only when both sides
+    /// have it. Used by the join's string-axis merge.
+    #[inline]
+    #[must_use]
+    pub const fn and(self, other: Self) -> Self {
+        Self(self.0 & other.0)
+    }
 }
 
 // `StringLiteral` is the size driver: `Value(Atom)` is 8 bytes, plus 1 byte
@@ -107,6 +115,7 @@ impl std::fmt::Display for StringInfo {
             StringLiteral::None => label_general_string(self),
             StringLiteral::Value(_) => unreachable!(),
         };
+
         f.write_str(label)
     }
 }
@@ -147,6 +156,7 @@ fn label_general_string(info: &StringInfo) -> &'static str {
             StringCasing::Unspecified => "callable-string",
         };
     }
+
     if info.flags.is_truthy() {
         if info.flags.is_numeric() {
             return "truthy-numeric-string";
@@ -157,9 +167,11 @@ fn label_general_string(info: &StringInfo) -> &'static str {
             StringCasing::Unspecified => "truthy-string",
         };
     }
+
     if info.flags.is_numeric() {
         return "numeric-string";
     }
+
     if info.flags.is_non_empty() {
         return match info.casing {
             StringCasing::Lowercase => "lowercase-non-empty-string",
@@ -167,6 +179,7 @@ fn label_general_string(info: &StringInfo) -> &'static str {
             StringCasing::Unspecified => "non-empty-string",
         };
     }
+
     match info.casing {
         StringCasing::Lowercase => "lowercase-string",
         StringCasing::Uppercase => "uppercase-string",

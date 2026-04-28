@@ -49,12 +49,15 @@ use crate::ElementId;
 use crate::ElementKind;
 use crate::TypeId;
 use crate::element::payload::ArrayKey;
+use crate::element::payload::FloatInfo;
 use crate::element::payload::KeyedArrayFlags;
 use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::KnownElementEntry;
 use crate::element::payload::KnownItemEntry;
 use crate::element::payload::ListFlags;
 use crate::element::payload::ListInfo;
+use crate::element::payload::MixedInfo;
+use crate::element::payload::Truthiness;
 use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::StringLiteral;
 use crate::interner::interner;
@@ -77,6 +80,8 @@ use crate::prelude::OPEN_RESOURCE;
 use crate::prelude::RESOURCE;
 use crate::prelude::STRING;
 use crate::prelude::TRUE;
+use crate::prelude::TYPE_ARRAY_KEY;
+use crate::prelude::TYPE_MIXED;
 use crate::prelude::TYPE_NEVER;
 use crate::prelude::VOID;
 use crate::world::NullWorld;
@@ -99,7 +104,23 @@ pub fn compute(elements: &[ElementId]) -> Vec<ElementId> {
 /// extended rule fires after, gated on its own option, so the analyzer
 /// can pick the simplification aggressiveness per call site.
 pub fn compute_with(elements: &[ElementId], options: &JoinOptions) -> Vec<ElementId> {
-    let mut out: Vec<ElementId> = if elements.is_empty() { vec![NEVER] } else { elements.to_vec() };
+    if elements.is_empty() {
+        return vec![NEVER];
+    }
+
+    if elements.iter().any(|e| e.kind() == ElementKind::Mixed)
+        && let Some(mixed_result) = apply_mixed_constraint_join(elements)
+    {
+        return vec![mixed_result];
+    }
+
+    let mut out: Vec<ElementId> = if options.merge_string_axes
+        && elements.iter().filter(|e| e.kind() == ElementKind::String).take(2).count() >= 2
+    {
+        apply_string_axis_merge_in_order(elements)
+    } else {
+        elements.to_vec()
+    };
     out.sort_unstable();
     out.dedup();
     canonicalize(&mut out);
@@ -125,8 +146,17 @@ pub fn compute_with(elements: &[ElementId], options: &JoinOptions) -> Vec<Elemen
     if options.absorb_refinements {
         apply_subtype_absorption(&mut out);
     }
+    if options.synthesise_scalar {
+        apply_scalar_synthesis(&mut out);
+    }
     if options.merge_array_shapes {
         apply_merge_array_shapes(&mut out);
+    }
+    if options.merge_list_element_types {
+        apply_merge_list_element_types(&mut out);
+    }
+    if options.merge_keyed_array_params {
+        apply_merge_keyed_array_params(&mut out);
     }
     if options.rewrite_int_keyed_to_list {
         apply_rewrite_int_keyed_to_list(&mut out);
@@ -170,6 +200,21 @@ pub struct JoinOptions {
     /// Apply subtype-driven absorption (refined int ranges, refined
     /// string axes, family hierarchy: numeric/scalar/array-key).
     pub absorb_refinements: bool,
+    /// Merge same-kind strings via the AND-of-flags algebra (e.g.
+    /// `lower | upper → string`, `non_empty | lit("") → string`,
+    /// `truthy | lit("0") → string`). Compatible literals are absorbed
+    /// into the merged refined form; incompatible literals stay separate.
+    pub merge_string_axes: bool,
+    /// Collapse `int | string | float | bool` to `scalar` once all four
+    /// general primitives are present in the union.
+    pub synthesise_scalar: bool,
+    /// Merge multiple unsealed lists with the same non-empty flag into
+    /// a single list whose element type is the union of theirs (e.g.
+    /// `list<int> | list<string> → list<int|string>`).
+    pub merge_list_element_types: bool,
+    /// Same merge for unsealed keyed arrays (`array<K1, V1> | array<K2, V2>
+    /// → array<K1|K2, V1|V2>`).
+    pub merge_keyed_array_params: bool,
 }
 
 impl JoinOptions {
@@ -226,6 +271,529 @@ impl JoinOptions {
         self.absorb_refinements = on;
         self
     }
+
+    #[must_use]
+    pub const fn with_merge_string_axes(mut self, on: bool) -> Self {
+        self.merge_string_axes = on;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_synthesise_scalar(mut self, on: bool) -> Self {
+        self.synthesise_scalar = on;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_merge_list_element_types(mut self, on: bool) -> Self {
+        self.merge_list_element_types = on;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_merge_keyed_array_params(mut self, on: bool) -> Self {
+        self.merge_keyed_array_params = on;
+        self
+    }
+}
+
+/// Merge same-kind string elements via AND-of-flags algebra. When
+/// multiple strings are present, this folds them into a single
+/// general/refined string plus the surviving incompatible literals.
+///
+/// The merge follows mago's behaviour:
+///
+/// - `lower_string | upper_string` → `string` (casing collapses to
+///   `Unspecified`).
+/// - `non_empty_string | lit("")` → `string` (empty literal forces
+///   `is_non_empty` and `is_truthy` and `is_numeric` off).
+/// - `truthy_string | lit("0")` → `truthy_string`, `lit("0")` (literal
+///   "0" is incompatible with truthy → kept separate).
+/// - `numeric_string | lit("123")` → `numeric_string` (compatible
+///   literal absorbed).
+/// - `numeric_string | lit("abc")` → `numeric_string`, `lit("abc")`
+///   (non-numeric literal stays separate).
+fn apply_string_axis_merge_in_order(elements: &[ElementId]) -> Vec<ElementId> {
+    use crate::element::payload::scalar::StringCasing;
+    use crate::element::payload::scalar::StringInfo;
+
+    let i = interner();
+
+    let mut other: Vec<ElementId> = Vec::with_capacity(elements.len());
+    let mut general: Option<StringInfo> = None;
+    let mut literals: Vec<mago_atom::Atom> = Vec::new();
+
+    for &el in elements.iter() {
+        if el.kind() != ElementKind::String {
+            other.push(el);
+            continue;
+        }
+        let info = *i.get_string(el);
+        if let StringLiteral::Value(value) = info.literal {
+            if let Some(ref mut existing) = general {
+                let lit_value = value.as_str();
+                let incompatible = (existing.flags.is_numeric() && !str_is_numeric(lit_value))
+                    || (existing.flags.is_truthy() && (lit_value.is_empty() || lit_value == "0"))
+                    || (existing.flags.is_non_empty() && lit_value.is_empty())
+                    || (existing.casing == StringCasing::Lowercase
+                        && lit_value.chars().any(|c| c.is_ascii_uppercase()))
+                    || (existing.casing == StringCasing::Uppercase
+                        && lit_value.chars().any(|c| c.is_ascii_lowercase()));
+                if incompatible {
+                    literals.push(value);
+                } else {
+                    *existing = combine_string_info(*existing, info);
+                }
+            } else {
+                literals.push(value);
+            }
+            continue;
+        }
+
+        match general {
+            None => {
+                let mut new_info = info;
+                if new_info.flags.is_truthy()
+                    || new_info.flags.is_non_empty()
+                    || new_info.flags.is_numeric()
+                    || new_info.casing != StringCasing::Unspecified
+                {
+                    let mut keep_literals: Vec<mago_atom::Atom> = Vec::new();
+                    let mut hit_empty = false;
+                    for atom in &literals {
+                        let value = atom.as_str();
+                        if value.is_empty() {
+                            new_info.flags =
+                                new_info.flags.with_is_non_empty(false).with_is_truthy(false).with_is_numeric(false);
+                            hit_empty = true;
+                            break;
+                        }
+                        if value == "0" {
+                            new_info.flags = new_info.flags.with_is_truthy(false);
+                        }
+                        if new_info.flags.is_numeric() && !str_is_numeric(value) {
+                            keep_literals.push(*atom);
+                            continue;
+                        }
+                        new_info.flags =
+                            new_info.flags.with_is_numeric(new_info.flags.is_numeric() && str_is_numeric(value));
+                        new_info.casing = match new_info.casing {
+                            StringCasing::Lowercase if value.chars().all(|c| !c.is_ascii_uppercase()) => {
+                                StringCasing::Lowercase
+                            }
+                            StringCasing::Uppercase if value.chars().all(|c| !c.is_ascii_lowercase()) => {
+                                StringCasing::Uppercase
+                            }
+                            _ => StringCasing::Unspecified,
+                        };
+                    }
+                    if hit_empty {
+                        new_info.casing = StringCasing::Unspecified;
+                    }
+                    literals = keep_literals;
+                }
+                general = Some(new_info);
+            }
+            Some(ref mut existing) => {
+                *existing = combine_string_info(*existing, info);
+            }
+        }
+    }
+
+    let mut new_strings: Vec<ElementId> =
+        literals.into_iter().map(|atom| ElementId::string_literal(atom.as_str())).collect();
+    if let Some(info) = general {
+        new_strings.push(i.intern_string(info));
+    }
+
+    other.extend(new_strings);
+    other
+}
+
+fn combine_string_info(
+    a: crate::element::payload::scalar::StringInfo,
+    b: crate::element::payload::scalar::StringInfo,
+) -> crate::element::payload::scalar::StringInfo {
+    use crate::element::payload::scalar::StringCasing;
+    use crate::element::payload::scalar::StringInfo;
+    use crate::element::payload::scalar::StringLiteral;
+    let literal = match (a.literal, b.literal) {
+        (StringLiteral::Value(v1), StringLiteral::Value(v2)) => {
+            if v1 == v2 {
+                StringLiteral::Value(v2)
+            } else {
+                StringLiteral::Unspecified
+            }
+        }
+        (StringLiteral::Unspecified, _) | (_, StringLiteral::Unspecified) => StringLiteral::Unspecified,
+        _ => StringLiteral::None,
+    };
+    let casing = match (a.casing, b.casing) {
+        (StringCasing::Lowercase, StringCasing::Lowercase) => StringCasing::Lowercase,
+        (StringCasing::Uppercase, StringCasing::Uppercase) => StringCasing::Uppercase,
+        _ => StringCasing::Unspecified,
+    };
+    StringInfo { literal, casing, flags: a.flags.and(b.flags) }
+}
+
+fn str_is_numeric(s: &str) -> bool {
+    s.parse::<i64>().is_ok() || s.parse::<f64>().is_ok()
+}
+
+/// Merge multiple unsealed lists with the same `non_empty` flag into a
+/// single list whose element type is the type-union of theirs. Sealed
+/// lists (those with `known_elements`) and lists with differing
+/// `non_empty` flags are left alone.
+fn apply_merge_list_element_types(elements: &mut Vec<ElementId>) {
+    let i = interner();
+    let mut groups: std::collections::HashMap<bool, (Vec<usize>, Vec<crate::ElementId>)> = Default::default();
+    for (idx, &el) in elements.iter().enumerate() {
+        if el.kind() != ElementKind::List {
+            continue;
+        }
+        let info = *i.get_list(el);
+        if info.known_elements.is_some() {
+            continue;
+        }
+        groups.entry(info.flags.non_empty()).or_default().0.push(idx);
+        groups.get_mut(&info.flags.non_empty()).unwrap().1.push(el);
+    }
+
+    let mut to_remove: std::collections::BTreeSet<usize> = Default::default();
+    for (non_empty, (indices, _)) in &groups {
+        if indices.len() < 2 {
+            continue;
+        }
+        let mut merged_elements: Vec<ElementId> = Vec::new();
+        for &idx in indices {
+            let info = *i.get_list(elements[idx]);
+            merged_elements.extend_from_slice(info.element_type.as_ref().elements);
+        }
+        let merged = compute(&merged_elements);
+        let union_ty = i.intern_type(&merged, crate::FlowFlags::EMPTY);
+        let merged_list = ElementId::list(union_ty, *non_empty);
+        elements[indices[0]] = merged_list;
+        for &idx in &indices[1..] {
+            to_remove.insert(idx);
+        }
+    }
+
+    if to_remove.is_empty() {
+        return;
+    }
+    let mut idx = 0;
+    elements.retain(|_| {
+        let keep = !to_remove.contains(&idx);
+        idx += 1;
+        keep
+    });
+}
+
+/// Merge multiple unsealed keyed arrays with the same `non_empty` flag
+/// into a single keyed array with unioned key+value parameters. Sealed
+/// keyed arrays (with `known_items`) are left to `apply_merge_array_shapes`.
+fn apply_merge_keyed_array_params(elements: &mut Vec<ElementId>) {
+    let i = interner();
+    let mut groups: std::collections::HashMap<bool, Vec<usize>> = Default::default();
+    for (idx, &el) in elements.iter().enumerate() {
+        if el.kind() != ElementKind::Array {
+            continue;
+        }
+        let info = *i.get_array(el);
+        if info.known_items.is_some() || info.key_param.is_none() || info.value_param.is_none() {
+            continue;
+        }
+        groups.entry(info.flags.non_empty()).or_default().push(idx);
+    }
+
+    let mut to_remove: std::collections::BTreeSet<usize> = Default::default();
+    for (non_empty, indices) in &groups {
+        if indices.len() < 2 {
+            continue;
+        }
+        let mut key_elements: Vec<ElementId> = Vec::new();
+        let mut value_elements: Vec<ElementId> = Vec::new();
+        for &idx in indices {
+            let info = *i.get_array(elements[idx]);
+            key_elements.extend_from_slice(info.key_param.unwrap().as_ref().elements);
+            value_elements.extend_from_slice(info.value_param.unwrap().as_ref().elements);
+        }
+        let key_canon = compute(&key_elements);
+        let value_canon = compute(&value_elements);
+        let key_ty = i.intern_type(&key_canon, crate::FlowFlags::EMPTY);
+        let value_ty = i.intern_type(&value_canon, crate::FlowFlags::EMPTY);
+        let merged_array = ElementId::keyed_unsealed(key_ty, value_ty, *non_empty);
+        elements[indices[0]] = merged_array;
+        for &idx in &indices[1..] {
+            to_remove.insert(idx);
+        }
+    }
+
+    if to_remove.is_empty() {
+        return;
+    }
+    let mut idx = 0;
+    elements.retain(|_| {
+        let keep = !to_remove.contains(&idx);
+        idx += 1;
+        keep
+    });
+}
+
+/// When the union contains all four general primitives (`int`, `string`,
+/// `float`, `bool`), collapse them to `scalar`. Refined / literal forms
+/// alone don't trigger the collapse: only the general unspecified `int`
+/// counts (mirroring mago's `integers.any(is_unspecified)`). Other scalar
+/// elements (literals, refinements, class-like-strings) remain
+/// independent and are left to subtype absorption.
+fn apply_scalar_synthesis(elements: &mut Vec<ElementId>) {
+    let has_int = elements.contains(&INT);
+    let has_string = elements.contains(&STRING);
+    let has_float = elements.contains(&FLOAT);
+    let has_bool = elements.contains(&BOOL);
+    if !(has_int && has_string && has_float && has_bool) {
+        return;
+    }
+
+    use crate::prelude::SCALAR;
+    elements.retain(|e| *e != INT && *e != STRING && *e != FLOAT && *e != BOOL);
+    let pos = elements.binary_search(&SCALAR).unwrap_or_else(|p| p);
+    elements.insert(pos, SCALAR);
+}
+
+/// Mixed-constraint joining: order-dependent state machine ported from
+/// mago's combiner. When any `Mixed` kind appears in the input, the
+/// result is a single mixed element whose flavour is decided by walking
+/// the input in original order:
+///
+/// - Vanilla `mixed` is the absorbing element: once seen, the result is
+///   vanilla regardless of what follows.
+/// - `truthy_mixed` / `falsy_mixed` / `nonnull_mixed` set their respective
+///   flag if no contradiction has been seen yet (e.g. truthy seen after
+///   any non-truthy non-mixed atom forces a generic mixed).
+/// - Subsequent non-mixed atoms either strengthen the constraint (e.g.
+///   truthy + truthy literal preserves truthy) or contradict it
+///   (e.g. truthy + literal `"0"` collapses to nonnull).
+///
+/// Returns `None` when the input has no `Mixed` element (caller proceeds
+/// with the regular join). Returns `Some(elem)` with a single mixed
+/// element to emit.
+fn apply_mixed_constraint_join(elements: &[ElementId]) -> Option<ElementId> {
+    use crate::predicates::element as pred;
+
+    let i = interner();
+
+    let mut truthy: Option<bool> = None;
+    let mut falsy: Option<bool> = None;
+    let mut nonnull: Option<bool> = None;
+    let mut generic = false;
+    let mut has_mixed = false;
+    let mut isset_from_loop: Option<bool> = None;
+
+    for (idx, &el) in elements.iter().enumerate() {
+        if el.kind() == ElementKind::Mixed {
+            process_mixed(
+                el,
+                idx,
+                elements,
+                &mut truthy,
+                &mut falsy,
+                &mut nonnull,
+                &mut generic,
+                &mut has_mixed,
+                &mut isset_from_loop,
+            );
+        } else {
+            if generic {
+                continue;
+            }
+            if falsy.unwrap_or(false) {
+                if !pred::is_falsy(el) {
+                    falsy = Some(false);
+                    generic = true;
+                }
+                continue;
+            }
+            if truthy.unwrap_or(false) {
+                if !pred::is_truthy(el) {
+                    truthy = Some(false);
+                    generic = true;
+                }
+                continue;
+            }
+            if nonnull.unwrap_or(false) && el == NULL {
+                nonnull = Some(false);
+                generic = true;
+                continue;
+            }
+        }
+    }
+
+    if !has_mixed {
+        return None;
+    }
+
+    let final_nonnull = nonnull.unwrap_or(false);
+    let final_truthy = truthy.unwrap_or(false);
+    let final_falsy = falsy.unwrap_or(false);
+
+    let truthiness = if final_truthy && !final_falsy {
+        Truthiness::Truthy
+    } else if final_falsy && !final_truthy {
+        Truthiness::Falsy
+    } else {
+        Truthiness::Undetermined
+    };
+
+    // Normalise to suffete's canonical mixed slots: truthy/falsy variants
+    // already encode their nullability semantically, so the explicit
+    // `is_non_null` flag only matters for `non_null_mixed`.
+    let info = match truthiness {
+        Truthiness::Truthy => MixedInfo::EMPTY.with_truthiness(Truthiness::Truthy),
+        Truthiness::Falsy => MixedInfo::EMPTY.with_truthiness(Truthiness::Falsy),
+        Truthiness::Undetermined => MixedInfo::EMPTY.with_is_non_null(final_nonnull),
+    };
+
+    Some(i.intern_mixed(info))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn process_mixed(
+    el: ElementId,
+    idx: usize,
+    elements: &[ElementId],
+    truthy: &mut Option<bool>,
+    falsy: &mut Option<bool>,
+    nonnull: &mut Option<bool>,
+    generic: &mut bool,
+    has_mixed: &mut bool,
+    isset_from_loop: &mut Option<bool>,
+) {
+    use crate::predicates::element as pred;
+
+    let info = *interner().get_mixed(el);
+
+    if info.is_isset_from_loop() {
+        if *generic {
+            return;
+        }
+        if isset_from_loop.is_none() {
+            *isset_from_loop = Some(true);
+        }
+        *has_mixed = true;
+        return;
+    }
+
+    *has_mixed = true;
+
+    let info_is_non_null = info.is_non_null() || info.truthiness() == Truthiness::Truthy;
+    let is_vanilla = !info_is_non_null && !info.is_empty() && info.truthiness() == Truthiness::Undetermined;
+    if is_vanilla {
+        *falsy = Some(false);
+        *truthy = Some(false);
+        *isset_from_loop = Some(false);
+        *generic = true;
+        return;
+    }
+
+    if info.truthiness() == Truthiness::Truthy {
+        if *generic {
+            return;
+        }
+        *isset_from_loop = Some(false);
+
+        if falsy.unwrap_or(false) {
+            *falsy = Some(false);
+            *generic = true;
+            return;
+        }
+
+        if truthy.is_some() {
+            return;
+        }
+
+        let has_non_truthy =
+            elements_seen_so_far_any(elements, idx, |e| non_mixed_counts_for_truthy_check(e) && !pred::is_truthy(e));
+        if has_non_truthy {
+            *generic = true;
+            return;
+        }
+        *truthy = Some(true);
+    } else {
+        *truthy = Some(false);
+    }
+
+    if info.truthiness() == Truthiness::Falsy {
+        if *generic {
+            return;
+        }
+        *isset_from_loop = Some(false);
+
+        if truthy.unwrap_or(false) {
+            *truthy = Some(false);
+            *generic = true;
+            return;
+        }
+
+        if falsy.is_some() {
+            return;
+        }
+
+        let has_non_falsy =
+            elements_seen_so_far_any(elements, idx, |e| non_mixed_counts_for_falsy_check(e) && !pred::is_falsy(e));
+        if has_non_falsy {
+            *generic = true;
+            return;
+        }
+        *falsy = Some(true);
+    } else {
+        *falsy = Some(false);
+    }
+
+    if info_is_non_null {
+        if *generic {
+            return;
+        }
+        *isset_from_loop = Some(false);
+
+        if elements_seen_so_far_any(elements, idx, |e| e == NULL) {
+            *generic = true;
+            return;
+        }
+        if falsy.unwrap_or(false) {
+            *falsy = Some(false);
+            *generic = true;
+            return;
+        }
+        if nonnull.is_none() {
+            *nonnull = Some(true);
+        }
+    } else {
+        *nonnull = Some(false);
+    }
+}
+
+/// Whether `el` (a non-mixed kind) is checked by mago's
+/// `has_non_truthy` filter (i.e. counts as a value-types entry that
+/// would contradict a `truthy_mixed` constraint). Mago skips integers
+/// and float literals from this check (they live in `combination.integers`
+/// / `combination.literal_floats`, not `combination.value_types`).
+fn non_mixed_counts_for_truthy_check(el: ElementId) -> bool {
+    match el.kind() {
+        ElementKind::Int => false,
+        ElementKind::Float => !matches!(*interner().get_float(el), FloatInfo::Literal(_)),
+        _ => true,
+    }
+}
+
+fn non_mixed_counts_for_falsy_check(el: ElementId) -> bool {
+    non_mixed_counts_for_truthy_check(el)
+}
+
+/// Returns `true` if any non-mixed element in `elements[..upto]`
+/// satisfies `predicate`.
+fn elements_seen_so_far_any(elements: &[ElementId], upto: usize, predicate: impl Fn(ElementId) -> bool) -> bool {
+    elements[..upto].iter().any(|&e| e.kind() != ElementKind::Mixed && predicate(e))
 }
 
 /// Drop any element absorbed by another structurally-larger element in
@@ -325,8 +893,8 @@ fn apply_array_shape_collapse(elements: &mut Vec<ElementId>, threshold: u16) {
     let i = interner();
     elements.retain(|e| !(matches!(e.kind(), ElementKind::Array | ElementKind::List) && *e != EMPTY_ARRAY));
     let general = i.intern_array(KeyedArrayInfo {
-        key_param: Some(crate::prelude::TYPE_ARRAY_KEY),
-        value_param: Some(crate::prelude::TYPE_MIXED),
+        key_param: Some(TYPE_ARRAY_KEY),
+        value_param: Some(TYPE_MIXED),
         known_items: None,
         flags: KeyedArrayFlags::default(),
     });

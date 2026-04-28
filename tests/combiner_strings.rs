@@ -75,7 +75,6 @@ fn non_empty_first_keeps_empty_literal_separate() {
 }
 
 #[test]
-#[ignore = "needs string-axis synthesis: empty_literal + non_empty -> string"]
 fn empty_literal_first_downgrades_non_empty_to_general_string() {
     assert_combines_to(vec![t_lit_string(""), t_non_empty_string()], vec![t_string()]);
 }
@@ -112,7 +111,6 @@ fn lowercase_string_absorbs_lowercase_literal() {
 }
 
 #[test]
-#[ignore = "needs string-axis synthesis: lower + empty -> string"]
 fn lowercase_with_empty_literal_collapses_to_general_string() {
     assert_combines_to(vec![t_lower_string(), t_lit_string("")], vec![t_string()]);
 }
@@ -134,7 +132,6 @@ fn uppercase_string_absorbs_uppercase_literal() {
 }
 
 #[test]
-#[ignore = "needs string-axis synthesis: upper + empty -> string"]
 fn uppercase_with_empty_literal_collapses_to_general_string() {
     assert_combines_to(vec![t_upper_string(), t_lit_string("")], vec![t_string()]);
 }
@@ -164,14 +161,12 @@ fn truthy_string_first_keeps_falsy_literal_separate() {
 }
 
 #[test]
-#[ignore = "needs string-axis synthesis: lower + upper -> string"]
 fn lower_or_upper_collapses_to_general_string() {
     assert_combines_to(vec![t_lower_string(), t_upper_string()], vec![t_string()]);
     assert_combines_to(vec![t_upper_string(), t_lower_string()], vec![t_string()]);
 }
 
 #[test]
-#[ignore = "needs string-axis synthesis: non_empty + lower -> string"]
 fn non_empty_or_lower_collapses_to_general_string() {
     assert_combines_to(vec![t_non_empty_string(), t_lower_string()], vec![t_string()]);
     assert_combines_to(vec![t_lower_string(), t_non_empty_string()], vec![t_string()]);
@@ -184,14 +179,12 @@ fn truthy_or_non_empty_collapses_to_non_empty() {
 }
 
 #[test]
-#[ignore = "needs string-axis synthesis: truthy + numeric collapse"]
 fn truthy_or_numeric_collapses() {
     let result = combine_default(vec![t_truthy_string(), t_numeric_string()]);
     assert_eq!(result.len(), 1);
 }
 
 #[test]
-#[ignore = "needs string-axis synthesis: lower + numeric -> string"]
 fn lower_or_numeric_keeps_axes() {
     let result = combine_default(vec![t_lower_string(), t_numeric_string()]);
     assert_eq!(result, vec![t_string()]);
@@ -254,7 +247,6 @@ fn threshold_zero_immediate_generalisation_when_two_or_more() {
 }
 
 #[test]
-#[ignore = "needs string-axis synthesis: callable_string + literal -> truthy_string"]
 fn callable_string_with_literal_keeps_truthy_axis() {
     let result = combine_default(vec![t_callable_string(), t_lit_string("foo")]);
     assert_eq!(result, vec![t_truthy_string()]);

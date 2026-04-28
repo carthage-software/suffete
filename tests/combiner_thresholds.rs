@@ -1,7 +1,6 @@
-//! Threshold-based literal collapse. Suffete does not implement this yet:
-//! the `combine_with_*_threshold` helpers in `combiner_common` are stubs
-//! that ignore the threshold and just call the default combiner. Every
-//! test here is `#[ignore]`'d until the feature lands.
+//! Threshold-based literal collapse: when a union exceeds the configured
+//! literal-count threshold for ints/strings/floats, the literals collapse
+//! to the base type.
 
 mod combiner_common;
 
