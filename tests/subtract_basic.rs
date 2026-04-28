@@ -249,3 +249,55 @@ fn subtract_then_meet_is_disjoint_for_int_range() {
     // (r \ mid) and mid should be disjoint.
     assert!(!overlaps_of(diff, mid, &cb));
 }
+
+#[test]
+fn template_with_int_or_string_minus_int_narrows_constraint_to_string() {
+    use suffete::FlowFlags;
+    use suffete::interner::interner;
+    let cb = empty_world();
+    let int_or_string = interner().intern_type(&[t_int(), t_string()], FlowFlags::EMPTY);
+    let lhs = u(t_template_of("C", "T", int_or_string));
+    let expected = u(t_template_of("C", "T", u(t_string())));
+    assert_eq!(subtract_of(lhs, prelude::TYPE_INT, &cb), expected);
+}
+
+#[test]
+fn template_with_int_or_string_minus_string_narrows_constraint_to_int() {
+    use suffete::FlowFlags;
+    use suffete::interner::interner;
+    let cb = empty_world();
+    let int_or_string = interner().intern_type(&[t_int(), t_string()], FlowFlags::EMPTY);
+    let lhs = u(t_template_of("C", "T", int_or_string));
+    let expected = u(t_template_of("C", "T", u(t_int())));
+    assert_eq!(subtract_of(lhs, prelude::TYPE_STRING, &cb), expected);
+}
+
+#[test]
+fn template_with_int_minus_int_is_impossible() {
+    let cb = empty_world();
+    let lhs = u(t_template_of("C", "T", u(t_int())));
+    assert_eq!(subtract_of(lhs, prelude::TYPE_INT, &cb), prelude::TYPE_NEVER);
+}
+
+#[test]
+fn template_with_int_minus_string_is_redundant_keeps_template() {
+    let cb = empty_world();
+    let lhs = u(t_template_of("C", "T", u(t_int())));
+    assert_eq!(subtract_of(lhs, prelude::TYPE_STRING, &cb), lhs);
+}
+
+#[test]
+fn same_template_minus_same_template_with_disjoint_constraint_is_identity() {
+    let cb = empty_world();
+    let lhs = u(t_template_of("C", "T", u(t_int())));
+    let rhs = u(t_template_of("C", "T", u(t_string())));
+    assert_eq!(subtract_of(lhs, rhs, &cb), lhs);
+}
+
+#[test]
+fn same_template_minus_same_template_with_subset_constraint_is_impossible() {
+    let cb = empty_world();
+    let lhs = u(t_template_of("C", "T", u(t_int())));
+    let rhs = u(t_template_of("C", "T", prelude::TYPE_MIXED));
+    assert_eq!(subtract_of(lhs, rhs, &cb), prelude::TYPE_NEVER);
+}

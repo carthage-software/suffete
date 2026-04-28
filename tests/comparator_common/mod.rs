@@ -757,6 +757,12 @@ pub fn t_template(class_name: &str, template_name: &str) -> ElementId {
     ElementId::generic_parameter(template_name, DefiningEntity::ClassLike(atom(class_name)), prelude::TYPE_MIXED)
 }
 
+/// Same as [`t_template`] but with an explicit constraint type.
+pub fn t_template_of(class_name: &str, template_name: &str, constraint: TypeId) -> ElementId {
+    use suffete::element::payload::DefiningEntity;
+    ElementId::generic_parameter(template_name, DefiningEntity::ClassLike(atom(class_name)), constraint)
+}
+
 pub fn t_empty_array() -> ElementId {
     prelude::EMPTY_ARRAY
 }

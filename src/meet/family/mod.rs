@@ -5,6 +5,7 @@
 
 pub(super) mod array;
 pub(super) mod callable;
+pub(super) mod generic;
 pub(super) mod has_member;
 pub(super) mod int;
 pub(super) mod iterable;

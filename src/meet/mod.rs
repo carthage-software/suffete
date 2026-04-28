@@ -168,6 +168,10 @@ fn atom_meet<W: World>(
         return Some(b);
     }
 
+    if a.kind() == ElementKind::GenericParameter || b.kind() == ElementKind::GenericParameter {
+        return family::generic::generic_parameter_meet(a, b, world, options, report);
+    }
+
     family_atom_meet(a, b)
 }
 

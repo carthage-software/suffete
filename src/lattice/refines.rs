@@ -272,7 +272,7 @@ fn dispatch_refines<W: World>(
         ElementKind::Iterable => family::iterable::refines(input, container, world, options, report),
         ElementKind::Callable => family::callable::refines(input, container, world, options, report),
         ElementKind::Mixed => family::mixed::refines(input, container),
-        ElementKind::GenericParameter => family::generic::refines(input, container),
+        ElementKind::GenericParameter => family::generic::refines(input, container, world, options, report),
         ElementKind::Variable
         | ElementKind::Reference
         | ElementKind::MemberReference

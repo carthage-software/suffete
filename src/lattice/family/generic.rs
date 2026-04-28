@@ -3,8 +3,11 @@
 //!
 //! Rules from comparison.md §1.9:
 //!
-//! - **Same-T**: `T <: T` when both sides name the same parameter declared
-//!   by the same defining entity.
+//! - **Same-T**: `T_a <: T_b` when both sides name the same parameter
+//!   declared by the same defining entity AND `a`'s constraint refines
+//!   `b`'s. Constraints can differ when one side has been narrowed by an
+//!   earlier assertion (`T of (int|string)` narrowed to `T of int`); the
+//!   narrower side refines the wider but not vice versa.
 //! - **Inherited-T**: `T_C <: T_D` when `C` extends `D` and the parameter
 //!   is transferred along the extension. Not yet supported by the world
 //!   surface — recorded as a TODO when a relevant query lands.
@@ -16,8 +19,17 @@
 use crate::ElementId;
 use crate::ElementKind;
 use crate::interner::interner;
+use crate::lattice::LatticeOptions;
+use crate::lattice::LatticeReport;
+use crate::world::World;
 
-pub fn refines(input: ElementId, container: ElementId) -> bool {
+pub fn refines<W: World>(
+    input: ElementId,
+    container: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
     if container.kind() != ElementKind::GenericParameter {
         return false;
     }
@@ -30,5 +42,9 @@ pub fn refines(input: ElementId, container: ElementId) -> bool {
     let input_info = i.get_generic_parameter(input);
     let container_info = i.get_generic_parameter(container);
 
-    input_info.name == container_info.name && input_info.defining_entity == container_info.defining_entity
+    if input_info.name != container_info.name || input_info.defining_entity != container_info.defining_entity {
+        return false;
+    }
+
+    crate::lattice::refines(input_info.constraint, container_info.constraint, world, options, report)
 }

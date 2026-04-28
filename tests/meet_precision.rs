@@ -6,7 +6,9 @@
 mod comparator_common;
 
 use comparator_common::*;
+use suffete::FlowFlags;
 use suffete::TypeId;
+use suffete::interner::interner;
 use suffete::lattice::LatticeOptions;
 use suffete::lattice::LatticeReport;
 use suffete::meet;
@@ -292,4 +294,53 @@ fn truthy_mixed_meet_int_is_truthy_int_set() {
     let mut report = LatticeReport::new();
     let result = meet::compute(lhs, rhs, &w, LatticeOptions::default(), &mut report);
     assert_ne!(result, suffete::prelude::TYPE_NEVER, "truthy_mixed ∧ int should be non-empty");
+}
+
+#[test]
+fn template_with_int_or_string_meet_int_narrows_constraint_to_int() {
+    let int_or_string = interner().intern_type(&[t_int(), t_string()], FlowFlags::EMPTY);
+    let lhs = u(t_template_of("C", "T", int_or_string));
+    let rhs = u(t_int());
+    let expected = u(t_template_of("C", "T", u(t_int())));
+    meet_eq(lhs, rhs, expected);
+}
+
+#[test]
+fn template_with_int_or_string_meet_string_narrows_constraint_to_string() {
+    let int_or_string = interner().intern_type(&[t_int(), t_string()], FlowFlags::EMPTY);
+    let lhs = u(t_template_of("C", "T", int_or_string));
+    let rhs = u(t_string());
+    let expected = u(t_template_of("C", "T", u(t_string())));
+    meet_eq(lhs, rhs, expected);
+}
+
+#[test]
+fn template_with_int_meet_string_is_impossible() {
+    let lhs = u(t_template_of("C", "T", u(t_int())));
+    let rhs = u(t_string());
+    meet_eq(lhs, rhs, suffete::prelude::TYPE_NEVER);
+}
+
+#[test]
+fn template_with_int_meet_int_is_redundant_keeps_template() {
+    let lhs = u(t_template_of("C", "T", u(t_int())));
+    let rhs = u(t_int());
+    meet_eq(lhs, rhs, lhs);
+}
+
+#[test]
+fn same_template_meet_with_overlapping_constraints_intersects_them() {
+    let int_or_string = interner().intern_type(&[t_int(), t_string()], FlowFlags::EMPTY);
+    let int_or_float = interner().intern_type(&[t_int(), t_float()], FlowFlags::EMPTY);
+    let lhs = u(t_template_of("C", "T", int_or_string));
+    let rhs = u(t_template_of("C", "T", int_or_float));
+    let expected = u(t_template_of("C", "T", u(t_int())));
+    meet_eq(lhs, rhs, expected);
+}
+
+#[test]
+fn distinct_templates_have_no_meet_rule_and_collapse_to_never() {
+    let lhs = u(t_template_of("C", "T", u(t_int())));
+    let rhs = u(t_template_of("C", "U", u(t_int())));
+    meet_eq(lhs, rhs, suffete::prelude::TYPE_NEVER);
 }
