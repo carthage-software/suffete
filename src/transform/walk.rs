@@ -16,6 +16,7 @@
 //! interned redundantly between levels.
 
 use crate::ElementId;
+use crate::ElementListId;
 use crate::TypeId;
 use crate::element::payload::ClassLikeStringInfo;
 use crate::element::payload::ClassLikeStringSpecifier;
@@ -95,6 +96,8 @@ fn walk_nested<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Op
         ElementKind::Array => walk_keyed_array(elem, f),
         ElementKind::Iterable => walk_iterable(elem, f),
         ElementKind::ObjectShape => walk_object_shape(elem, f),
+        ElementKind::HasMethod => walk_has_method(elem, f),
+        ElementKind::HasProperty => walk_has_property(elem, f),
         ElementKind::ClassLikeString => walk_class_like_string(elem, f),
         ElementKind::GenericParameter => walk_generic_parameter(elem, f),
         ElementKind::Reference => walk_reference(elem, f),
@@ -103,6 +106,22 @@ fn walk_nested<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Op
         ElementKind::Callable => walk_callable(elem, f),
         _ => None,
     }
+}
+
+fn walk_intersections<F: FnMut(ElementId) -> Outcome>(
+    intersections: Option<ElementListId>,
+    f: &mut F,
+) -> Option<ElementListId> {
+    let i = interner();
+    intersections.and_then(|id| {
+        let conjuncts = i.get_element_list(id);
+        let walked: Vec<ElementId> = conjuncts.iter().map(|&c| walk_nested(c, f).unwrap_or(c)).collect();
+        if walked.iter().zip(conjuncts.iter()).all(|(w, o)| w == o) {
+            None
+        } else {
+            Some(i.intern_element_list(&walked))
+        }
+    })
 }
 
 fn walk_object<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
@@ -199,23 +218,60 @@ fn walk_iterable<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> 
     let info = *i.get_iterable(elem);
     let new_key = walk(info.key_type, f);
     let new_value = walk(info.value_type, f);
-    if new_key == info.key_type && new_value == info.value_type {
+    let new_intersections = walk_intersections(info.intersections, f);
+    if new_key == info.key_type && new_value == info.value_type && new_intersections.is_none() {
         return None;
     }
-    Some(i.intern_iterable(IterableInfo { key_type: new_key, value_type: new_value, ..info }))
+    Some(i.intern_iterable(IterableInfo {
+        key_type: new_key,
+        value_type: new_value,
+        intersections: new_intersections.or(info.intersections),
+    }))
 }
 
 fn walk_object_shape<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_object_shape(elem);
-    let id = info.known_properties?;
-    let entries = i.get_known_properties(id);
-    let walked: Vec<KnownPropertyEntry> =
-        entries.iter().map(|entry| KnownPropertyEntry { value: walk(entry.value, f), ..*entry }).collect();
-    if walked.iter().zip(entries.iter()).all(|(w, o)| w.value == o.value) {
+
+    let new_props = info.known_properties.and_then(|id| {
+        let entries = i.get_known_properties(id);
+        let walked: Vec<KnownPropertyEntry> =
+            entries.iter().map(|entry| KnownPropertyEntry { value: walk(entry.value, f), ..*entry }).collect();
+        if walked.iter().zip(entries.iter()).all(|(w, o)| w.value == o.value) {
+            None
+        } else {
+            Some(i.intern_known_properties(&walked))
+        }
+    });
+
+    let new_intersections = walk_intersections(info.intersections, f);
+
+    if new_props.is_none() && new_intersections.is_none() {
         return None;
     }
-    Some(i.intern_object_shape(ObjectShapeInfo { known_properties: Some(i.intern_known_properties(&walked)), ..info }))
+
+    Some(i.intern_object_shape(ObjectShapeInfo {
+        known_properties: new_props.or(info.known_properties),
+        intersections: new_intersections.or(info.intersections),
+        ..info
+    }))
+}
+
+fn walk_has_method<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
+    let i = interner();
+    let info = *i.get_has_method(elem);
+    let new_intersections = walk_intersections(info.intersections, f)?;
+    Some(i.intern_has_method(crate::element::payload::HasMethodInfo { intersections: Some(new_intersections), ..info }))
+}
+
+fn walk_has_property<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
+    let i = interner();
+    let info = *i.get_has_property(elem);
+    let new_intersections = walk_intersections(info.intersections, f)?;
+    Some(i.intern_has_property(crate::element::payload::HasPropertyInfo {
+        intersections: Some(new_intersections),
+        ..info
+    }))
 }
 
 fn walk_class_like_string<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {

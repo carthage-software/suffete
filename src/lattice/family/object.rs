@@ -233,6 +233,7 @@ fn build_enum_shape<W: World>(info: EnumInfo, world: &W) -> Option<ObjectShapeIn
 
     Some(ObjectShapeInfo {
         known_properties: Some(i.intern_known_properties(&props)),
+        intersections: None,
         flags: ObjectShapeFlags::default().with_sealed(true),
     })
 }

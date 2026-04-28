@@ -2,6 +2,7 @@ use std::mem::size_of;
 
 use mago_atom::Atom;
 
+use crate::ElementListId;
 use crate::TypeId;
 use crate::handle::define_handle;
 
@@ -16,9 +17,14 @@ define_handle! {
 /// Unlike keyed-array sealing (which is encoded by absence of a rest type),
 /// object shapes have no rest type at all, so sealing is a real flag because
 /// `object{a: int}` and `object{a: int, ...}` are both expressible.
+///
+/// Carries an optional intersection list so structural narrowings can
+/// chain (e.g. `object{a: int} & HasMethod(foo)`) without needing an
+/// outer [`ObjectInfo`](super::ObjectInfo) wrapper.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ObjectShapeInfo {
     pub known_properties: Option<KnownPropertiesId>,
+    pub intersections: Option<ElementListId>,
     pub flags: ObjectShapeFlags,
 }
 
@@ -48,5 +54,5 @@ impl ObjectShapeFlags {
     }
 }
 
-const _: () = assert!(size_of::<ObjectShapeInfo>() <= 8);
+const _: () = assert!(size_of::<ObjectShapeInfo>() <= 16);
 const _: () = assert!(size_of::<KnownPropertyEntry>() <= 24);

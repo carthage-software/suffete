@@ -285,6 +285,53 @@ impl ElementId {
         };
         i.intern_generic_parameter(info)
     }
+
+    /// `&` conjuncts this element is intersected with, if it supports
+    /// intersections. Returns an empty slice for elements that don't
+    /// support intersections, or that support them but have none.
+    ///
+    /// Element kinds that support intersections: `Object`, `Iterable`,
+    /// `ObjectShape`, `HasMethod`, `HasProperty`, `GenericParameter`,
+    /// `Reference`. Everything else returns `&[]`.
+    pub fn intersection_types(self) -> &'static [ElementId] {
+        let i = crate::interner::interner();
+        let id = match self.kind() {
+            ElementKind::Object => i.get_object(self).intersections,
+            ElementKind::Iterable => i.get_iterable(self).intersections,
+            ElementKind::ObjectShape => i.get_object_shape(self).intersections,
+            ElementKind::HasMethod => i.get_has_method(self).intersections,
+            ElementKind::HasProperty => i.get_has_property(self).intersections,
+            ElementKind::GenericParameter => i.get_generic_parameter(self).intersections,
+            ElementKind::Reference => i.get_reference(self).intersections,
+            _ => return &[],
+        };
+        match id {
+            Some(list_id) => i.get_element_list(list_id),
+            None => &[],
+        }
+    }
+
+    /// `true` iff this element has at least one intersection conjunct.
+    #[inline]
+    pub fn has_intersection_types(self) -> bool {
+        !self.intersection_types().is_empty()
+    }
+
+    /// `true` iff this element's kind supports intersections at all
+    /// (regardless of whether the current instance has any).
+    #[inline]
+    pub const fn can_be_intersected(self) -> bool {
+        matches!(
+            self.kind(),
+            ElementKind::Object
+                | ElementKind::Iterable
+                | ElementKind::ObjectShape
+                | ElementKind::HasMethod
+                | ElementKind::HasProperty
+                | ElementKind::GenericParameter
+                | ElementKind::Reference
+        )
+    }
 }
 
 define_handle! {

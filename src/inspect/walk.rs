@@ -34,6 +34,8 @@ fn descend<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> b
         ElementKind::Array => descend_keyed_array(elem, predicate),
         ElementKind::Iterable => descend_iterable(elem, predicate),
         ElementKind::ObjectShape => descend_object_shape(elem, predicate),
+        ElementKind::HasMethod => descend_has_method(elem, predicate),
+        ElementKind::HasProperty => descend_has_property(elem, predicate),
         ElementKind::ClassLikeString => descend_class_like_string(elem, predicate),
         ElementKind::GenericParameter => descend_generic_parameter(elem, predicate),
         ElementKind::Reference => descend_reference(elem, predicate),
@@ -113,19 +115,43 @@ fn descend_keyed_array<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: 
 fn descend_iterable<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_iterable(elem);
-    any(info.key_type, predicate) || any(info.value_type, predicate)
+    if any(info.key_type, predicate) || any(info.value_type, predicate) {
+        return true;
+    }
+    descend_intersections(info.intersections, predicate)
 }
 
 fn descend_object_shape<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_object_shape(elem);
-    let Some(known_id) = info.known_properties else { return false };
-    for entry in i.get_known_properties(known_id) {
-        if any(entry.value, predicate) {
+    if let Some(known_id) = info.known_properties {
+        for entry in i.get_known_properties(known_id) {
+            if any(entry.value, predicate) {
+                return true;
+            }
+        }
+    }
+    descend_intersections(info.intersections, predicate)
+}
+
+fn descend_has_method<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
+    descend_intersections(interner().get_has_method(elem).intersections, predicate)
+}
+
+fn descend_has_property<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
+    descend_intersections(interner().get_has_property(elem).intersections, predicate)
+}
+
+fn descend_intersections<F: FnMut(ElementId) -> bool>(
+    intersections: Option<crate::ElementListId>,
+    predicate: &mut F,
+) -> bool {
+    let Some(id) = intersections else { return false };
+    for &conjunct in interner().get_element_list(id) {
+        if visit(conjunct, predicate) {
             return true;
         }
     }
-
     false
 }
 

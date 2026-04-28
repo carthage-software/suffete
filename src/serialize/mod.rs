@@ -144,13 +144,16 @@ pub enum SerializableElement {
     },
     ObjectShape {
         known_properties: Vec<SerializableKnownProperty>,
+        intersections: Option<Vec<SerializableElement>>,
         sealed: bool,
     },
     HasMethod {
         method_name: Atom,
+        intersections: Option<Vec<SerializableElement>>,
     },
     HasProperty {
         property_name: Atom,
+        intersections: Option<Vec<SerializableElement>>,
     },
     Array {
         key_param: Option<Box<SerializableType>>,
@@ -530,11 +533,25 @@ fn encode_element(elem: ElementId) -> SerializableElement {
                         .collect()
                 })
                 .unwrap_or_default();
-            SerializableElement::ObjectShape { known_properties: known, sealed: info.flags.sealed() }
+            SerializableElement::ObjectShape {
+                known_properties: known,
+                intersections: encode_intersections(info.intersections),
+                sealed: info.flags.sealed(),
+            }
         }
-        ElementKind::HasMethod => SerializableElement::HasMethod { method_name: i.get_has_method(elem).method_name },
+        ElementKind::HasMethod => {
+            let info = i.get_has_method(elem);
+            SerializableElement::HasMethod {
+                method_name: info.method_name,
+                intersections: encode_intersections(info.intersections),
+            }
+        }
         ElementKind::HasProperty => {
-            SerializableElement::HasProperty { property_name: i.get_has_property(elem).property_name }
+            let info = i.get_has_property(elem);
+            SerializableElement::HasProperty {
+                property_name: info.property_name,
+                intersections: encode_intersections(info.intersections),
+            }
         }
         ElementKind::Array => {
             let info = *i.get_array(elem);
@@ -638,6 +655,17 @@ fn encode_element(elem: ElementId) -> SerializableElement {
         }
         ElementKind::Derived => SerializableElement::Derived(encode_derived(*i.get_derived(elem))),
     }
+}
+
+fn encode_intersections(intersections: Option<crate::ElementListId>) -> Option<Vec<SerializableElement>> {
+    intersections.map(|id| interner().get_element_list(id).iter().map(|&e| encode_element(e)).collect())
+}
+
+fn decode_intersections(intersections: Option<&[SerializableElement]>) -> Option<crate::ElementListId> {
+    intersections.map(|conjuncts| {
+        let elements: Vec<ElementId> = conjuncts.iter().map(decode_element).collect();
+        interner().intern_element_list(&elements)
+    })
 }
 
 fn encode_truthiness(t: Truthiness) -> SerializableTruthiness {
@@ -866,7 +894,7 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
             i.intern_object(ObjectInfo { name: *name, type_args: type_args_id, intersections: intersections_id, flags })
         }
         SerializableElement::Enum { name, case } => i.intern_enum(EnumInfo { name: *name, case: *case }),
-        SerializableElement::ObjectShape { known_properties, sealed } => {
+        SerializableElement::ObjectShape { known_properties, intersections, sealed } => {
             let known_id = if known_properties.is_empty() {
                 None
             } else {
@@ -878,15 +906,18 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
             };
             i.intern_object_shape(ObjectShapeInfo {
                 known_properties: known_id,
+                intersections: decode_intersections(intersections.as_deref()),
                 flags: ObjectShapeFlags::default().with_sealed(*sealed),
             })
         }
-        SerializableElement::HasMethod { method_name } => {
-            i.intern_has_method(HasMethodInfo { method_name: *method_name })
-        }
-        SerializableElement::HasProperty { property_name } => {
-            i.intern_has_property(HasPropertyInfo { property_name: *property_name })
-        }
+        SerializableElement::HasMethod { method_name, intersections } => i.intern_has_method(HasMethodInfo {
+            method_name: *method_name,
+            intersections: decode_intersections(intersections.as_deref()),
+        }),
+        SerializableElement::HasProperty { property_name, intersections } => i.intern_has_property(HasPropertyInfo {
+            property_name: *property_name,
+            intersections: decode_intersections(intersections.as_deref()),
+        }),
         SerializableElement::Array { key_param, value_param, known_items, non_empty } => {
             let known_id = if known_items.is_empty() {
                 None

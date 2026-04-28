@@ -654,12 +654,12 @@ pub fn t_named_static(name: &str) -> ElementId {
 
 pub fn t_has_method(name: &str) -> ElementId {
     use suffete::element::payload::HasMethodInfo;
-    interner().intern_has_method(HasMethodInfo { method_name: atom(name) })
+    interner().intern_has_method(HasMethodInfo { method_name: atom(name), intersections: None })
 }
 
 pub fn t_has_property(name: &str) -> ElementId {
     use suffete::element::payload::HasPropertyInfo;
-    interner().intern_has_property(HasPropertyInfo { property_name: atom(name) })
+    interner().intern_has_property(HasPropertyInfo { property_name: atom(name), intersections: None })
 }
 
 /// `object{p1: T1, p2?: T2, ...}` element. Each entry is `(name, type, optional)`.
@@ -671,7 +671,11 @@ pub fn t_object_shape(props: &[(&str, TypeId, bool)], sealed: bool) -> ElementId
     let entries: Vec<KnownPropertyEntry> =
         props.iter().map(|(n, t, opt)| KnownPropertyEntry { name: atom(n), value: *t, optional: *opt }).collect();
     let known = if entries.is_empty() { None } else { Some(i.intern_known_properties(&entries)) };
-    let info = ObjectShapeInfo { known_properties: known, flags: ObjectShapeFlags::default().with_sealed(sealed) };
+    let info = ObjectShapeInfo {
+        known_properties: known,
+        intersections: None,
+        flags: ObjectShapeFlags::default().with_sealed(sealed),
+    };
     i.intern_object_shape(info)
 }
 
