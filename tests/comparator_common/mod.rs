@@ -43,6 +43,7 @@ use suffete::world::World;
 /// - [`with_extended`](Self::with_extended): declare what type arguments
 ///   `child` passes to `ancestor`'s type parameters (in `ancestor`'s
 ///   declaration order).
+#[derive(Debug)]
 pub struct MockWorld {
     /// `child -> {ancestors including child itself}`.
     ancestors: HashMap<Atom, HashSet<Atom>>,

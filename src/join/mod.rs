@@ -27,8 +27,8 @@
 //!
 //! # What this pass does
 //!
-//! - Drops `void` and `never` when any non-bottom element exists; collapses
-//!   an all-bottom multiset to `[never]`.
+//! - Drops `never` when any non-`never` element exists; collapses an
+//!   all-`never` multiset to `[never]`. Collapses `void | null` to `null`.
 //! - Lets vanilla `mixed` absorb every other element.
 //! - Merges `true ∨ false → bool`; lets `bool` absorb `true` / `false`.
 //! - Lets `resource` absorb `open-resource` / `closed-resource`; merges
@@ -67,6 +67,7 @@ use crate::prelude::FLOAT;
 use crate::prelude::INT;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
+use crate::prelude::NULL;
 use crate::prelude::OBJECT;
 use crate::prelude::OPEN_RESOURCE;
 use crate::prelude::RESOURCE;
@@ -394,12 +395,13 @@ fn canonicalize(elements: &mut Vec<ElementId>) {
         return;
     }
 
-    let has_non_bottom = elements.iter().any(|e| *e != NEVER && *e != VOID);
-    if has_non_bottom {
-        elements.retain(|e| *e != NEVER && *e != VOID);
-    } else if elements.len() > 1 {
-        elements.clear();
-        elements.push(NEVER);
+    let has_non_never = elements.iter().any(|e| *e != NEVER);
+    if has_non_never {
+        elements.retain(|e| *e != NEVER);
+    }
+
+    if elements.contains(&VOID) && elements.contains(&NULL) {
+        elements.retain(|e| *e != VOID);
     }
 
     let has_bool = elements.contains(&BOOL);
@@ -504,13 +506,17 @@ mod tests {
     }
 
     #[test]
-    fn void_with_other_elements_is_dropped() {
-        assert_eq!(compute(&[VOID, INT]), vec![INT]);
+    fn void_is_kept_when_other_elements_exist() {
+        let mut out = compute(&[VOID, INT]);
+        out.sort();
+        let mut expected = vec![INT, VOID];
+        expected.sort();
+        assert_eq!(out, expected);
     }
 
     #[test]
-    fn void_and_never_together_collapse_to_never() {
-        assert_eq!(compute(&[VOID, NEVER]), vec![NEVER]);
+    fn void_and_never_together_keeps_void() {
+        assert_eq!(compute(&[VOID, NEVER]), vec![VOID]);
     }
 
     #[test]

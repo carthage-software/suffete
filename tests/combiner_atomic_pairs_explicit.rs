@@ -437,11 +437,11 @@ fn p_never_null() {
 }
 #[test]
 fn p_void_never() {
-    check(vec![void(), never()], &[never()]);
+    check(vec![void(), never()], &[void()]);
 }
 #[test]
 fn p_never_void() {
-    check(vec![never(), void()], &[never()]);
+    check(vec![never(), void()], &[void()]);
 }
 #[test]
 fn p_null_int() {
@@ -449,7 +449,7 @@ fn p_null_int() {
 }
 #[test]
 fn p_void_int() {
-    check(vec![void(), t_int()], &[t_int()]);
+    check(vec![void(), t_int()], &[t_int(), void()]);
 }
 #[test]
 fn p_never_int() {
@@ -461,7 +461,7 @@ fn p_null_object() {
 }
 #[test]
 fn p_void_object() {
-    check(vec![void(), t_object_any()], &[t_object_any()]);
+    check(vec![void(), t_object_any()], &[t_object_any(), void()]);
 }
 #[test]
 fn p_never_object() {
@@ -473,7 +473,7 @@ fn p_null_resource() {
 }
 #[test]
 fn p_void_resource() {
-    check(vec![void(), t_resource()], &[t_resource()]);
+    check(vec![void(), t_resource()], &[t_resource(), void()]);
 }
 #[test]
 fn p_never_resource() {

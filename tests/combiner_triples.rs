@@ -61,13 +61,13 @@ fn never_triples_absorbed() {
 
 #[test]
 fn void_triples() {
-    check("void,int,string", vec![void(), t_int(), t_string()], &[t_int(), t_string()]);
+    check("void,int,string", vec![void(), t_int(), t_string()], &[t_int(), t_string(), void()]);
     check("void,null,int", vec![void(), null(), t_int()], &[t_int(), null()]);
-    check("void,never,int", vec![void(), never(), t_int()], &[t_int()]);
-    check("void,never,never", vec![void(), never(), never()], &[never()]);
-    check("void,void,int", vec![void(), void(), t_int()], &[t_int()]);
+    check("void,never,int", vec![void(), never(), t_int()], &[t_int(), void()]);
+    check("void,never,never", vec![void(), never(), never()], &[void()]);
+    check("void,void,int", vec![void(), void(), t_int()], &[t_int(), void()]);
     check("void,void,void", vec![void(), void(), void()], &[void()]);
-    check("void,Foo,Bar", vec![void(), t_named("Foo"), t_named("Bar")], &[t_named("Bar"), t_named("Foo")]);
+    check("void,Foo,Bar", vec![void(), t_named("Foo"), t_named("Bar")], &[t_named("Bar"), t_named("Foo"), void()]);
 }
 
 #[test]

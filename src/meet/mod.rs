@@ -228,11 +228,11 @@ fn int_bounds(info: IntInfo) -> (Option<i64>, Option<i64>) {
 }
 
 /// Compositional object intersection (intersection.md §2.3.2): when
-/// neither named object refines the other, the meet is one side as the
-/// head with the other side (and any pre-existing intersection
-/// conjuncts on either side) gathered into the `intersections` list.
-/// `a`'s head, type arguments, and flags are kept; `b`'s head is added
-/// as a conjunct.
+/// neither named object refines the other, the meet collects every
+/// participant (both heads + any pre-existing conjuncts on either
+/// side), strips intersections from each, sorts/dedups, and picks the
+/// canonical smallest as the head with the rest as conjuncts. The
+/// canonical-head choice is what makes the operation commutative.
 ///
 /// `final` classes (which would force `Foo & Bar → never` when
 /// unrelated) are not yet exposed by [`World`], so this function never
@@ -242,18 +242,26 @@ fn compose_object_intersection(a: ElementId, b: ElementId) -> ElementId {
     let a_info = *i.get_object(a);
     let b_info = *i.get_object(b);
 
-    let mut conjuncts: Vec<ElementId> = Vec::new();
+    let mut participants: Vec<ElementId> = Vec::new();
+    participants.push(i.intern_object(ObjectInfo { intersections: None, ..a_info }));
     if let Some(id) = a_info.intersections {
-        conjuncts.extend_from_slice(i.get_element_list(id));
+        participants.extend_from_slice(i.get_element_list(id));
     }
-    let b_head = i.intern_object(ObjectInfo { intersections: None, ..b_info });
-    conjuncts.push(b_head);
+    participants.push(i.intern_object(ObjectInfo { intersections: None, ..b_info }));
     if let Some(id) = b_info.intersections {
-        conjuncts.extend_from_slice(i.get_element_list(id));
+        participants.extend_from_slice(i.get_element_list(id));
     }
 
-    conjuncts.sort();
-    conjuncts.dedup();
+    participants.sort();
+    participants.dedup();
 
-    i.intern_object(ObjectInfo { intersections: Some(i.intern_element_list(&conjuncts)), ..a_info })
+    // Smallest is the head; the rest are intersections. Both sides of a
+    // commutative `meet` produce the same participant set, so the head
+    // pick is identical.
+    let head_elem = participants.remove(0);
+    let head_info = *i.get_object(head_elem);
+
+    let intersections = if participants.is_empty() { None } else { Some(i.intern_element_list(&participants)) };
+
+    i.intern_object(ObjectInfo { intersections, ..head_info })
 }
