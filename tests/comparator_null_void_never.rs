@@ -159,13 +159,13 @@ fn void_in_mixed() {
 }
 
 #[test]
-fn void_not_in_null() {
-    assert_atomic_not_subtype(&void(), &null());
+fn void_in_null() {
+    assert_atomic_subtype(&void(), &null());
 }
 
 #[test]
-fn null_not_in_void() {
-    assert_atomic_not_subtype(&null(), &void());
+fn null_in_void() {
+    assert_atomic_subtype(&null(), &void());
 }
 
 #[test]

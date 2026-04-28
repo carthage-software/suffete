@@ -172,10 +172,17 @@ fn atom_meet<W: World>(
         return family::generic::generic_parameter_meet(a, b, world, options, report);
     }
 
-    family_atom_meet(a, b)
+    family_atom_meet(a, b, world, options, report)
 }
 
-fn family_atom_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
+fn family_atom_meet<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<ElementId> {
+    let _ = (world, options, report);
     match (a.kind(), b.kind()) {
         (ElementKind::Int, ElementKind::Int) => family::int::int_meet(a, b),
         (ElementKind::String, ElementKind::String) => family::string::string_meet(a, b),

@@ -190,6 +190,15 @@ pub(crate) fn element_refines<W: World>(
         return true;
     }
 
+    // Void and null are interchangeable at the PHP runtime boundary
+    // (assigning a void function's result yields null), so the lattice
+    // treats them as equivalent: `void <: null` and `null <: void`.
+    if (input == crate::prelude::VOID && container == NULL)
+        || (input == NULL && container == crate::prelude::VOID)
+    {
+        return true;
+    }
+
     if container == MIXED {
         return true;
     }
