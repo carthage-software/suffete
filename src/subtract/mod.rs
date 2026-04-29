@@ -289,8 +289,17 @@ fn string_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
     let a_is_general = matches!(a_info.literal, StringLiteral::None | StringLiteral::Unspecified)
         && a_info.flags == crate::element::payload::scalar::StringRefinementFlags::EMPTY
         && matches!(a_info.casing, StringCasing::Unspecified);
+
+    // The "general string \ non-empty/truthy" → empty-literal rule
+    // only applies when `b` is the *broad* non-empty/truthy string
+    // (no literal value): subtracting `non-empty-string` from
+    // `string` leaves exactly `""`. A specific literal like
+    // `'foo'` removes only one value, so the complement is still
+    // the full `string` lattice (no canonical form for
+    // "string except 'foo'", subtract is identity).
+    let b_is_broad = matches!(b_info.literal, StringLiteral::None | StringLiteral::Unspecified);
     let b_requires_non_empty = b_info.flags.is_non_empty() || b_info.flags.is_truthy();
-    if a_is_general && b_requires_non_empty {
+    if a_is_general && b_is_broad && b_requires_non_empty {
         return Some(vec![ElementId::string_literal("")]);
     }
 

@@ -145,9 +145,7 @@ fn atom_meet<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> Option<ElementId> {
-    if crate::lattice::overlaps::is_uninhabited(a, world)
-        || crate::lattice::overlaps::is_uninhabited(b, world)
-    {
+    if crate::lattice::overlaps::is_uninhabited(a, world) || crate::lattice::overlaps::is_uninhabited(b, world) {
         return None;
     }
     if a == b {
@@ -161,6 +159,15 @@ fn atom_meet<W: World>(
     }
     if b == MIXED || b == PLACEHOLDER {
         return Some(a);
+    }
+
+    // `int <: float` is a one-directional PHP parameter-coercion rule,
+    // not a value-set subtype relation: an `int(0)` runtime value is
+    // not a member of `float`. Treat the pair as disjoint in meet so
+    // the value-level intersection is never re-introduced via the
+    // coercion-aware `refines` short-circuit below.
+    if matches!((a.kind(), b.kind()), (ElementKind::Int, ElementKind::Float) | (ElementKind::Float, ElementKind::Int)) {
+        return None;
     }
 
     let i = interner();
@@ -233,12 +240,8 @@ fn family_atom_meet<W: World>(
         (ElementKind::List, ElementKind::Array) | (ElementKind::Array, ElementKind::List) => {
             family::array::list_array_meet(a, b, world, options, report)
         }
-        (ElementKind::Iterable, ElementKind::Iterable) => {
-            family::iterable::iterable_meet(a, b, world, options, report)
-        }
-        (ElementKind::Callable, ElementKind::Callable) => {
-            family::callable::callable_meet(a, b, world, options, report)
-        }
+        (ElementKind::Iterable, ElementKind::Iterable) => family::iterable::iterable_meet(a, b, world, options, report),
+        (ElementKind::Callable, ElementKind::Callable) => family::callable::callable_meet(a, b, world, options, report),
         (ElementKind::HasMethod, ElementKind::HasMethod) => family::has_member::has_method_meet(a, b),
         (ElementKind::HasProperty, ElementKind::HasProperty) => family::has_member::has_property_meet(a, b),
         (ElementKind::HasMethod, ElementKind::HasProperty) | (ElementKind::HasProperty, ElementKind::HasMethod) => {
@@ -246,6 +249,16 @@ fn family_atom_meet<W: World>(
         }
         (ElementKind::Object, ElementKind::Object) => {
             family::object::compose_object_intersection(a, b, world, options, report)
+        }
+        (ElementKind::Object, ElementKind::HasMethod)
+        | (ElementKind::Object, ElementKind::HasProperty)
+        | (ElementKind::Object, ElementKind::ObjectShape) => {
+            family::object::compose_object_with_structural(a, b, world)
+        }
+        (ElementKind::HasMethod, ElementKind::Object)
+        | (ElementKind::HasProperty, ElementKind::Object)
+        | (ElementKind::ObjectShape, ElementKind::Object) => {
+            family::object::compose_object_with_structural(b, a, world)
         }
         _ => None,
     }

@@ -140,11 +140,58 @@ fn element_overlaps<W: World>(
         return true;
     }
 
+    let (object_atom, structural_atom) = match (a.kind(), b.kind()) {
+        (ElementKind::Object, ElementKind::HasMethod | ElementKind::HasProperty | ElementKind::ObjectShape) => {
+            (Some(a), Some(b))
+        }
+        (ElementKind::HasMethod | ElementKind::HasProperty | ElementKind::ObjectShape, ElementKind::Object) => {
+            (Some(b), Some(a))
+        }
+        _ => (None, None),
+    };
+
+    if let (Some(o), Some(s)) = (object_atom, structural_atom) {
+        return object_structural_overlap(o, s, world);
+    }
+
     if element_refines(a, b, world, options, report) || element_refines(b, a, world, options, report) {
         return true;
     }
 
     family_overlap(a, b)
+}
+
+fn object_structural_overlap<W: World>(object: ElementId, structural: ElementId, world: &W) -> bool {
+    let i = interner();
+    let info = *i.get_object(object);
+    let mut classes: Vec<mago_atom::Atom> = vec![info.name];
+    if let Some(id) = info.intersections {
+        for &c in i.get_element_list(id) {
+            if c.kind() == ElementKind::Object {
+                classes.push(i.get_object(c).name);
+            }
+        }
+    }
+
+    !classes.iter().any(|&class| world.is_final(class) && !class_satisfies_structural(class, structural, world))
+}
+
+fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: ElementId, world: &W) -> bool {
+    let i = interner();
+    let mut conjuncts: Vec<ElementId> = vec![structural];
+    let nested = match structural.kind() {
+        ElementKind::HasMethod => i.get_has_method(structural).intersections,
+        ElementKind::HasProperty => i.get_has_property(structural).intersections,
+        _ => None,
+    };
+    if let Some(id) = nested {
+        conjuncts.extend_from_slice(i.get_element_list(id));
+    }
+    conjuncts.iter().all(|&c| match c.kind() {
+        ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(c).method_name),
+        ElementKind::HasProperty => world.class_property_type(class, i.get_has_property(c).property_name).is_some(),
+        _ => true,
+    })
 }
 
 /// Object × Object overlap. Two named classes share values when:

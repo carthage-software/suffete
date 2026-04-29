@@ -48,28 +48,77 @@ pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOption
             if b_type.elements.iter().any(|container| element_refines(*input, *container, world, options, report)) {
                 return true;
             }
+
             // Fan-out: a single int element may be covered by the union of
             // several int elements on the rhs (e.g. `int<-∞,0> <: lit(0) |
             // int<-∞,-1>`). Element-by-element refines can't see that, so
             // try the family-level coverage check before giving up.
-            int_union_covers(*input, b_type.elements)
+            if int_union_covers(*input, b_type.elements) {
+                return true;
+            }
+
+            generic_parameter_union_covers(*input, b_type.elements, world, options, report)
         })
+}
+
+/// True iff a single generic-parameter input `T extends X` is covered
+/// by the union of all same-`T` elements on the rhs. Each rhs element
+/// contributes its constraint; if their union covers `X`, the input
+/// is in the rhs (just split across same-template narrowings).
+fn generic_parameter_union_covers<W: World>(
+    input: ElementId,
+    containers: &[ElementId],
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    if input.kind() != ElementKind::GenericParameter {
+        return false;
+    }
+
+    let i = interner();
+    let input_info = i.get_generic_parameter(input);
+    let mut rhs_constraints: Vec<ElementId> = Vec::new();
+    for &c in containers {
+        if c.kind() != ElementKind::GenericParameter {
+            continue;
+        }
+
+        let c_info = i.get_generic_parameter(c);
+        if c_info.name != input_info.name || c_info.defining_entity != input_info.defining_entity {
+            continue;
+        }
+
+        rhs_constraints.extend_from_slice(c_info.constraint.as_ref().elements);
+    }
+
+    if rhs_constraints.is_empty() {
+        return false;
+    }
+
+    let combined = i.intern_type(&rhs_constraints, FlowFlags::EMPTY);
+    refines(input_info.constraint, combined, world, options, report)
 }
 
 /// True iff the int range / literal `input` is fully covered by the union
 /// of all int elements in `containers`. Used as a precision fallback when
-/// no single container element accepts the input. Only fires when `input`
-/// is a concrete range or literal — the `Unspecified` / `UnspecifiedLiteral`
-/// dominators are already handled by single-element refines.
+/// no single container element accepts the input. The `UnspecifiedLiteral`
+/// dominator is excluded because the lattice keeps it as a distinct axis
+/// (`int <: literal-int` is intentionally false). The broad `Unspecified`
+/// `int` input falls back here when the disjuncts collectively cover
+/// the full integer range — this is needed for partition-style
+/// properties like `meet(a,b) ∪ subtract(a,b) ⊇ a`.
 fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     if input.kind() != ElementKind::Int {
         return false;
     }
+
     let i = interner();
     let input_info = *i.get_int(input);
-    if matches!(input_info, IntInfo::Unspecified | IntInfo::UnspecifiedLiteral) {
+    if matches!(input_info, IntInfo::UnspecifiedLiteral) {
         return false;
     }
+
     let (in_lo, in_hi) = int_bounds_of(input);
 
     let mut ranges: Vec<(Option<i64>, Option<i64>)> = containers
@@ -105,13 +154,16 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
                 (Some(_), None) => false,
                 (Some(l), Some(s)) => l <= s,
             };
+
             if !starts_input {
                 continue;
             }
+
             covered_up_to = match (in_lo, hi) {
                 (Some(s), Some(h)) if h < s => continue,
                 _ => hi,
             };
+
             started = true;
         } else {
             let connects = match (lo, covered_up_to) {
@@ -119,9 +171,11 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
                 (_, None) => true,
                 (Some(l), Some(c)) => l <= c.saturating_add(1),
             };
+
             if !connects {
                 return false;
             }
+
             covered_up_to = match (covered_up_to, hi) {
                 (None, _) | (_, None) => None,
                 (Some(c), Some(h)) => Some(c.max(h)),
@@ -133,6 +187,7 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
             (None, Some(_)) => false,
             (Some(t), Some(c)) => t <= c,
         };
+
         if covers_top {
             return true;
         }

@@ -46,6 +46,82 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
 
     let merged = merge_same_class_participants(participants, world, options, report)?;
 
+    finalize_object_composition(merged, world)
+}
+
+/// Compose a nominal object atom with a structural conjunct
+/// (`HasMethod`, `HasProperty`, `ObjectShape`). Open-world reasoning:
+/// an unknown class might gain the structural feature via a subclass,
+/// so we keep the intersection alive. A final class that doesn't
+/// already satisfy the structural feature collapses to `None`.
+pub(in crate::meet) fn compose_object_with_structural<W: World>(
+    object: ElementId,
+    structural: ElementId,
+    world: &W,
+) -> Option<ElementId> {
+    let i = interner();
+    let object_info = *i.get_object(object);
+
+    let mut nominal_classes: Vec<mago_atom::Atom> = vec![object_info.name];
+    if let Some(id) = object_info.intersections {
+        for &conjunct in i.get_element_list(id) {
+            if conjunct.kind() == ElementKind::Object {
+                nominal_classes.push(i.get_object(conjunct).name);
+            }
+        }
+    }
+
+    if structural_uninhabited_under_finality(&nominal_classes, structural, world) {
+        return None;
+    }
+
+    let mut participants: Vec<ElementId> = Vec::new();
+    participants.push(i.intern_object(ObjectInfo { intersections: None, ..object_info }));
+    if let Some(id) = object_info.intersections {
+        participants.extend_from_slice(i.get_element_list(id));
+    }
+
+    participants.push(structural);
+
+    finalize_object_composition(participants, world)
+}
+
+/// `final C & HasMethod(m)` is uninhabited when `C` is final and the
+/// world says it lacks `m`: a final class admits no subclass that
+/// could add the member. The check fires only for nominal classes
+/// the world declares final; open-world classes always keep the
+/// structural intersection.
+fn structural_uninhabited_under_finality<W: World>(
+    classes: &[mago_atom::Atom],
+    structural: ElementId,
+    world: &W,
+) -> bool {
+    classes.iter().any(|&class| world.is_final(class) && !class_satisfies_structural(class, structural, world))
+}
+
+fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: ElementId, world: &W) -> bool {
+    let i = interner();
+    let mut conjuncts: Vec<ElementId> = vec![structural];
+    let nested = match structural.kind() {
+        ElementKind::HasMethod => i.get_has_method(structural).intersections,
+        ElementKind::HasProperty => i.get_has_property(structural).intersections,
+        _ => None,
+    };
+
+    if let Some(id) = nested {
+        conjuncts.extend_from_slice(i.get_element_list(id));
+    }
+
+    conjuncts.iter().all(|&c| match c.kind() {
+        ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(c).method_name),
+        ElementKind::HasProperty => world.class_property_type(class, i.get_has_property(c).property_name).is_some(),
+        _ => true,
+    })
+}
+
+fn finalize_object_composition<W: World>(merged: Vec<ElementId>, world: &W) -> Option<ElementId> {
+    let i = interner();
+
     let mut object_parts: Vec<ElementId> = Vec::new();
     let mut other_parts: Vec<ElementId> = Vec::new();
     for elem in merged {
@@ -156,10 +232,18 @@ fn merge_args<W: World>(
     let i = interner();
     match (a.type_args, b.type_args) {
         (None, None) => Some(None),
-        // Bare class on one side carries the implicit `<mixed,…>`
-        // default; the args-bearing side is strictly more specific, so
-        // adopt it directly.
-        (Some(id), None) | (None, Some(id)) => Some(Some(id)),
+        (Some(id), None) | (None, Some(id)) => {
+            let arity = world.template_parameter_arity(a.name);
+            let all_contravariant = arity > 0
+                && (0..arity).all(|idx| {
+                    matches!(
+                        world.template_parameter_at(a.name, idx).map(|t| t.variance),
+                        Some(Variance::Contravariant)
+                    )
+                });
+
+            if all_contravariant { Some(None) } else { Some(Some(id)) }
+        }
         (Some(a_id), Some(b_id)) => {
             let a_args: Vec<TypeId> = i.get_type_list(a_id).to_vec();
             let b_args: Vec<TypeId> = i.get_type_list(b_id).to_vec();
