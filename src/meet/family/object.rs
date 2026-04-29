@@ -74,12 +74,6 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
     Some(result)
 }
 
-/// `Foo & Bar` is inhabitable when one descends from the other (so a
-/// concrete subclass satisfies both) or they could conceivably share
-/// an interface. The world only exposes class ancestry, so the
-/// pragmatic rule is: every pair of distinct nominal classes in the
-/// intersection must be ancestor-related. Otherwise the composition
-/// is uninhabitable under PHP's single-inheritance class graph.
 fn single_inheritance_consistent<W: World>(objects: &[ElementId], world: &W) -> bool {
     let i = interner();
     for (idx, &a) in objects.iter().enumerate() {

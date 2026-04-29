@@ -120,12 +120,13 @@ fn element_overlaps<W: World>(
         return true;
     }
 
-    // Member predicates (`has-method`, `has-property`) are open: a
-    // class can declare both methods or both properties, so any pair
-    // is compositionally satisfiable.
-    if (a.kind() == ElementKind::HasMethod && b.kind() == ElementKind::HasMethod)
-        || (a.kind() == ElementKind::HasProperty && b.kind() == ElementKind::HasProperty)
-    {
+    if matches!(
+        (a.kind(), b.kind()),
+        (ElementKind::HasMethod, ElementKind::HasMethod)
+            | (ElementKind::HasProperty, ElementKind::HasProperty)
+            | (ElementKind::HasMethod, ElementKind::HasProperty)
+            | (ElementKind::HasProperty, ElementKind::HasMethod)
+    ) {
         return true;
     }
 
@@ -164,6 +165,7 @@ fn object_overlap<W: World>(
     if !pairwise_related(&a_classes, world) || !pairwise_related(&b_classes, world) {
         return false;
     }
+
     for &a_name in &a_classes {
         for &b_name in &b_classes {
             if a_name == b_name {

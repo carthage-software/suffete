@@ -350,7 +350,27 @@ impl World for MockWorld {
         if !self.descends_from(child, ancestor) {
             return None;
         }
-        self.extended.get(&(child, ancestor)).and_then(|args| args.get(position).copied())
+        if let Some(args) = self.extended.get(&(child, ancestor))
+            && let Some(arg) = args.get(position).copied()
+        {
+            return Some(arg);
+        }
+        // Transitive case: walk the chain via any direct parent that
+        // descends to `ancestor`. We pick the first such parent and
+        // recurse, returning the parent's args at `position` (each
+        // edge in `arb_world` already supplies `mixed` defaults, so
+        // chain composition collapses to `mixed`).
+        for ((parent_child, parent_ancestor), _args) in self.extended.iter() {
+            if *parent_child != child {
+                continue;
+            }
+            if self.descends_from(*parent_ancestor, ancestor) {
+                if let Some(arg) = self.inherited_template_argument(*parent_ancestor, ancestor, position) {
+                    return Some(arg);
+                }
+            }
+        }
+        None
     }
 
     fn class_has_method(&self, class: Atom, method: Atom) -> bool {
