@@ -74,16 +74,25 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
     Some(result)
 }
 
+/// `Foo & Bar & …` is inhabitable when no finality witness rules it
+/// out. A `final` class in the intersection has only itself as a
+/// possible witness, so it must descend every other class in the
+/// intersection. When that fails, the type is uninhabited and
+/// compose collapses to `None`. Without a final witness we
+/// optimistically allow the composition (PHP's open world might
+/// supply a common subclass via interfaces / traits).
 fn single_inheritance_consistent<W: World>(objects: &[ElementId], world: &W) -> bool {
     let i = interner();
-    for (idx, &a) in objects.iter().enumerate() {
-        for &b in &objects[idx + 1..] {
-            let a_name = i.get_object(a).name;
-            let b_name = i.get_object(b).name;
-            if a_name == b_name {
+    let names: Vec<mago_atom::Atom> = objects.iter().map(|o| i.get_object(*o).name).collect();
+    for &final_candidate in &names {
+        if !world.is_final(final_candidate) {
+            continue;
+        }
+        for &other in &names {
+            if other == final_candidate {
                 continue;
             }
-            if !(world.descends_from(a_name, b_name) || world.descends_from(b_name, a_name)) {
+            if !world.descends_from(final_candidate, other) && !world.descends_from(other, final_candidate) {
                 return false;
             }
         }

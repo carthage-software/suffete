@@ -67,6 +67,9 @@ pub struct MockWorld {
     /// explicitly; classes and enums are inferred). Names absent here
     /// are treated as plain classes when they appear in `ancestors`.
     class_like_kinds: HashMap<Atom, suffete::element::payload::ClassLikeKind>,
+    /// `class -> ()` for classes declared `final` (or implicitly so,
+    /// like enums). Used by [`World::is_final`].
+    final_classes: HashSet<Atom>,
     /// `(class, alias_name) -> alias body type` for declared `@type`
     /// aliases. Body may itself contain other aliases, references, or
     /// derived types — expansion is recursive.
@@ -88,6 +91,7 @@ impl MockWorld {
             properties: HashMap::new(),
             enums: HashMap::new(),
             class_like_kinds: HashMap::new(),
+            final_classes: HashSet::new(),
             aliases: HashMap::new(),
             class_constants: HashMap::new(),
             global_constants: HashMap::new(),
@@ -148,6 +152,15 @@ impl MockWorld {
         let n = atom(name);
         self.ancestors.entry(n).or_default().insert(n);
         self.class_like_kinds.insert(n, suffete::element::payload::ClassLikeKind::Trait);
+        self
+    }
+
+    /// Mark `name` as `final` (no subclasses possible). Implicitly
+    /// declares `name` for the ancestor closure.
+    pub fn with_final(&mut self, name: &str) -> &mut Self {
+        let n = atom(name);
+        self.ancestors.entry(n).or_default().insert(n);
+        self.final_classes.insert(n);
         self
     }
 
@@ -407,6 +420,13 @@ impl World for MockWorld {
             return Some(suffete::element::payload::ClassLikeKind::Class);
         }
         None
+    }
+
+    fn is_final(&self, name: Atom) -> bool {
+        // Enums are implicitly final in PHP — they cannot be
+        // subclassed. Explicit `with_final` declarations are tracked
+        // in `final_classes`.
+        self.enums.contains_key(&name) || self.final_classes.contains(&name)
     }
 
     fn alias_body(&self, class: Atom, alias: Atom) -> Option<TypeId> {

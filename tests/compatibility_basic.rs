@@ -67,9 +67,16 @@ fn cell_int_and_cell_string_diverge_static_vs_runtime() {
 
 #[test]
 fn cell_int_and_box_string_unrelated_classes_incompatible() {
+    // Mark both `Cell` and `Box` as `final` — without that, PHP's
+    // open class graph admits a hypothetical descendant that
+    // satisfies both, and the lattice correctly reports that as a
+    // possible runtime witness. Final closes the door, giving the
+    // strict "no common subclass" answer this test wants.
     let mut w = MockWorld::new();
     w.with_templates("Cell", &[("T", Variance::Invariant)]);
     w.with_templates("Box", &[("T", Variance::Invariant)]);
+    w.with_final("Cell");
+    w.with_final("Box");
 
     let cell_int = u(t_generic_named("Cell", vec![u(t_int())]));
     let box_string = u(t_generic_named("Box", vec![u(t_string())]));

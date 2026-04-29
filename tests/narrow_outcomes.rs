@@ -192,14 +192,16 @@ fn subtract_compute_unwraps_redundant() {
 }
 
 #[test]
-fn meet_narrow_unrelated_objects_are_impossible() {
-    // Foo ∧ Bar with no shared ancestry reports Impossible: PHP's
-    // single-inheritance class graph cannot host a value that is both,
-    // so the meet is `never`. Lifting this requires a world surface
-    // for shared interfaces / traits.
+fn meet_narrow_unrelated_final_objects_are_impossible() {
+    // `final class Foo` / `final class Bar` with no shared ancestry
+    // reports Impossible: a final class admits no further
+    // descendants, so no value can be both `Foo` and `Bar`. Without
+    // `final` declarations the lattice stays open-world and would
+    // return `Narrowed(Foo & Bar)` to acknowledge a hypothetical
+    // common subclass.
     let mut w = MockWorld::new();
-    w.declare("Foo");
-    w.declare("Bar");
+    w.with_final("Foo");
+    w.with_final("Bar");
     let foo = u(t_named("Foo"));
     let bar = u(t_named("Bar"));
     let mut report = LatticeReport::new();

@@ -180,11 +180,12 @@ fn atom_meet<W: World>(
     family_atom_meet(a, b, world, options, report)
 }
 
-/// `Foo & Bar` with unrelated nominal classes (neither descends the
-/// other) is uninhabited under PHP's single-inheritance class graph,
-/// even when the lattice can construct it. Used as a guard so
-/// subsumption doesn't pass an uninhabited intersection back as the
-/// meet result.
+/// `Foo & Bar` is uninhabited when finality witnesses no value can
+/// satisfy every conjunct: any final class in the intersection has
+/// no subclasses, so it must descend every other class for a value
+/// to exist (otherwise the only candidate inhabitant — the final
+/// class itself — fails one of the constraints). Used as a guard
+/// so subsumption doesn't return an uninhabited intersection.
 fn object_intersection_is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
     if elem.kind() != ElementKind::Object {
         return false;
@@ -198,12 +199,15 @@ fn object_intersection_is_uninhabited<W: World>(elem: ElementId, world: &W) -> b
             classes.push(i.get_object(conjunct).name);
         }
     }
-    for (idx, &left) in classes.iter().enumerate() {
-        for &right in &classes[idx + 1..] {
-            if left == right {
+    for &final_candidate in &classes {
+        if !world.is_final(final_candidate) {
+            continue;
+        }
+        for &other in &classes {
+            if other == final_candidate {
                 continue;
             }
-            if !world.descends_from(left, right) && !world.descends_from(right, left) {
+            if !world.descends_from(final_candidate, other) && !world.descends_from(other, final_candidate) {
                 return true;
             }
         }

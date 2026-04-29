@@ -107,6 +107,13 @@ pub trait World {
     /// through the enum-element family, not the named-object family.
     fn class_like_kind(&self, name: Atom) -> Option<ClassLikeKind>;
 
+    /// `true` iff `name` cannot be extended (PHP `final class`
+    /// declaration, or any enum — enums are implicitly final).
+    fn is_final(&self, name: Atom) -> bool {
+        let _ = name;
+        false
+    }
+
     /// The recorded body of `class::alias` (a `@type` alias declared on
     /// the class), or `None` when the alias is unknown. Used by
     /// [`crate::expand`] to substitute alias bodies in place of

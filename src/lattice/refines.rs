@@ -190,16 +190,21 @@ pub(crate) fn element_refines<W: World>(
         return true;
     }
 
-    // Vacuous: an atom whose value-set is empty (`non-empty-list<never>`,
-    // `non-empty-array<…, never>`, an invariant-class with a `never` arg)
-    // refines anything, just like `never`.
     if crate::lattice::overlaps::is_uninhabited(input, world) {
         return true;
     }
 
-    // Void and null are interchangeable at the PHP runtime boundary
-    // (assigning a void function's result yields null), so the lattice
-    // treats them as equivalent: `void <: null` and `null <: void`.
+    // Note: we deliberately do *not* short-circuit on
+    // `is_uninhabited(container)` here. An object intersection like
+    // `Foo & Bar` of pairwise-unrelated nominal classes appears
+    // uninhabited under the world's known graph, but PHP's open
+    // world means a common subclass may exist (interfaces, traits,
+    // third-party descendants). The container-intersection rule in
+    // [`family::object::refines`] correctly handles those — if the
+    // input descends every conjunct, refines holds. Only `atom_minus`
+    // in [`crate::subtract`] uses the symmetric uninhabited check,
+    // because subtract has the inverse soundness needs.
+
     if (input == crate::prelude::VOID && container == NULL) || (input == NULL && container == crate::prelude::VOID) {
         return true;
     }
@@ -208,20 +213,16 @@ pub(crate) fn element_refines<W: World>(
         return true;
     }
 
-    // Constraint rule (comparison.md §1.9). The mirror case (container is
-    // a template) flows through `family::generic` via the dispatch below.
     if input.kind() == ElementKind::GenericParameter && container.kind() != ElementKind::GenericParameter {
         let constraint = interner().get_generic_parameter(input).constraint;
         let container_type = interner().intern_type(&[container], FlowFlags::EMPTY);
         let result = refines(constraint, container_type, world, options, report);
         if !result && container != MIXED && constraint.as_ref().elements.contains(&MIXED) {
-            // Reattribute: the input is `T as mixed`, not a structurally
-            // nested mixed — the actionable diagnostic is "tighten T's
-            // constraint", not "stop putting mixed in this slot".
             report.causes.remove(CoercionCauses::NESTED_MIXED);
             report.add_cause(CoercionCauses::TRUE_UNION_NARROW);
             report.add_cause(CoercionCauses::FROM_AS_MIXED);
         }
+
         return result;
     }
 

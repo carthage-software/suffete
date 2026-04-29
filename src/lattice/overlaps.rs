@@ -172,12 +172,8 @@ fn object_overlap<W: World>(
 
     let a_classes = collect_class_names(a, a_info);
     let b_classes = collect_class_names(b, b_info);
-    if !pairwise_related(&a_classes, world) || !pairwise_related(&b_classes, world) {
-        return false;
-    }
-    let a_top = most_specific_class(&a_classes, world);
-    let b_top = most_specific_class(&b_classes, world);
-    if a_top != b_top && !world.descends_from(a_top, b_top) && !world.descends_from(b_top, a_top) {
+    let combined: Vec<mago_atom::Atom> = a_classes.iter().chain(b_classes.iter()).copied().collect();
+    if intersection_uninhabited_under_finality(&combined, world) {
         return false;
     }
 
@@ -212,28 +208,28 @@ fn object_overlap<W: World>(
     true
 }
 
-fn most_specific_class<W: World>(classes: &[mago_atom::Atom], world: &W) -> mago_atom::Atom {
-    *classes
-        .iter()
-        .find(|&&c| classes.iter().all(|&other| c == other || world.descends_from(c, other)))
-        .unwrap_or(&classes[0])
-}
-
-/// `true` when every distinct pair of nominal classes in `names`
-/// is ancestor-related. Used to detect uninhabited intersections like
-/// `C&D` where C and D are siblings of a common ancestor.
-fn pairwise_related<W: World>(names: &[mago_atom::Atom], world: &W) -> bool {
-    for (idx, &left) in names.iter().enumerate() {
-        for &right in &names[idx + 1..] {
-            if left == right {
-                continue;
-            }
-            if !world.descends_from(left, right) && !world.descends_from(right, left) {
-                return false;
-            }
+/// `true` iff `Foo & Bar & …` is provably uninhabited via the
+/// world's finality surface. A `final` class `F` admits no new
+/// subclasses, so for `F & O` to be inhabited the value must
+/// satisfy both `F` and `O` simultaneously — which is only
+/// possible when `F` and `O` are ancestor-related in *some*
+/// direction (`F` descends `O`, or `O` descends `F`). When `F` is
+/// final and there exists an unrelated `O` in the intersection,
+/// no runtime value can satisfy both and the type is bottom.
+/// Without a final witness we stay open-world-conservative
+/// (return `false`).
+fn intersection_uninhabited_under_finality<W: World>(classes: &[mago_atom::Atom], world: &W) -> bool {
+    classes.iter().any(|&final_candidate| {
+        if !world.is_final(final_candidate) {
+            return false;
         }
-    }
-    true
+
+        classes.iter().any(|&other| {
+            other != final_candidate
+                && !world.descends_from(final_candidate, other)
+                && !world.descends_from(other, final_candidate)
+        })
+    })
 }
 
 /// Collects the head + every object-kind conjunct's class name. Used
@@ -285,8 +281,7 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                     }
                 }
 
-                let world_knows_all = classes.iter().all(|&c| world.class_like_kind(c).is_some());
-                if world_knows_all && !pairwise_related(&classes, world) {
+                if intersection_uninhabited_under_finality(&classes, world) {
                     return true;
                 }
             }
@@ -296,11 +291,7 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                 if !type_is_value_never(arg, world) {
                     return false;
                 }
-                // When the world doesn't know the parameter (e.g.
-                // `NullWorld` in canonical join) we *cannot* prove
-                // uninhabited from a `never` arg alone — the unknown
-                // could be contravariant. Default to `Contravariant`
-                // so the check stays sound under partial worlds.
+
                 let variance =
                     world.template_parameter_at(info.name, idx).map(|p| p.variance).unwrap_or(Variance::Contravariant);
                 !matches!(variance, Variance::Contravariant)

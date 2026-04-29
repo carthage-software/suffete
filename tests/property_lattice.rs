@@ -65,8 +65,9 @@ fn arb_world() -> impl Strategy<Value = WorldHandle> {
 
     let methods = proptest::collection::vec(any::<bool>(), CLASSES.len() * METHODS.len());
     let properties = proptest::collection::vec(any::<bool>(), CLASSES.len() * PROPERTIES.len());
+    let finals = proptest::collection::vec(any::<bool>(), CLASSES.len());
 
-    (class_templates, edges, methods, properties).prop_map(|(templates, edges, methods, properties)| {
+    (class_templates, edges, methods, properties, finals).prop_map(|(templates, edges, methods, properties, finals)| {
         let mut w = MockWorld::new();
 
         for (idx, class) in CLASSES.iter().enumerate() {
@@ -110,6 +111,12 @@ fn arb_world() -> impl Strategy<Value = WorldHandle> {
 
         for e in ENUMS {
             w.with_pure_enum(e);
+        }
+
+        for (i, class) in CLASSES.iter().enumerate() {
+            if finals[i] {
+                w.with_final(class);
+            }
         }
 
         WorldHandle(Arc::new(w))

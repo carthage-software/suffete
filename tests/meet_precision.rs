@@ -387,6 +387,59 @@ fn associativity_array_bool_int_meet_via_arb_failing_case() {
 }
 
 #[test]
+fn final_class_intersected_with_unrelated_is_uninhabited_in_meet() {
+    // PHP `final class Foo` cannot be subclassed, so the only way a
+    // value is `Foo & Bar` is if `Foo` itself descends `Bar`. With
+    // `Bar` unrelated, no such value exists — meet collapses to
+    // `never`.
+    let mut w = MockWorld::new();
+    w.with_final("Foo");
+    w.declare("Bar");
+    let foo = u(t_named("Foo"));
+    let bar = u(t_named("Bar"));
+    meet_eq_with(foo, bar, suffete::prelude::TYPE_NEVER, &w);
+}
+
+#[test]
+fn enum_intersected_with_unrelated_class_is_uninhabited() {
+    // Enums are implicitly final, so `enum(Color) & SomeClass`
+    // (with no inheritance link) is uninhabited.
+    let mut w = MockWorld::new();
+    w.with_pure_enum("Color");
+    w.declare("Bar");
+    let color = u(t_enum("Color"));
+    let bar = u(t_named("Bar"));
+    meet_eq_with(color, bar, suffete::prelude::TYPE_NEVER, &w);
+}
+
+#[test]
+fn unrelated_objects_no_finality_overlap_is_open() {
+    // PHP open world: with neither class final, `A<object>` and `E`
+    // could both be inhabited by some descendant we don't see.
+    // Overlap should be `true`, matching the optimism in compose.
+    use suffete::lattice::overlaps;
+    use suffete::world::Variance;
+    let mut w = MockWorld::new();
+    w.with_templates("A", &[("T", Variance::Invariant)]);
+    w.with_templates("B", &[("T", Variance::Contravariant)]);
+    w.declare("E");
+    w.with_extended("A", "B", vec![suffete::prelude::TYPE_MIXED]);
+    w.with_final("B");
+
+    let a = u(t_generic_named("A", vec![u(suffete::prelude::OBJECT)]));
+    let e = u(t_named("E"));
+    let mut report = LatticeReport::new();
+    let o = overlaps(a, e, &w, LatticeOptions::default(), &mut report);
+    eprintln!("overlaps(A<object>, E) = {o}");
+    let mut report2 = LatticeReport::new();
+    let m = meet::compute(a, e, &w, LatticeOptions::default(), &mut report2);
+    eprintln!("meet(A<object>, E) = {m}");
+    if m != suffete::prelude::TYPE_NEVER {
+        assert!(o, "non-never meet ({m}) should imply overlap");
+    }
+}
+
+#[test]
 fn empty_array_meet_array_int_int_collapses_to_empty() {
     use suffete::lattice::refines;
     let w = empty_world();
