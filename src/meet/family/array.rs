@@ -161,6 +161,16 @@ fn unsealed_keyed_array_meet<W: World>(
     let i = interner();
     let non_empty = a_info.flags.non_empty() || b_info.flags.non_empty();
 
+    // Sealed-empty (`[]`, no params, no known items) on either side
+    // means the only inhabitant is the empty array. Meeting with a
+    // non-empty side rules it out; otherwise the result is exactly
+    // `[]` regardless of the other side's open key/value params.
+    let a_sealed_empty = a_info.is_sealed() && a_info.known_items.is_none();
+    let b_sealed_empty = b_info.is_sealed() && b_info.known_items.is_none();
+    if a_sealed_empty || b_sealed_empty {
+        return if non_empty { None } else { Some(crate::prelude::EMPTY_ARRAY) };
+    }
+
     let key_param = match (a_info.key_param, b_info.key_param) {
         (Some(ak), Some(bk)) => Some(crate::meet::compute(ak, bk, world, options, report)),
         (Some(k), None) | (None, Some(k)) => Some(k),

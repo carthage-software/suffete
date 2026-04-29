@@ -363,6 +363,74 @@ fn contravariant_a_object_meet_a_int_under_contravariant_t_subsumes_to_more_spec
 }
 
 #[test]
+fn associativity_array_bool_int_meet_via_arb_failing_case() {
+    use suffete::lattice::refines;
+    let w = empty_world();
+
+    let a = u(t_keyed_unsealed(suffete::prelude::TYPE_INT, suffete::prelude::TYPE_INT, false));
+    let array_bool_int = u(t_keyed_unsealed(suffete::prelude::TYPE_BOOL, suffete::prelude::TYPE_INT, false));
+    let b_atoms: Vec<suffete::ElementId> =
+        array_bool_int.as_ref().elements.iter().chain(suffete::prelude::TYPE_INT.as_ref().elements.iter()).copied().collect();
+    let b = interner().intern_type(&b_atoms, FlowFlags::EMPTY);
+    let c = u(t_list(suffete::prelude::TYPE_INT, false));
+
+    let mut report = LatticeReport::new();
+    let bc = meet::compute(b, c, &w, LatticeOptions::default(), &mut report);
+    let r = meet::compute(a, bc, &w, LatticeOptions::default(), &mut report);
+    eprintln!("a={a}, b={b}, c={c}");
+    eprintln!("(b∩c) = {bc}");
+    eprintln!("a∩(b∩c) = {r}");
+
+    let r_refines_b = refines(r, b, &w, LatticeOptions::default(), &mut report);
+    eprintln!("r refines b = {r_refines_b}");
+    assert!(r_refines_b);
+}
+
+#[test]
+fn empty_array_meet_array_int_int_collapses_to_empty() {
+    use suffete::lattice::refines;
+    let w = empty_world();
+    let array_int_int = u(t_keyed_unsealed(suffete::prelude::TYPE_INT, suffete::prelude::TYPE_INT, false));
+    let empty_array = u(suffete::prelude::EMPTY_ARRAY);
+    let mut report = LatticeReport::new();
+    let m = meet::compute(array_int_int, empty_array, &w, LatticeOptions::default(), &mut report);
+    eprintln!("array<int,int> ∩ EMPTY_ARRAY = {m}");
+    assert!(refines(m, empty_array, &w, LatticeOptions::default(), &mut report));
+    assert!(refines(m, array_int_int, &w, LatticeOptions::default(), &mut report));
+    let mut r2 = LatticeReport::new();
+    let r2_check = refines(empty_array, array_int_int, &w, LatticeOptions::default(), &mut r2);
+    eprintln!("EMPTY_ARRAY refines array<int,int> = {r2_check}");
+}
+
+#[test]
+fn associativity_array_int_int_meet_via_arb_failing_case() {
+    use suffete::lattice::refines;
+    let w = empty_world();
+
+    let array_int_int = u(t_keyed_unsealed(suffete::prelude::TYPE_INT, suffete::prelude::TYPE_INT, false));
+    let list_never = u(t_list(suffete::prelude::TYPE_NEVER, false));
+    let empty = u(suffete::prelude::EMPTY_ARRAY);
+    let bc = interner().intern_type(
+        &[list_never.as_ref().elements[0], empty.as_ref().elements[0]],
+        FlowFlags::EMPTY,
+    );
+
+    let mut report = LatticeReport::new();
+    let r = meet::compute(array_int_int, bc, &w, LatticeOptions::default(), &mut report);
+    eprintln!("array<int,int> ∩ (list<never>|EMPTY_ARRAY) = {r}");
+
+    let b = interner().intern_type(
+        &[
+            u(t_keyed_unsealed(suffete::prelude::TYPE_INT, suffete::prelude::TYPE_INT, false)).as_ref().elements[0],
+        ],
+        FlowFlags::EMPTY,
+    );
+    let r_refines_b = refines(r, b, &w, LatticeOptions::default(), &mut report);
+    eprintln!("r refines b = {r_refines_b}");
+    assert!(r_refines_b, "result should refine the b-shaped target");
+}
+
+#[test]
 fn refines_a_descending_c_int_under_contravariant_t() {
     use suffete::lattice::refines;
     use suffete::world::Variance;

@@ -77,6 +77,16 @@ fn element_overlaps<W: World>(
         return true;
     }
 
+    if a.kind() == ElementKind::GenericParameter && b.kind() == ElementKind::GenericParameter {
+        let a_info = interner().get_generic_parameter(a);
+        let b_info = interner().get_generic_parameter(b);
+        if a_info.name != b_info.name || a_info.defining_entity != b_info.defining_entity {
+            return false;
+        }
+
+        return overlaps(a_info.constraint, b_info.constraint, world, options, report);
+    }
+
     if a.kind() == ElementKind::GenericParameter {
         let constraint = interner().get_generic_parameter(a).constraint;
         let other = interner().intern_type(&[b], FlowFlags::EMPTY);

@@ -199,6 +199,10 @@ fn sealed_refines_sealed<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
+    if input.key_param.is_some() || input.value_param.is_some() {
+        return false;
+    }
+
     let i = interner();
     let input_items: &[crate::element::payload::KnownItemEntry] = match input.known_items {
         Some(id) => i.get_known_items(id),
