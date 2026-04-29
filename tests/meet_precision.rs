@@ -344,3 +344,56 @@ fn distinct_templates_have_no_meet_rule_and_collapse_to_never() {
     let rhs = u(t_template_of("C", "U", u(t_int())));
     meet_eq(lhs, rhs, suffete::prelude::TYPE_NEVER);
 }
+
+#[test]
+fn contravariant_a_object_meet_a_int_under_contravariant_t_subsumes_to_more_specific() {
+    use suffete::lattice::refines;
+    use suffete::world::Variance;
+    let mut w = MockWorld::new();
+    w.with_templates("A", &[("T", Variance::Contravariant)]);
+    let a_object = u(t_generic_named("A", vec![u(t_named("Object"))]));
+    let a_int = u(t_generic_named("A", vec![u(t_int())]));
+
+    let mut report = LatticeReport::new();
+    let m = meet::compute(a_object, a_int, &w, LatticeOptions::default(), &mut report);
+    let r1 = refines(m, a_object, &w, LatticeOptions::default(), &mut report);
+    let r2 = refines(m, a_int, &w, LatticeOptions::default(), &mut report);
+    assert!(r1, "meet={m} should refine {a_object}");
+    assert!(r2, "meet={m} should refine {a_int}");
+}
+
+#[test]
+fn invariant_a_associativity_arb_failing_case() {
+    use suffete::lattice::refines;
+    use suffete::world::Variance;
+    let mut w = MockWorld::new();
+    w.with_templates("A", &[("T", Variance::Invariant)]);
+    w.with_templates("B", &[("T", Variance::Contravariant)]);
+    w.with_templates("C", &[("T", Variance::Contravariant)]);
+    w.with_templates("D", &[("T", Variance::Invariant)]);
+    w.with_extended("B", "C", vec![suffete::prelude::TYPE_MIXED]);
+    w.with_extended("A", "B", vec![suffete::prelude::TYPE_MIXED]);
+
+    let object = u(suffete::prelude::OBJECT);
+    let a_object = u(t_generic_named("A", vec![object]));
+    let a_int = u(t_generic_named("A", vec![u(t_int())]));
+    let a_bare = u(t_named("A"));
+
+    let a_t = interner().intern_type(&[a_object.as_ref().elements[0], t_int()], FlowFlags::EMPTY);
+    let b_t = interner().intern_type(&[a_bare.as_ref().elements[0], t_int()], FlowFlags::EMPTY);
+    let c_t = a_int;
+
+    let mut report = LatticeReport::new();
+    let l = meet::compute(meet::compute(a_t, b_t, &w, LatticeOptions::default(), &mut report), c_t, &w, LatticeOptions::default(), &mut report);
+    let r = meet::compute(a_t, meet::compute(b_t, c_t, &w, LatticeOptions::default(), &mut report), &w, LatticeOptions::default(), &mut report);
+
+    eprintln!("a={a_t}, b={b_t}, c={c_t}");
+    eprintln!("(a∩b)∩c = {l}");
+    eprintln!("a∩(b∩c) = {r}");
+    let l_refines_c = refines(l, c_t, &w, LatticeOptions::default(), &mut report);
+    let r_refines_c = refines(r, c_t, &w, LatticeOptions::default(), &mut report);
+    eprintln!("l refines c = {l_refines_c}");
+    eprintln!("r refines c = {r_refines_c}");
+    assert!(l_refines_c, "(a∩b)∩c should refine c");
+    assert!(r_refines_c, "a∩(b∩c) should refine c");
+}

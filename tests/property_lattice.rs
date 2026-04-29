@@ -52,10 +52,13 @@ fn arb_variance() -> impl Strategy<Value = Variance> {
 }
 
 fn arb_world() -> impl Strategy<Value = WorldHandle> {
-    let class_templates: Vec<_> = CLASSES
-        .iter()
-        .map(|_| (0usize..=2usize).prop_flat_map(|n| proptest::collection::vec(arb_variance(), n)))
-        .collect();
+    // Every class declares exactly one template parameter so that the
+    // `t_generic_named("A", vec![t])` pattern in `arb_type` always
+    // supplies the right number of args. Arity-mismatched types
+    // (over- / under-supplied annotations) are a separate, deliberate
+    // stress and should be tested by their own targeted strategy,
+    // not by random collision with the world's declared arity here.
+    let class_templates: Vec<_> = CLASSES.iter().map(|_| proptest::collection::vec(arb_variance(), 1)).collect();
 
     let edge_count = CLASSES.len() * (CLASSES.len() - 1) / 2;
     let edges = proptest::collection::vec(any::<bool>(), edge_count);
@@ -322,6 +325,9 @@ fn type_is_value_never(t: TypeId, w: &MockWorld) -> bool {
     }
 
     elements.iter().all(|e| {
+        if element_is_value_never(*e, w) {
+            return true;
+        }
         let s = interner().intern_type(&[*e], FlowFlags::EMPTY);
         !does_overlap(s, s, w)
     })
@@ -330,6 +336,37 @@ fn type_is_value_never(t: TypeId, w: &MockWorld) -> bool {
 fn does_overlap(a: TypeId, b: TypeId, w: &MockWorld) -> bool {
     let mut report = LatticeReport::new();
     overlaps(a, b, w, LatticeOptions::default(), &mut report)
+}
+
+/// `true` for an atom whose value-set is empty even though it isn't
+/// the canonical `NEVER`: the obvious case is an object with an
+/// intersection list that mixes nominal classes from different,
+/// unrelated branches of the inheritance graph (`A & D` when neither
+/// descends the other) — no runtime instance can be both at once.
+fn element_is_value_never(elem: suffete::ElementId, w: &MockWorld) -> bool {
+    if elem.kind() != suffete::ElementKind::Object {
+        return false;
+    }
+    let info = interner().get_object(elem);
+    let Some(intersections_id) = info.intersections else { return false };
+    let mut classes: Vec<mago_atom::Atom> = vec![info.name];
+    for &conjunct in interner().get_element_list(intersections_id) {
+        if conjunct.kind() == suffete::ElementKind::Object {
+            classes.push(interner().get_object(conjunct).name);
+        }
+    }
+    use suffete::world::World;
+    for (idx, &left) in classes.iter().enumerate() {
+        for &right in &classes[idx + 1..] {
+            if left == right {
+                continue;
+            }
+            if !w.descends_from(left, right) && !w.descends_from(right, left) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn meet_of(a: TypeId, b: TypeId, w: &MockWorld) -> TypeId {
@@ -401,11 +438,15 @@ proptest! {
 
     #[test]
     fn refines_implies_overlaps((world, a, b) in arb_world_and_pair()) {
-        if a != prelude::TYPE_NEVER && !does_overlap(a, a, &world) {
+        // `type_is_value_never` filters out atoms that are
+        // structurally non-`never` but inhabit nothing
+        // (`non-empty-list<never>`, `A&D` with unrelated nominal
+        // classes). They refine real types via vacuous truth, while
+        // overlap correctly reports them as bottom.
+        if type_is_value_never(a, &world) {
             return Ok(());
         }
-
-        if a != prelude::TYPE_NEVER && does_refine(a, b, &world) {
+        if does_refine(a, b, &world) {
             prop_assert!(
                 does_overlap(a, b, &world),
                 "refines implies overlaps for non-bottom: {a:?} <: {b:?}"

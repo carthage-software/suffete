@@ -270,7 +270,13 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                 if !type_is_value_never(arg, world) {
                     return false;
                 }
-                let variance = world.template_parameter_at(info.name, idx).map(|p| p.variance).unwrap_or(Variance::Invariant);
+                // When the world doesn't know the parameter (e.g.
+                // `NullWorld` in canonical join) we *cannot* prove
+                // uninhabited from a `never` arg alone — the unknown
+                // could be contravariant. Default to `Contravariant`
+                // so the check stays sound under partial worlds.
+                let variance =
+                    world.template_parameter_at(info.name, idx).map(|p| p.variance).unwrap_or(Variance::Contravariant);
                 !matches!(variance, Variance::Contravariant)
             })
         }

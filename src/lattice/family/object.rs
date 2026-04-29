@@ -523,7 +523,12 @@ fn compare_with_variance<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
-    if input.flags().from_template_default() || container.flags().from_template_default() {
+    // The default-filled short-circuit only fires when the *container*
+    // is bare (no explicit args), in which case the container accepts
+    // any specific args. When the *input* is bare and the container
+    // is specific, the actual variance check must run: a bare `A`
+    // does not refine `A<int>` under invariant or covariant T.
+    if container.flags().from_template_default() {
         report.add_cause(CoercionCauses::TEMPLATE_DEFAULT);
         return true;
     }

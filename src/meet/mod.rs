@@ -224,15 +224,22 @@ fn family_atom_meet<W: World>(
         (ElementKind::Numeric, ElementKind::String) | (ElementKind::String, ElementKind::Numeric) => {
             family::string::numeric_string_meet(a, b)
         }
-        (ElementKind::List, ElementKind::List) => family::array::list_meet(a, b),
-        (ElementKind::Array, ElementKind::Array) => family::array::keyed_array_meet(a, b),
+        (ElementKind::List, ElementKind::List) => family::array::list_meet(a, b, world, options, report),
+        (ElementKind::Array, ElementKind::Array) => family::array::keyed_array_meet(a, b, world, options, report),
         (ElementKind::List, ElementKind::Array) | (ElementKind::Array, ElementKind::List) => {
-            family::array::list_array_meet(a, b)
+            family::array::list_array_meet(a, b, world, options, report)
         }
-        (ElementKind::Iterable, ElementKind::Iterable) => family::iterable::iterable_meet(a, b),
-        (ElementKind::Callable, ElementKind::Callable) => family::callable::callable_meet(a, b),
+        (ElementKind::Iterable, ElementKind::Iterable) => {
+            family::iterable::iterable_meet(a, b, world, options, report)
+        }
+        (ElementKind::Callable, ElementKind::Callable) => {
+            family::callable::callable_meet(a, b, world, options, report)
+        }
         (ElementKind::HasMethod, ElementKind::HasMethod) => family::has_member::has_method_meet(a, b),
         (ElementKind::HasProperty, ElementKind::HasProperty) => family::has_member::has_property_meet(a, b),
+        (ElementKind::HasMethod, ElementKind::HasProperty) | (ElementKind::HasProperty, ElementKind::HasMethod) => {
+            family::has_member::has_method_property_meet(a, b)
+        }
         (ElementKind::Object, ElementKind::Object) => {
             family::object::compose_object_intersection(a, b, world, options, report)
         }

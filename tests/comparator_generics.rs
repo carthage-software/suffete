@@ -193,15 +193,17 @@ fn non_generic_named_into_non_generic_descendant() {
 }
 
 #[test]
-fn unspecialised_box_flows_into_box_int_under_invariance() {
+fn unspecialised_box_does_not_flow_into_box_int_under_invariance() {
+    // `Box` (under-supplied) reads as `Box<mixed>` and is *wider* than
+    // `Box<int>`, so under invariance `Box <: Box<int>` does not hold.
+    // (The reverse direction does — see
+    // `box_int_flows_into_unspecialised_box_under_invariance`.)
     let mut w = MockWorld::new();
     w.with_templates("Box", &[("T", Variance::Invariant)]);
 
     let unspec = t_named("Box");
     let box_int = t_generic_named("Box", vec![u(t_int())]);
-    let (v, r) = atomic_is_contained_capturing(unspec, box_int, &w);
-    assert!(v);
-    assert!(r.causes.template_default());
+    assert!(!atomic_is_contained(unspec, box_int, &w));
 }
 
 #[test]
@@ -229,7 +231,10 @@ fn unspec_to_unspec_box_passes_via_reflexivity() {
 }
 
 #[test]
-fn nested_default_fill_propagates_through_outer_container() {
+fn nested_unspec_box_does_not_flow_into_box_int_under_invariance() {
+    // `Outer<Box>` is `Outer<Box<mixed>>` under default fill; this is
+    // wider than `Outer<Box<int>>` and so does not refine it under
+    // invariant Outer + invariant Box.
     let mut w = MockWorld::new();
     w.with_templates("Box", &[("T", Variance::Invariant)]);
     w.with_templates("Outer", &[("T", Variance::Invariant)]);
@@ -237,9 +242,7 @@ fn nested_default_fill_propagates_through_outer_container() {
     let outer_with_unspec_box = t_generic_named("Outer", vec![u(t_named("Box"))]);
     let outer_with_box_int = t_generic_named("Outer", vec![u(t_generic_named("Box", vec![u(t_int())]))]);
 
-    let (v, r) = atomic_is_contained_capturing(outer_with_unspec_box, outer_with_box_int, &w);
-    assert!(v);
-    assert!(r.causes.template_default());
+    assert!(!atomic_is_contained(outer_with_unspec_box, outer_with_box_int, &w));
 }
 
 #[test]

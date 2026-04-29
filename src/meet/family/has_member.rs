@@ -28,6 +28,49 @@ pub(in crate::meet) fn has_method_meet(a: ElementId, b: ElementId) -> Option<Ele
     Some(i.intern_has_method(HasMethodInfo { method_name: head_info.method_name, intersections }))
 }
 
+/// `HasMethod(m) ∧ HasProperty(p)` → a `HasMethod` carrying the
+/// has-property as an extra conjunct. The two predicates are
+/// orthogonal — a class can declare both — so the meet composes
+/// rather than collapsing.
+pub(in crate::meet) fn has_method_property_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
+    let i = interner();
+    let (method_atom, property_atom) =
+        if a.kind() == crate::ElementKind::HasMethod { (a, b) } else { (b, a) };
+    let method_info = *i.get_has_method(method_atom);
+    let property_info = *i.get_has_property(property_atom);
+
+    let mut participants: Vec<ElementId> = collect_has_method_conjuncts(method_atom, method_info);
+    let property_head = i.intern_has_property(HasPropertyInfo {
+        property_name: property_info.property_name,
+        intersections: None,
+    });
+    participants.push(property_head);
+    if let Some(id) = property_info.intersections {
+        participants.extend_from_slice(i.get_element_list(id));
+    }
+    participants.sort();
+    participants.dedup();
+
+    // Pick the canonical-smallest method as head so the operation is
+    // commutative; non-method conjuncts (incl. the has-property) are
+    // appended to the intersection list.
+    let mut method_parts: Vec<ElementId> = Vec::new();
+    let mut other_parts: Vec<ElementId> = Vec::new();
+    for elem in participants {
+        if elem.kind() == crate::ElementKind::HasMethod {
+            method_parts.push(elem);
+        } else {
+            other_parts.push(elem);
+        }
+    }
+    let head = method_parts.remove(0);
+    let head_info = *i.get_has_method(head);
+    let mut conjuncts = method_parts;
+    conjuncts.extend(other_parts);
+    let intersections = if conjuncts.is_empty() { None } else { Some(i.intern_element_list(&conjuncts)) };
+    Some(i.intern_has_method(HasMethodInfo { method_name: head_info.method_name, intersections }))
+}
+
 /// `HasProperty(p₁) ∧ HasProperty(p₂)` — same structure as has-method.
 pub(in crate::meet) fn has_property_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     let i = interner();

@@ -22,9 +22,15 @@ use crate::element::payload::SignatureFlags;
 use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
-use crate::world::NullWorld;
+use crate::world::World;
 
-pub(in crate::meet) fn callable_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
+pub(in crate::meet) fn callable_meet<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<ElementId> {
     let i = interner();
     let (CallableInfo::Signature(a_id), CallableInfo::Signature(b_id)) = (*i.get_callable(a), *i.get_callable(b))
     else {
@@ -49,13 +55,11 @@ pub(in crate::meet) fn callable_meet(a: ElementId, b: ElementId) -> Option<Eleme
         })
         .collect();
 
-    let mut report = LatticeReport::new();
-    let return_type =
-        crate::meet::compute(a_sig.return_type, b_sig.return_type, &NullWorld, LatticeOptions::default(), &mut report);
+    let return_type = crate::meet::compute(a_sig.return_type, b_sig.return_type, world, options, report);
 
     let throws = match (a_sig.throws, b_sig.throws) {
         (Some(t1), Some(t2)) => {
-            let throws_ty = crate::meet::compute(t1, t2, &NullWorld, LatticeOptions::default(), &mut report);
+            let throws_ty = crate::meet::compute(t1, t2, world, options, report);
             Some(throws_ty)
         }
         (Some(t), None) | (None, Some(t)) => Some(t),
