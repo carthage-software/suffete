@@ -277,6 +277,19 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
         }
         ElementKind::Object => {
             let info = *i.get_object(elem);
+            if let Some(intersections_id) = info.intersections {
+                let mut classes: Vec<mago_atom::Atom> = vec![info.name];
+                for &conjunct in i.get_element_list(intersections_id) {
+                    if conjunct.kind() == ElementKind::Object {
+                        classes.push(i.get_object(conjunct).name);
+                    }
+                }
+
+                let world_knows_all = classes.iter().all(|&c| world.class_like_kind(c).is_some());
+                if world_knows_all && !pairwise_related(&classes, world) {
+                    return true;
+                }
+            }
             let Some(args_id) = info.type_args else { return false };
             let args = i.get_type_list(args_id);
             args.iter().enumerate().any(|(idx, &arg)| {

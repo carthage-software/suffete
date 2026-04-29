@@ -178,6 +178,14 @@ fn atom_minus<W: World>(
         return Vec::new();
     }
 
+    if crate::lattice::overlaps::is_uninhabited(b, world) {
+        return vec![a];
+    }
+
+    if crate::lattice::overlaps::is_uninhabited(a, world) {
+        return Vec::new();
+    }
+
     let i = interner();
     let a_t = i.intern_type(&[a], FlowFlags::EMPTY);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
