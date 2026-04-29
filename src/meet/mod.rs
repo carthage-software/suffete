@@ -145,7 +145,9 @@ fn atom_meet<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> Option<ElementId> {
-    if is_uninhabited_atom(a) || is_uninhabited_atom(b) {
+    if crate::lattice::overlaps::is_uninhabited(a, world)
+        || crate::lattice::overlaps::is_uninhabited(b, world)
+    {
         return None;
     }
     if a == b {
@@ -178,33 +180,6 @@ fn atom_meet<W: World>(
     family_atom_meet(a, b, world, options, report)
 }
 
-/// `true` for atoms whose value set is empty despite a non-`never`
-/// representation (`non-empty-list<never>`, `non-empty-array<…,
-/// never>`). Treating them as `never` here keeps `meet` from
-/// short-circuiting through subsumption with a uninhabited atom and
-/// returning a structurally distinct but value-equivalent type.
-fn is_uninhabited_atom(elem: ElementId) -> bool {
-    let i = interner();
-    match elem.kind() {
-        ElementKind::List => {
-            let info = *i.get_list(elem);
-            info.flags.non_empty() && info.element_type == TYPE_NEVER
-        }
-        ElementKind::Array => {
-            let info = *i.get_array(elem);
-            if !info.flags.non_empty() {
-                return false;
-            }
-            match (info.key_param, info.value_param) {
-                (Some(k), _) if k == TYPE_NEVER => true,
-                (_, Some(v)) if v == TYPE_NEVER => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-}
-
 fn family_atom_meet<W: World>(
     a: ElementId,
     b: ElementId,
@@ -220,6 +195,9 @@ fn family_atom_meet<W: World>(
         }
         (ElementKind::List, ElementKind::List) => family::array::list_meet(a, b),
         (ElementKind::Array, ElementKind::Array) => family::array::keyed_array_meet(a, b),
+        (ElementKind::List, ElementKind::Array) | (ElementKind::Array, ElementKind::List) => {
+            family::array::list_array_meet(a, b)
+        }
         (ElementKind::Iterable, ElementKind::Iterable) => family::iterable::iterable_meet(a, b),
         (ElementKind::Callable, ElementKind::Callable) => family::callable::callable_meet(a, b),
         (ElementKind::HasMethod, ElementKind::HasMethod) => family::has_member::has_method_meet(a, b),

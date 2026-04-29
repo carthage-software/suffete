@@ -22,7 +22,7 @@
 
 pub mod family;
 mod options;
-mod overlaps;
+pub(crate) mod overlaps;
 mod refines;
 mod report;
 

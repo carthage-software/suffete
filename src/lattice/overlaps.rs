@@ -104,11 +104,14 @@ fn element_overlaps<W: World>(
         return array_overlap(a, b, world, options, report);
     }
 
-    // Two callables share at least the always-throwing function (its
-    // return-type is `never`, which trivially satisfies any signature),
-    // so they overlap regardless of declared return / parameter types.
+    if (a.kind() == ElementKind::List && b.kind() == ElementKind::Array)
+        || (a.kind() == ElementKind::Array && b.kind() == ElementKind::List)
+    {
+        return list_array_overlap(a, b, world, options, report);
+    }
+
     if a.kind() == ElementKind::Callable && b.kind() == ElementKind::Callable {
-        return true;
+        return callable_overlap(a, b);
     }
 
     // Iterables likewise share the empty iterator: `[]`, the empty
@@ -156,69 +159,95 @@ fn object_overlap<W: World>(
     let a_info = *i.get_object(a);
     let b_info = *i.get_object(b);
 
-    if a_info.name == b_info.name {
-        if let (Some(a_args_id), Some(b_args_id)) = (a_info.type_args, b_info.type_args) {
-            let a_args = i.get_type_list(a_args_id);
-            let b_args = i.get_type_list(b_args_id);
-            if a_args.len() == b_args.len() {
-                for (idx, (&a_arg, &b_arg)) in a_args.iter().zip(b_args.iter()).enumerate() {
-                    let variance = world
-                        .template_parameter_at(a_info.name, idx)
-                        .map(|t| t.variance)
-                        .unwrap_or(Variance::Invariant);
-                    match variance {
-                        Variance::Invariant => {
-                            let a_refines_b = crate::lattice::refines(a_arg, b_arg, world, options, report);
-                            let b_refines_a = crate::lattice::refines(b_arg, a_arg, world, options, report);
-                            if !a_refines_b || !b_refines_a {
-                                return false;
-                            }
+    let a_classes = collect_class_names(a, a_info);
+    let b_classes = collect_class_names(b, b_info);
+    for &a_name in &a_classes {
+        for &b_name in &b_classes {
+            if a_name == b_name {
+                continue;
+            }
+            if !world.descends_from(a_name, b_name) && !world.descends_from(b_name, a_name) {
+                return false;
+            }
+        }
+    }
+
+    if a_info.name == b_info.name
+        && let (Some(a_args_id), Some(b_args_id)) = (a_info.type_args, b_info.type_args)
+    {
+        let a_args = i.get_type_list(a_args_id);
+        let b_args = i.get_type_list(b_args_id);
+        if a_args.len() == b_args.len() {
+            for (idx, (&a_arg, &b_arg)) in a_args.iter().zip(b_args.iter()).enumerate() {
+                let variance =
+                    world.template_parameter_at(a_info.name, idx).map(|t| t.variance).unwrap_or(Variance::Invariant);
+                match variance {
+                    Variance::Invariant => {
+                        let a_refines_b = crate::lattice::refines(a_arg, b_arg, world, options, report);
+                        let b_refines_a = crate::lattice::refines(b_arg, a_arg, world, options, report);
+                        if !a_refines_b || !b_refines_a {
+                            return false;
                         }
-                        Variance::Covariant => {
-                            if !overlaps(a_arg, b_arg, world, options, report) {
-                                return false;
-                            }
-                        }
-                        Variance::Contravariant => {}
                     }
+                    Variance::Covariant => {
+                        if !overlaps(a_arg, b_arg, world, options, report) {
+                            return false;
+                        }
+                    }
+                    Variance::Contravariant => {}
                 }
             }
         }
-        return true;
     }
 
-    world.descends_from(a_info.name, b_info.name) || world.descends_from(b_info.name, a_info.name)
+    true
+}
+
+/// Collects the head + every object-kind conjunct's class name. Used
+/// by `object_overlap` to enforce single-inheritance consistency
+/// across the whole intersection (matching the rule in compose).
+fn collect_class_names(elem: ElementId, info: crate::element::payload::ObjectInfo) -> Vec<mago_atom::Atom> {
+    let i = interner();
+    let mut names = vec![info.name];
+    if let Some(id) = info.intersections {
+        for &conjunct in i.get_element_list(id) {
+            if conjunct.kind() == ElementKind::Object {
+                names.push(i.get_object(conjunct).name);
+            }
+        }
+    }
+    let _ = elem;
+    names
 }
 
 /// `true` for atoms that are structurally non-NEVER but whose value
 /// set is empty: `non-empty-list<never>`, `non-empty-array<…, never>`,
-/// and named-object types with a `never` argument in any
-/// non-contravariant slot. The lattice can construct these but no
-/// runtime value inhabits them, so `overlap` treats them as bottom.
-fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
+/// `Foo<never>` with a non-contravariant template, and any container
+/// nested over a value-never type (e.g. `non-empty-list<B<never>>`).
+/// The lattice can construct these but no runtime value inhabits
+/// them, so `overlap` treats them as bottom.
+pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
     let i = interner();
     match elem.kind() {
         ElementKind::List => {
             let info = *i.get_list(elem);
-            info.flags.non_empty() && info.element_type == crate::prelude::TYPE_NEVER
+            info.flags.non_empty() && type_is_value_never(info.element_type, world)
         }
         ElementKind::Array => {
             let info = *i.get_array(elem);
             if !info.flags.non_empty() {
                 return false;
             }
-            match (info.key_param, info.value_param) {
-                (Some(k), _) if k == crate::prelude::TYPE_NEVER => true,
-                (_, Some(v)) if v == crate::prelude::TYPE_NEVER => true,
-                _ => false,
-            }
+            let key_empty = info.key_param.is_some_and(|t| type_is_value_never(t, world));
+            let value_empty = info.value_param.is_some_and(|t| type_is_value_never(t, world));
+            key_empty || value_empty
         }
         ElementKind::Object => {
             let info = *i.get_object(elem);
             let Some(args_id) = info.type_args else { return false };
             let args = i.get_type_list(args_id);
             args.iter().enumerate().any(|(idx, &arg)| {
-                if arg != crate::prelude::TYPE_NEVER {
+                if !type_is_value_never(arg, world) {
                     return false;
                 }
                 let variance = world.template_parameter_at(info.name, idx).map(|p| p.variance).unwrap_or(Variance::Invariant);
@@ -227,6 +256,40 @@ fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
         }
         _ => false,
     }
+}
+
+/// `true` when every atom in `t` is uninhabited or `t` is the
+/// canonical `never`. Used by [`is_uninhabited`] to recurse into
+/// container element types.
+pub(crate) fn type_is_value_never<W: World>(t: TypeId, world: &W) -> bool {
+    if t == crate::prelude::TYPE_NEVER {
+        return true;
+    }
+    let elements = t.as_ref().elements;
+    if elements.is_empty() {
+        return true;
+    }
+    elements.iter().all(|e| *e == NEVER || is_uninhabited(*e, world))
+}
+
+/// `Callable × Callable` overlap. A function value has a fixed
+/// arity at runtime, so two callable types with different parameter
+/// counts cannot share any value. Same-arity (or one side `Any`)
+/// callables share at least the always-throwing function (`return
+/// never`), which trivially satisfies any return type.
+fn callable_overlap(a: ElementId, b: ElementId) -> bool {
+    let i = interner();
+    use crate::element::payload::CallableInfo;
+    let a_info = *i.get_callable(a);
+    let b_info = *i.get_callable(b);
+    let (CallableInfo::Signature(a_id), CallableInfo::Signature(b_id)) = (a_info, b_info) else {
+        return true;
+    };
+    let a_sig = *i.get_signature(a_id);
+    let b_sig = *i.get_signature(b_id);
+    let a_arity = a_sig.parameters.map(|p| i.get_param_list(p).len()).unwrap_or(0);
+    let b_arity = b_sig.parameters.map(|p| i.get_param_list(p).len()).unwrap_or(0);
+    a_arity == b_arity
 }
 
 /// `String × String` overlap: defer to the meet rule. Two refined
@@ -263,6 +326,34 @@ fn list_overlap<W: World>(
     }
 
     overlaps(a_info.element_type, b_info.element_type, world, options, report)
+}
+
+/// `list<E> ∩ array<K, V>` shares the empty list `[]` (which is also
+/// the empty array) unless either side demands non-empty. With at
+/// least one non-empty side, the array's key constraint must accept
+/// `int` (lists are int-keyed) and `E ∩ V` must overlap.
+fn list_array_overlap<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    let (list_atom, array_atom) = if a.kind() == ElementKind::List { (a, b) } else { (b, a) };
+    let list_info = *i.get_list(list_atom);
+    let array_info = *i.get_array(array_atom);
+
+    if !list_info.flags.non_empty() && !array_info.flags.non_empty() {
+        return true;
+    }
+    if let Some(array_key_param) = array_info.key_param
+        && !crate::lattice::refines(crate::prelude::TYPE_INT, array_key_param, world, options, report)
+    {
+        return false;
+    }
+    let array_value = array_info.value_param.unwrap_or(crate::prelude::TYPE_MIXED);
+    overlaps(list_info.element_type, array_value, world, options, report)
 }
 
 /// `array<K,V> ∩ array<K',V'>` mirrors `list_overlap`: the empty

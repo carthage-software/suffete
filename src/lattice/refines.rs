@@ -141,48 +141,6 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     false
 }
 
-/// `true` for atoms whose value-set is empty even though they're
-/// structurally non-`never`: `non-empty-list<never>`,
-/// `non-empty-array<…, never>`, and named-object types with a `never`
-/// argument in any non-contravariant slot. Mirrors the same predicate
-/// in [`crate::lattice::overlaps`] so the two relations agree on
-/// uninhabited representations.
-fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
-    match elem.kind() {
-        ElementKind::List => {
-            let info = *interner().get_list(elem);
-            info.flags.non_empty() && info.element_type == crate::prelude::TYPE_NEVER
-        }
-        ElementKind::Array => {
-            let info = *interner().get_array(elem);
-            if !info.flags.non_empty() {
-                return false;
-            }
-            match (info.key_param, info.value_param) {
-                (Some(k), _) if k == crate::prelude::TYPE_NEVER => true,
-                (_, Some(v)) if v == crate::prelude::TYPE_NEVER => true,
-                _ => false,
-            }
-        }
-        ElementKind::Object => {
-            let info = *interner().get_object(elem);
-            let Some(args_id) = info.type_args else { return false };
-            let args = interner().get_type_list(args_id);
-            args.iter().enumerate().any(|(idx, &arg)| {
-                if arg != crate::prelude::TYPE_NEVER {
-                    return false;
-                }
-                let variance = world
-                    .template_parameter_at(info.name, idx)
-                    .map(|p| p.variance)
-                    .unwrap_or(crate::world::Variance::Invariant);
-                !matches!(variance, crate::world::Variance::Contravariant)
-            })
-        }
-        _ => false,
-    }
-}
-
 fn int_bounds_of(elem: ElementId) -> (Option<i64>, Option<i64>) {
     match *interner().get_int(elem) {
         IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),
@@ -235,7 +193,7 @@ pub(crate) fn element_refines<W: World>(
     // Vacuous: an atom whose value-set is empty (`non-empty-list<never>`,
     // `non-empty-array<…, never>`, an invariant-class with a `never` arg)
     // refines anything, just like `never`.
-    if is_uninhabited(input, world) {
+    if crate::lattice::overlaps::is_uninhabited(input, world) {
         return true;
     }
 

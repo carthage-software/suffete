@@ -95,6 +95,64 @@ pub(in crate::meet) fn keyed_array_meet(a: ElementId, b: ElementId) -> Option<El
     Some(i.intern_array(merged_info))
 }
 
+/// `list<E> ∧ array<K, V>`: a list is an int-keyed array, so the meet
+/// is a list whose element type is `E ∧ V` and whose key constraint
+/// must be compatible with `int`. When `K` excludes integers
+/// (e.g. `string`), the intersection is empty. The non-empty flag
+/// OR-merges; an empty result on either axis collapses to `None`
+/// when the result is forced non-empty.
+pub(in crate::meet) fn list_array_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
+    let i = interner();
+    let (list_atom, array_atom) = if a.kind() == crate::ElementKind::List { (a, b) } else { (b, a) };
+    let list_info = *i.get_list(list_atom);
+    let array_info = *i.get_array(array_atom);
+
+    if list_info.known_elements.is_some() || array_info.known_items.is_some() {
+        return None;
+    }
+
+    let mut report = LatticeReport::new();
+
+    if let Some(array_key_param) = array_info.key_param {
+        // For the result (a list, with `int` keys) to refine the
+        // array side, every concrete `int` key must satisfy the
+        // array's key constraint: `int <: array_key_param`. When that
+        // fails (e.g. `array<string, …>` or `array<T.A, …>`), the
+        // intersection has no representable list, so we collapse
+        // to `None`.
+        if !crate::lattice::refines(
+            crate::prelude::TYPE_INT,
+            array_key_param,
+            &NullWorld,
+            LatticeOptions::default(),
+            &mut report,
+        ) {
+            return None;
+        }
+    }
+
+    let array_value_param = array_info.value_param.unwrap_or(crate::prelude::TYPE_MIXED);
+    let element_type = crate::meet::compute(
+        list_info.element_type,
+        array_value_param,
+        &NullWorld,
+        LatticeOptions::default(),
+        &mut report,
+    );
+
+    let non_empty = list_info.flags.non_empty() || array_info.flags.non_empty();
+    if non_empty && element_type == crate::prelude::TYPE_NEVER {
+        return None;
+    }
+
+    Some(i.intern_list(ListInfo {
+        element_type,
+        known_elements: None,
+        known_count: None,
+        flags: ListFlags::default().with_non_empty(non_empty),
+    }))
+}
+
 fn unsealed_keyed_array_meet(a_info: KeyedArrayInfo, b_info: KeyedArrayInfo) -> Option<ElementId> {
     let i = interner();
     let non_empty = a_info.flags.non_empty() || b_info.flags.non_empty();
