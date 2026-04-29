@@ -247,6 +247,45 @@ fn family_atom_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
         return Some(vec![TRUE]);
     }
 
+    if a.kind() == ElementKind::String && b.kind() == ElementKind::String {
+        return string_minus(a, b);
+    }
+
+    None
+}
+
+/// `String \ String` for axis-narrowing cases.
+///
+/// - Two distinct string literals: subtract is identity (the literal
+///   sets are disjoint, but our `overlaps` returns `true` due to the
+///   broader `String` family rules; we keep `a` unchanged here so the
+///   distributive fold still terminates correctly).
+/// - Equal literals: collapse to bottom.
+/// - General string `\` non-empty / truthy string: only the empty
+///   string `""` survives.
+fn string_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
+    use crate::element::payload::scalar::StringCasing;
+    use crate::element::payload::scalar::StringLiteral;
+
+    let i = interner();
+    let a_info = *i.get_string(a);
+    let b_info = *i.get_string(b);
+
+    if let StringLiteral::Value(av) = a_info.literal
+        && let StringLiteral::Value(bv) = b_info.literal
+        && av == bv
+    {
+        return Some(Vec::new());
+    }
+
+    let a_is_general = matches!(a_info.literal, StringLiteral::None | StringLiteral::Unspecified)
+        && a_info.flags == crate::element::payload::scalar::StringRefinementFlags::EMPTY
+        && matches!(a_info.casing, StringCasing::Unspecified);
+    let b_requires_non_empty = b_info.flags.is_non_empty() || b_info.flags.is_truthy();
+    if a_is_general && b_requires_non_empty {
+        return Some(vec![ElementId::string_literal("")]);
+    }
+
     None
 }
 

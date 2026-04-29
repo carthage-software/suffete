@@ -65,7 +65,7 @@ fn element_overlaps<W: World>(
         return false;
     }
 
-    if is_uninhabited(a) || is_uninhabited(b) {
+    if is_uninhabited(a, world) || is_uninhabited(b, world) {
         return false;
     }
 
@@ -192,9 +192,10 @@ fn object_overlap<W: World>(
 
 /// `true` for atoms that are structurally non-NEVER but whose value
 /// set is empty: `non-empty-list<never>`, `non-empty-array<…, never>`,
-/// etc. The lattice can construct these but no runtime value inhabits
-/// them, so `overlap` should treat them as bottom.
-fn is_uninhabited(elem: ElementId) -> bool {
+/// and named-object types with a `never` argument in any
+/// non-contravariant slot. The lattice can construct these but no
+/// runtime value inhabits them, so `overlap` treats them as bottom.
+fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
     let i = interner();
     match elem.kind() {
         ElementKind::List => {
@@ -211,6 +212,18 @@ fn is_uninhabited(elem: ElementId) -> bool {
                 (_, Some(v)) if v == crate::prelude::TYPE_NEVER => true,
                 _ => false,
             }
+        }
+        ElementKind::Object => {
+            let info = *i.get_object(elem);
+            let Some(args_id) = info.type_args else { return false };
+            let args = i.get_type_list(args_id);
+            args.iter().enumerate().any(|(idx, &arg)| {
+                if arg != crate::prelude::TYPE_NEVER {
+                    return false;
+                }
+                let variance = world.template_parameter_at(info.name, idx).map(|p| p.variance).unwrap_or(Variance::Invariant);
+                !matches!(variance, Variance::Contravariant)
+            })
         }
         _ => false,
     }
