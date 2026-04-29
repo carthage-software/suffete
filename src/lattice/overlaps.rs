@@ -161,6 +161,9 @@ fn object_overlap<W: World>(
 
     let a_classes = collect_class_names(a, a_info);
     let b_classes = collect_class_names(b, b_info);
+    if !pairwise_related(&a_classes, world) || !pairwise_related(&b_classes, world) {
+        return false;
+    }
     for &a_name in &a_classes {
         for &b_name in &b_classes {
             if a_name == b_name {
@@ -200,6 +203,23 @@ fn object_overlap<W: World>(
         }
     }
 
+    true
+}
+
+/// `true` when every distinct pair of nominal classes in `names`
+/// is ancestor-related. Used to detect uninhabited intersections like
+/// `C&D` where C and D are siblings of a common ancestor.
+fn pairwise_related<W: World>(names: &[mago_atom::Atom], world: &W) -> bool {
+    for (idx, &left) in names.iter().enumerate() {
+        for &right in &names[idx + 1..] {
+            if left == right {
+                continue;
+            }
+            if !world.descends_from(left, right) && !world.descends_from(right, left) {
+                return false;
+            }
+        }
+    }
     true
 }
 

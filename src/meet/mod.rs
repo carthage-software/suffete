@@ -167,10 +167,10 @@ fn atom_meet<W: World>(
     let a_t = i.intern_type(&[a], FlowFlags::EMPTY);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
     if refines(a_t, b_t, world, options, report) {
-        return Some(a);
+        return if object_intersection_is_uninhabited(a, world) { None } else { Some(a) };
     }
     if refines(b_t, a_t, world, options, report) {
-        return Some(b);
+        return if object_intersection_is_uninhabited(b, world) { None } else { Some(b) };
     }
 
     if a.kind() == ElementKind::GenericParameter || b.kind() == ElementKind::GenericParameter {
@@ -178,6 +178,37 @@ fn atom_meet<W: World>(
     }
 
     family_atom_meet(a, b, world, options, report)
+}
+
+/// `Foo & Bar` with unrelated nominal classes (neither descends the
+/// other) is uninhabited under PHP's single-inheritance class graph,
+/// even when the lattice can construct it. Used as a guard so
+/// subsumption doesn't pass an uninhabited intersection back as the
+/// meet result.
+fn object_intersection_is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
+    if elem.kind() != ElementKind::Object {
+        return false;
+    }
+    let i = interner();
+    let info = *i.get_object(elem);
+    let Some(intersections_id) = info.intersections else { return false };
+    let mut classes: Vec<mago_atom::Atom> = vec![info.name];
+    for &conjunct in i.get_element_list(intersections_id) {
+        if conjunct.kind() == ElementKind::Object {
+            classes.push(i.get_object(conjunct).name);
+        }
+    }
+    for (idx, &left) in classes.iter().enumerate() {
+        for &right in &classes[idx + 1..] {
+            if left == right {
+                continue;
+            }
+            if !world.descends_from(left, right) && !world.descends_from(right, left) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn family_atom_meet<W: World>(
