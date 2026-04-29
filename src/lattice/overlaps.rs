@@ -165,16 +165,10 @@ fn object_overlap<W: World>(
     if !pairwise_related(&a_classes, world) || !pairwise_related(&b_classes, world) {
         return false;
     }
-
-    for &a_name in &a_classes {
-        for &b_name in &b_classes {
-            if a_name == b_name {
-                continue;
-            }
-            if !world.descends_from(a_name, b_name) && !world.descends_from(b_name, a_name) {
-                return false;
-            }
-        }
+    let a_top = most_specific_class(&a_classes, world);
+    let b_top = most_specific_class(&b_classes, world);
+    if a_top != b_top && !world.descends_from(a_top, b_top) && !world.descends_from(b_top, a_top) {
+        return false;
     }
 
     if a_info.name == b_info.name
@@ -206,6 +200,13 @@ fn object_overlap<W: World>(
     }
 
     true
+}
+
+fn most_specific_class<W: World>(classes: &[mago_atom::Atom], world: &W) -> mago_atom::Atom {
+    *classes
+        .iter()
+        .find(|&&c| classes.iter().all(|&other| c == other || world.descends_from(c, other)))
+        .unwrap_or(&classes[0])
 }
 
 /// `true` when every distinct pair of nominal classes in `names`

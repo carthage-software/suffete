@@ -115,24 +115,32 @@ pub(in crate::meet) fn list_array_meet<W: World>(
         return None;
     }
 
-    if let Some(array_key_param) = array_info.key_param {
-        // For the result (a list, with `int` keys) to refine the
-        // array side, every concrete `int` key must satisfy the
-        // array's key constraint: `int <: array_key_param`. When that
-        // fails (e.g. `array<string, …>` or `array<T.A, …>`), the
-        // intersection has no representable list, so we collapse
-        // to `None`.
-        if !crate::lattice::refines(crate::prelude::TYPE_INT, array_key_param, world, options, report) {
-            return None;
-        }
+    let non_empty = list_info.flags.non_empty() || array_info.flags.non_empty();
+
+    let array_is_sealed_empty =
+        array_info.key_param.is_none() && array_info.value_param.is_none() && array_info.known_items.is_none();
+    if array_is_sealed_empty {
+        return if list_info.flags.non_empty() { None } else { Some(crate::prelude::EMPTY_ARRAY) };
+    }
+
+    let key_compatible = array_info
+        .key_param
+        .map(|kp| crate::lattice::refines(crate::prelude::TYPE_INT, kp, world, options, report))
+        .unwrap_or(true);
+
+    if non_empty && !key_compatible {
+        return None;
     }
 
     let array_value_param = array_info.value_param.unwrap_or(crate::prelude::TYPE_MIXED);
     let element_type = crate::meet::compute(list_info.element_type, array_value_param, world, options, report);
 
-    let non_empty = list_info.flags.non_empty() || array_info.flags.non_empty();
     if non_empty && element_type == crate::prelude::TYPE_NEVER {
         return None;
+    }
+
+    if !key_compatible {
+        return Some(crate::prelude::EMPTY_ARRAY);
     }
 
     Some(i.intern_list(ListInfo {
