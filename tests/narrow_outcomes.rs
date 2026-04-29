@@ -192,10 +192,11 @@ fn subtract_compute_unwraps_redundant() {
 }
 
 #[test]
-fn meet_narrow_unrelated_objects_compose_intersection() {
-    // Foo ∧ Bar with neither refining the other and no final flag
-    // produces a compositional intersection — not Redundant or
-    // Impossible.
+fn meet_narrow_unrelated_objects_are_impossible() {
+    // Foo ∧ Bar with no shared ancestry reports Impossible: PHP's
+    // single-inheritance class graph cannot host a value that is both,
+    // so the meet is `never`. Lifting this requires a world surface
+    // for shared interfaces / traits.
     let mut w = MockWorld::new();
     w.declare("Foo");
     w.declare("Bar");
@@ -204,8 +205,8 @@ fn meet_narrow_unrelated_objects_compose_intersection() {
     let mut report = LatticeReport::new();
     let r = meet::narrow(foo, bar, &w, LatticeOptions::default(), &mut report);
     match r {
-        MeetOutcome::Narrowed(_) => {}
-        other => panic!("expected Narrowed, got {other:?}"),
+        MeetOutcome::Impossible => {}
+        other => panic!("expected Impossible, got {other:?}"),
     }
 }
 

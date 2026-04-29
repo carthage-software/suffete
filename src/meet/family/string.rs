@@ -15,13 +15,15 @@ use crate::interner::interner;
 /// side pins one. Opposite fixed casings collapse to `lit("")` (the
 /// only string satisfying both); literal-vs-flag and literal-vs-casing
 /// incompatibilities collapse to `None` (disjoint).
-pub(in crate::meet) fn string_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
+pub(crate) fn string_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     let i = interner();
     let a_info = *i.get_string(a);
     let b_info = *i.get_string(b);
 
-    let opposite_casings =
-        matches!((a_info.casing, b_info.casing), (StringCasing::Lowercase, StringCasing::Uppercase) | (StringCasing::Uppercase, StringCasing::Lowercase));
+    let opposite_casings = matches!(
+        (a_info.casing, b_info.casing),
+        (StringCasing::Lowercase, StringCasing::Uppercase) | (StringCasing::Uppercase, StringCasing::Lowercase)
+    );
 
     let casing = match (a_info.casing, b_info.casing) {
         (StringCasing::Lowercase, StringCasing::Lowercase) => StringCasing::Lowercase,
@@ -66,9 +68,7 @@ pub(in crate::meet) fn string_meet(a: ElementId, b: ElementId) -> Option<Element
     if !literal_satisfies_flags(merged.literal, merged.flags) {
         return None;
     }
-    if opposite_casings
-        && let StringLiteral::Value(v) = merged.literal
-    {
+    if opposite_casings && let StringLiteral::Value(v) = merged.literal {
         let s = v.as_str();
         // Literal must satisfy BOTH original casings — i.e. carry no
         // ASCII letters at all.

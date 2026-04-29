@@ -26,7 +26,8 @@ use crate::world::NullWorld;
 
 pub(in crate::meet) fn callable_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     let i = interner();
-    let (CallableInfo::Signature(a_id), CallableInfo::Signature(b_id)) = (*i.get_callable(a), *i.get_callable(b)) else {
+    let (CallableInfo::Signature(a_id), CallableInfo::Signature(b_id)) = (*i.get_callable(a), *i.get_callable(b))
+    else {
         return None;
     };
     let a_sig = *i.get_signature(a_id);
@@ -42,10 +43,7 @@ pub(in crate::meet) fn callable_meet(a: ElementId, b: ElementId) -> Option<Eleme
         .iter()
         .zip(b_params.iter())
         .map(|(pa, pb)| {
-            let widened = crate::join::compute(&[
-                pa.type_.as_ref().elements,
-                pb.type_.as_ref().elements,
-            ].concat());
+            let widened = crate::join::compute(&[pa.type_.as_ref().elements, pb.type_.as_ref().elements].concat());
             let type_ = i.intern_type(&widened, crate::FlowFlags::EMPTY);
             ParamInfo { name: pa.name, type_, flags: pa.flags }
         })

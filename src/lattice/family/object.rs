@@ -104,8 +104,10 @@ pub fn refines<W: World>(
     if container.kind() == ElementKind::HasMethod {
         let container_info = *i.get_has_method(container);
         if let Some(intersections_id) = container_info.intersections {
-            let head =
-                i.intern_has_method(crate::element::payload::HasMethodInfo { method_name: container_info.method_name, intersections: None });
+            let head = i.intern_has_method(crate::element::payload::HasMethodInfo {
+                method_name: container_info.method_name,
+                intersections: None,
+            });
             if !element_refines_via_type(input, head, world, options, report) {
                 return false;
             }

@@ -75,7 +75,6 @@ use crate::prelude::INT;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
 use crate::prelude::NULL;
-use crate::prelude::VOID;
 use crate::prelude::OBJECT;
 use crate::prelude::OPEN_RESOURCE;
 use crate::prelude::RESOURCE;
@@ -84,6 +83,7 @@ use crate::prelude::TRUE;
 use crate::prelude::TYPE_ARRAY_KEY;
 use crate::prelude::TYPE_MIXED;
 use crate::prelude::TYPE_NEVER;
+use crate::prelude::VOID;
 use crate::world::NullWorld;
 
 /// Compute the join (least upper bound) of a slice of elements with the
@@ -1256,10 +1256,10 @@ mod tests {
     use crate::interner::interner;
     use crate::prelude::ARRAY_KEY;
     use crate::prelude::NULL;
-    use crate::prelude::VOID;
     use crate::prelude::TYPE_BOOL;
     use crate::prelude::TYPE_INT_OR_STRING;
     use crate::prelude::TYPE_MIXED;
+    use crate::prelude::VOID;
 
     #[test]
     fn empty_yields_never() {
