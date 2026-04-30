@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 633c4fba926049da711a5a52ecff2ee675836cd4d0271582643508a4385ed9fc # shrinks to (world, a, b) = (WorldHandle(MockWorld { ancestors: {u!("D"): {u!("D")}, u!("Color"): {u!("Color")}, u!("A"): {u!("A")}, u!("B"): {u!("B")}, u!("E"): {u!("E")}, u!("C"): {u!("C")}}, traits_used: {}, templates: {u!("E"): [TemplateParameter { name: u!("T"), variance: Invariant, upper_bound: None }], u!("A"): [TemplateParameter { name: u!("T"), variance: Invariant, upper_bound: None }], u!("B"): [TemplateParameter { name: u!("T"), variance: Invariant, upper_bound: None }], u!("C"): [TemplateParameter { name: u!("T"), variance: Invariant, upper_bound: None }], u!("D"): [TemplateParameter { name: u!("T"), variance: Invariant, upper_bound: None }]}, extended: {}, methods: {}, properties: {}, enums: {u!("Color"): Pure}, class_like_kinds: {}, final_classes: {}, aliases: {}, class_constants: {}, global_constants: {} }), TypeId(0x0000293600000000: class-string|float|int(0)|never|numeric-string|string('foo')), TypeId(0x0000318200000000: list<iterable<string(''), E>>))

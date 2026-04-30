@@ -420,12 +420,12 @@ fn pp_float_not_in_int() {
     assert_atomic_not_subtype(&t_float(), &t_int());
 }
 #[test]
-fn pp_int_in_float() {
-    assert_atomic_subtype(&t_int(), &t_float());
+fn pp_int_not_in_float() {
+    assert_atomic_not_subtype(&t_int(), &t_float());
 }
 #[test]
-fn pp_lit_int_in_float() {
-    assert_atomic_subtype(&t_lit_int(5), &t_float());
+fn pp_lit_int_not_in_float() {
+    assert_atomic_not_subtype(&t_lit_int(5), &t_float());
 }
 
 #[test]

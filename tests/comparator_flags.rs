@@ -138,12 +138,10 @@ fn literal_int_to_other_literal_no_coerced_flag() {
 }
 
 #[test]
-fn int_to_float_sets_php_runtime_coerce() {
+fn int_does_not_refine_float_under_strict_subtype() {
     let cb = empty_world();
-    let (v, r) = atomic_is_contained_capturing(t_int(), t_float(), &cb);
-    assert!(v);
-    assert!(r.causes.php_runtime_coerce());
-    assert!(!r.causes.true_union_narrow());
+    let (v, _r) = atomic_is_contained_capturing(t_int(), t_float(), &cb);
+    assert!(!v);
 }
 
 #[test]

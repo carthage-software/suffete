@@ -260,6 +260,8 @@ fn family_atom_meet<W: World>(
         | (ElementKind::ObjectShape, ElementKind::Object) => {
             family::object::compose_object_with_structural(b, a, world)
         }
+        (ElementKind::ObjectShape, ElementKind::HasMethod | ElementKind::HasProperty) => Some(a),
+        (ElementKind::HasMethod | ElementKind::HasProperty, ElementKind::ObjectShape) => Some(b),
         _ => None,
     }
 }

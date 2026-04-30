@@ -369,20 +369,21 @@ fn associativity_array_bool_int_meet_via_arb_failing_case() {
 
     let a = u(t_keyed_unsealed(suffete::prelude::TYPE_INT, suffete::prelude::TYPE_INT, false));
     let array_bool_int = u(t_keyed_unsealed(suffete::prelude::TYPE_BOOL, suffete::prelude::TYPE_INT, false));
-    let b_atoms: Vec<suffete::ElementId> =
-        array_bool_int.as_ref().elements.iter().chain(suffete::prelude::TYPE_INT.as_ref().elements.iter()).copied().collect();
+    let b_atoms: Vec<suffete::ElementId> = array_bool_int
+        .as_ref()
+        .elements
+        .iter()
+        .chain(suffete::prelude::TYPE_INT.as_ref().elements.iter())
+        .copied()
+        .collect();
     let b = interner().intern_type(&b_atoms, FlowFlags::EMPTY);
     let c = u(t_list(suffete::prelude::TYPE_INT, false));
 
     let mut report = LatticeReport::new();
     let bc = meet::compute(b, c, &w, LatticeOptions::default(), &mut report);
     let r = meet::compute(a, bc, &w, LatticeOptions::default(), &mut report);
-    eprintln!("a={a}, b={b}, c={c}");
-    eprintln!("(b∩c) = {bc}");
-    eprintln!("a∩(b∩c) = {r}");
 
     let r_refines_b = refines(r, b, &w, LatticeOptions::default(), &mut report);
-    eprintln!("r refines b = {r_refines_b}");
     assert!(r_refines_b);
 }
 
@@ -414,9 +415,6 @@ fn enum_intersected_with_unrelated_class_is_uninhabited() {
 
 #[test]
 fn unrelated_objects_no_finality_overlap_is_open() {
-    // PHP open world: with neither class final, `A<object>` and `E`
-    // could both be inhabited by some descendant we don't see.
-    // Overlap should be `true`, matching the optimism in compose.
     use suffete::lattice::overlaps;
     use suffete::world::Variance;
     let mut w = MockWorld::new();
@@ -430,10 +428,8 @@ fn unrelated_objects_no_finality_overlap_is_open() {
     let e = u(t_named("E"));
     let mut report = LatticeReport::new();
     let o = overlaps(a, e, &w, LatticeOptions::default(), &mut report);
-    eprintln!("overlaps(A<object>, E) = {o}");
     let mut report2 = LatticeReport::new();
     let m = meet::compute(a, e, &w, LatticeOptions::default(), &mut report2);
-    eprintln!("meet(A<object>, E) = {m}");
     if m != suffete::prelude::TYPE_NEVER {
         assert!(o, "non-never meet ({m}) should imply overlap");
     }
@@ -447,12 +443,8 @@ fn empty_array_meet_array_int_int_collapses_to_empty() {
     let empty_array = u(suffete::prelude::EMPTY_ARRAY);
     let mut report = LatticeReport::new();
     let m = meet::compute(array_int_int, empty_array, &w, LatticeOptions::default(), &mut report);
-    eprintln!("array<int,int> ∩ EMPTY_ARRAY = {m}");
     assert!(refines(m, empty_array, &w, LatticeOptions::default(), &mut report));
     assert!(refines(m, array_int_int, &w, LatticeOptions::default(), &mut report));
-    let mut r2 = LatticeReport::new();
-    let r2_check = refines(empty_array, array_int_int, &w, LatticeOptions::default(), &mut r2);
-    eprintln!("EMPTY_ARRAY refines array<int,int> = {r2_check}");
 }
 
 #[test]
@@ -463,23 +455,16 @@ fn associativity_array_int_int_meet_via_arb_failing_case() {
     let array_int_int = u(t_keyed_unsealed(suffete::prelude::TYPE_INT, suffete::prelude::TYPE_INT, false));
     let list_never = u(t_list(suffete::prelude::TYPE_NEVER, false));
     let empty = u(suffete::prelude::EMPTY_ARRAY);
-    let bc = interner().intern_type(
-        &[list_never.as_ref().elements[0], empty.as_ref().elements[0]],
-        FlowFlags::EMPTY,
-    );
+    let bc = interner().intern_type(&[list_never.as_ref().elements[0], empty.as_ref().elements[0]], FlowFlags::EMPTY);
 
     let mut report = LatticeReport::new();
     let r = meet::compute(array_int_int, bc, &w, LatticeOptions::default(), &mut report);
-    eprintln!("array<int,int> ∩ (list<never>|EMPTY_ARRAY) = {r}");
 
     let b = interner().intern_type(
-        &[
-            u(t_keyed_unsealed(suffete::prelude::TYPE_INT, suffete::prelude::TYPE_INT, false)).as_ref().elements[0],
-        ],
+        &[u(t_keyed_unsealed(suffete::prelude::TYPE_INT, suffete::prelude::TYPE_INT, false)).as_ref().elements[0]],
         FlowFlags::EMPTY,
     );
     let r_refines_b = refines(r, b, &w, LatticeOptions::default(), &mut report);
-    eprintln!("r refines b = {r_refines_b}");
     assert!(r_refines_b, "result should refine the b-shaped target");
 }
 
@@ -499,7 +484,6 @@ fn refines_a_descending_c_int_under_contravariant_t() {
 
     let mut report = LatticeReport::new();
     let result = refines(a, c_int, &w, LatticeOptions::default(), &mut report);
-    eprintln!("refines(A, C<int>) under chain A->B->C with C contravariant = {result}");
     assert!(
         result,
         "A should refine C<int> under contravariant T (mixed inherited from chain refines int via contravariance)"
@@ -526,11 +510,7 @@ fn associativity_a_numeric_meet_a_intersected_has_method_meet_a_a() {
     let mut report = LatticeReport::new();
     let bc = meet::compute(b_top, c_top, &w, LatticeOptions::default(), &mut report);
     let r = meet::compute(a_top, bc, &w, LatticeOptions::default(), &mut report);
-    eprintln!("a={a_top}, b={b_top}, c={c_top}");
-    eprintln!("(b∩c) = {bc}");
-    eprintln!("a∩(b∩c) = {r}");
     let r_refines_c = refines(r, c_top, &w, LatticeOptions::default(), &mut report);
-    eprintln!("r refines c = {r_refines_c}");
     assert!(r_refines_c, "a∩(b∩c) ({r}) should refine c ({c_top})");
 }
 
@@ -560,7 +540,6 @@ fn list_intersection_overlap_consistency_arb_case() {
     let m = meet::compute(a, a_int_in_list, &w, LatticeOptions::default(), &mut report);
     let mut report2 = LatticeReport::new();
     let o = overlaps(a, a_int_in_list, &w, LatticeOptions::default(), &mut report2);
-    eprintln!("meet={m}, overlap={o}");
     if m != suffete::prelude::TYPE_NEVER {
         assert!(o, "non-never meet ({m}) should imply overlap");
     }
@@ -603,13 +582,8 @@ fn invariant_a_associativity_arb_failing_case() {
         &mut report,
     );
 
-    eprintln!("a={a_t}, b={b_t}, c={c_t}");
-    eprintln!("(a∩b)∩c = {l}");
-    eprintln!("a∩(b∩c) = {r}");
     let l_refines_c = refines(l, c_t, &w, LatticeOptions::default(), &mut report);
     let r_refines_c = refines(r, c_t, &w, LatticeOptions::default(), &mut report);
-    eprintln!("l refines c = {l_refines_c}");
-    eprintln!("r refines c = {r_refines_c}");
     assert!(l_refines_c, "(a∩b)∩c should refine c");
     assert!(r_refines_c, "a∩(b∩c) should refine c");
 }

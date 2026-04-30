@@ -5,6 +5,9 @@ use crate::ElementId;
 use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
+use crate::element::payload::StringCasing;
+use crate::element::payload::StringLiteral;
+use crate::element::payload::StringRefinementFlags;
 use crate::element::payload::scalar::IntInfo;
 use crate::interner::interner;
 use crate::lattice::CoercionCauses;
@@ -54,6 +57,18 @@ pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOption
             // int<-∞,-1>`). Element-by-element refines can't see that, so
             // try the family-level coverage check before giving up.
             if int_union_covers(*input, b_type.elements) {
+                return true;
+            }
+
+            if string_union_covers(*input, b_type.elements) {
+                return true;
+            }
+
+            if bool_union_covers(*input, b_type.elements) {
+                return true;
+            }
+
+            if mixed_union_covers(*input, b_type.elements) {
                 return true;
             }
 
@@ -196,6 +211,90 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     false
 }
 
+/// True iff a broad `string` input is covered by the union of refined
+/// string elements in `containers`. Sufficient condition: rhs contains
+/// some atom that covers all non-empty strings AND some atom that
+/// covers the empty string. Together that is the empty/non-empty
+/// partition of `string`. Refined inputs (already non-empty,
+/// truthy, etc.) bail — the existing element-wise refines is exact
+/// enough for them.
+fn string_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
+    if input.kind() != ElementKind::String {
+        return false;
+    }
+
+    let i = interner();
+    let info = *i.get_string(input);
+    let is_broad_string = matches!(info.literal, StringLiteral::None)
+        && info.flags == StringRefinementFlags::EMPTY
+        && matches!(info.casing, StringCasing::Unspecified);
+    if !is_broad_string {
+        return false;
+    }
+
+    let mut covers_empty = false;
+    let mut covers_non_empty = false;
+    for &c in containers {
+        if c.kind() != ElementKind::String {
+            continue;
+        }
+
+        let c_info = *i.get_string(c);
+        if matches!(c_info.literal, StringLiteral::Value(v) if v.as_str().is_empty()) {
+            covers_empty = true;
+        }
+
+        // A broad non-empty-string atom: literal None/Unspecified, the
+        // is_non_empty flag set, no casing/numeric/callable/truthy
+        // refinements. `truthy-string` excludes the literal `"0"`, so
+        // it does NOT cover all non-empty strings; treating it as
+        // such here would falsely make `string \ (truthy | empty)`
+        // collapse to `never`.
+        if matches!(c_info.literal, StringLiteral::None | StringLiteral::Unspecified)
+            && c_info.flags.is_non_empty()
+            && !c_info.flags.is_truthy()
+            && !c_info.flags.is_numeric()
+            && !c_info.flags.is_callable()
+            && matches!(c_info.casing, StringCasing::Unspecified)
+        {
+            covers_non_empty = true;
+        }
+    }
+
+    covers_empty && covers_non_empty
+}
+
+/// True iff broad `bool` is covered by the union of `true` and `false`
+/// in `containers`. Mirrors `int_union_covers` for the bool axis.
+fn bool_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
+    if input.kind() != ElementKind::Bool {
+        return false;
+    }
+    let has_true = containers.iter().any(|c| c.kind() == ElementKind::True);
+    let has_false = containers.iter().any(|c| c.kind() == ElementKind::False);
+    has_true && has_false
+}
+
+/// True iff broad `mixed` is covered by `nonnull-mixed | null` in
+/// `containers`. The null/non-null axis is the only structural
+/// partition of `mixed` the lattice can recognize directly; deeper
+/// coverage (e.g. `int | string | … = mixed`) needs an exhaustive
+/// case-analysis we don't try here.
+fn mixed_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
+    use crate::element::payload::MixedInfo;
+    if input.kind() != ElementKind::Mixed {
+        return false;
+    }
+    let i = interner();
+    let info = *i.get_mixed(input);
+    if info != MixedInfo::EMPTY {
+        return false;
+    }
+    let has_null = containers.contains(&NULL);
+    let has_nonnull = containers.iter().any(|c| c.kind() == ElementKind::Mixed && i.get_mixed(*c).is_non_null());
+    has_null && has_nonnull
+}
+
 fn int_bounds_of(elem: ElementId) -> (Option<i64>, Option<i64>) {
     match *interner().get_int(elem) {
         IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),
@@ -259,7 +358,6 @@ pub(crate) fn element_refines<W: World>(
     // input descends every conjunct, refines holds. Only `atom_minus`
     // in [`crate::subtract`] uses the symmetric uninhabited check,
     // because subtract has the inverse soundness needs.
-
     if (input == crate::prelude::VOID && container == NULL) || (input == NULL && container == crate::prelude::VOID) {
         return true;
     }
@@ -667,10 +765,12 @@ mod tests {
     }
 
     #[test]
-    fn int_refines_float_via_php_coercion() {
-        // PHP implicitly coerces int -> float; the lattice records this as a
-        // refinement edge for the general `float` container.
-        assert!(check(TYPE_INT, TYPE_FLOAT));
+    fn int_does_not_refine_float() {
+        // `int` and `float` are distinct value sets at the runtime
+        // type level. PHP's implicit int→float coercion at parameter
+        // binding is a callsite convenience, not a subtype relation,
+        // and is intentionally not modeled by `refines`.
+        assert!(!check(TYPE_INT, TYPE_FLOAT));
     }
 
     #[test]

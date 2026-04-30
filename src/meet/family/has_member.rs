@@ -34,20 +34,19 @@ pub(in crate::meet) fn has_method_meet(a: ElementId, b: ElementId) -> Option<Ele
 /// rather than collapsing.
 pub(in crate::meet) fn has_method_property_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     let i = interner();
-    let (method_atom, property_atom) =
-        if a.kind() == crate::ElementKind::HasMethod { (a, b) } else { (b, a) };
+    let (method_atom, property_atom) = if a.kind() == crate::ElementKind::HasMethod { (a, b) } else { (b, a) };
     let method_info = *i.get_has_method(method_atom);
     let property_info = *i.get_has_property(property_atom);
 
     let mut participants: Vec<ElementId> = collect_has_method_conjuncts(method_atom, method_info);
-    let property_head = i.intern_has_property(HasPropertyInfo {
-        property_name: property_info.property_name,
-        intersections: None,
-    });
-    participants.push(property_head);
+    participants.push(
+        i.intern_has_property(HasPropertyInfo { property_name: property_info.property_name, intersections: None }),
+    );
+
     if let Some(id) = property_info.intersections {
         participants.extend_from_slice(i.get_element_list(id));
     }
+
     participants.sort();
     participants.dedup();
 

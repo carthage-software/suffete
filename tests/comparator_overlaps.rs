@@ -67,9 +67,12 @@ fn distinct_kinds_disjoint() {
 }
 
 #[test]
-fn int_overlaps_float_via_coercion_edge() {
+fn int_and_float_are_disjoint() {
+    // Strict value-set semantics: an `int` runtime value is not a
+    // member of `float`. Flow-position coercion is modeled by a
+    // separate predicate, not by `overlaps`.
     let cb = empty_world();
-    assert!(atomic_overlaps(t_int(), t_float(), &cb));
+    assert!(!atomic_overlaps(t_int(), t_float(), &cb));
 }
 
 #[test]

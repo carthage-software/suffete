@@ -410,9 +410,9 @@ fn cross_family_disjoint_int_string() {
 }
 
 #[test]
-fn int_in_float_but_not_reverse() {
-    assert_atomic_subtype(&t_int(), &t_float());
-    assert_atomic_subtype(&t_lit_int(5), &t_float());
+fn int_and_float_are_disjoint() {
+    assert_atomic_not_subtype(&t_int(), &t_float());
+    assert_atomic_not_subtype(&t_lit_int(5), &t_float());
     assert_atomic_not_subtype(&t_float(), &t_int());
     assert_atomic_not_subtype(&t_lit_float(1.5), &t_int());
 }

@@ -334,9 +334,12 @@ fn many_distinct_lists_disjoint() {
 }
 
 #[test]
-fn list_int_in_list_float() {
-    assert_atomic_subtype(&t_list(u(t_int()), false), &t_list(u(t_float()), false));
-    assert_atomic_subtype(&t_list(u(t_lit_int(5)), false), &t_list(u(t_float()), false));
+fn list_int_not_in_list_float() {
+    // `int` and `float` are disjoint value sets — the implicit
+    // int→float coercion is a callsite convenience, not a subtype
+    // relation. `list<int>` therefore does not refine `list<float>`.
+    assert_atomic_not_subtype(&t_list(u(t_int()), false), &t_list(u(t_float()), false));
+    assert_atomic_not_subtype(&t_list(u(t_lit_int(5)), false), &t_list(u(t_float()), false));
 }
 
 #[test]

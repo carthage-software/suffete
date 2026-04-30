@@ -136,6 +136,10 @@ fn element_overlaps<W: World>(
             | (ElementKind::HasProperty, ElementKind::HasProperty)
             | (ElementKind::HasMethod, ElementKind::HasProperty)
             | (ElementKind::HasProperty, ElementKind::HasMethod)
+            | (ElementKind::ObjectShape, ElementKind::HasMethod)
+            | (ElementKind::ObjectShape, ElementKind::HasProperty)
+            | (ElementKind::HasMethod, ElementKind::ObjectShape)
+            | (ElementKind::HasProperty, ElementKind::ObjectShape)
     ) {
         return true;
     }
@@ -322,14 +326,37 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
             let info = *i.get_object(elem);
             if let Some(intersections_id) = info.intersections {
                 let mut classes: Vec<mago_atom::Atom> = vec![info.name];
+                let mut structurals: Vec<ElementId> = Vec::new();
                 for &conjunct in i.get_element_list(intersections_id) {
-                    if conjunct.kind() == ElementKind::Object {
-                        classes.push(i.get_object(conjunct).name);
+                    match conjunct.kind() {
+                        ElementKind::Object => classes.push(i.get_object(conjunct).name),
+                        ElementKind::HasMethod | ElementKind::HasProperty => structurals.push(conjunct),
+                        _ => {}
                     }
                 }
 
                 if intersection_uninhabited_under_finality(&classes, world) {
                     return true;
+                }
+
+                for &class in &classes {
+                    if !world.is_final(class) {
+                        continue;
+                    }
+
+                    for &s in &structurals {
+                        let satisfied = match s.kind() {
+                            ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(s).method_name),
+                            ElementKind::HasProperty => {
+                                world.class_property_type(class, i.get_has_property(s).property_name).is_some()
+                            }
+                            _ => true,
+                        };
+
+                        if !satisfied {
+                            return true;
+                        }
+                    }
                 }
             }
             let Some(args_id) = info.type_args else { return false };
@@ -487,12 +514,28 @@ fn family_overlap(a: ElementId, b: ElementId) -> bool {
         return string_class_like_string_overlap(a, b);
     }
 
-    // Numeric strings inhabit both `numeric` and `string`.
+    // Numeric strings inhabit both `numeric` and `string`. A specific
+    // string literal that isn't itself numeric (e.g. `'foo'`) rules
+    // the overlap out — its value is not in `numeric`.
     if matches!(pair, (ElementKind::Numeric, ElementKind::String) | (ElementKind::String, ElementKind::Numeric)) {
-        return true;
+        return numeric_string_overlap(a, b);
     }
 
     false
+}
+
+fn numeric_string_overlap(a: ElementId, b: ElementId) -> bool {
+    use crate::element::payload::scalar::StringLiteral;
+    let i = interner();
+    let string_atom = if a.kind() == ElementKind::String { a } else { b };
+    let info = *i.get_string(string_atom);
+    match info.literal {
+        StringLiteral::Value(v) => {
+            let s = v.as_str();
+            s.parse::<i64>().is_ok() || s.parse::<f64>().is_ok()
+        }
+        StringLiteral::None | StringLiteral::Unspecified => true,
+    }
 }
 
 /// `String` × `ClassLikeString`: they overlap iff some string value
@@ -508,11 +551,13 @@ fn string_class_like_string_overlap(a: ElementId, b: ElementId) -> bool {
     if let crate::element::payload::scalar::StringLiteral::Value(value) = s.literal {
         return is_valid_class_name(value.as_str());
     }
-    // The string side has no literal — overlap depends only on the
-    // class-string. Any class-string is non-empty and "class-name"-shaped,
-    // which always intersects general / refined string forms.
+
     let _ = class_atom;
-    true
+    if s.flags.is_numeric() || s.flags.is_callable() {
+        return false;
+    }
+
+    matches!(s.casing, crate::element::payload::scalar::StringCasing::Unspecified)
 }
 
 fn is_valid_class_name(s: &str) -> bool {

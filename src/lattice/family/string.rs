@@ -50,6 +50,10 @@ fn class_like_string_satisfies(_kind: ClassLikeKind, container: StringInfo) -> b
         return false;
     }
 
+    if container.flags.is_numeric() {
+        return false;
+    }
+
     !container.flags.is_callable()
 }
 

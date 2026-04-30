@@ -237,6 +237,7 @@ fn refines_has_method<W: World>(input: ElementId, method: Atom, world: &W) -> bo
         ElementKind::HasMethod => i.get_has_method(input).method_name == method,
         ElementKind::Object => world.class_has_method(i.get_object(input).name, method),
         ElementKind::Enum => world.class_has_method(i.get_enum(input).name, method),
+        ElementKind::ObjectShape => true,
         _ => false,
     }
 }
@@ -250,6 +251,7 @@ fn refines_has_property<W: World>(input: ElementId, property: Atom, world: &W) -
             let info = i.get_enum(input);
             enum_property_present(info.name, property, world)
         }
+        ElementKind::ObjectShape => true,
         _ => false,
     }
 }

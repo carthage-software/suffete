@@ -377,10 +377,10 @@ impl World for MockWorld {
             if *parent_child != child {
                 continue;
             }
-            if self.descends_from(*parent_ancestor, ancestor) {
-                if let Some(arg) = self.inherited_template_argument(*parent_ancestor, ancestor, position) {
-                    return Some(arg);
-                }
+            if self.descends_from(*parent_ancestor, ancestor)
+                && let Some(arg) = self.inherited_template_argument(*parent_ancestor, ancestor, position)
+            {
+                return Some(arg);
             }
         }
         None

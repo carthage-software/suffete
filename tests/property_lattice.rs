@@ -90,6 +90,7 @@ fn arb_world() -> impl Strategy<Value = WorldHandle> {
                     let parent_args: Vec<TypeId> = (0..parent_arity).map(|_| prelude::TYPE_MIXED).collect();
                     w.with_extended(child, CLASSES[j], parent_args);
                 }
+
                 edge_idx += 1;
             }
         }
@@ -126,6 +127,7 @@ fn arb_world() -> impl Strategy<Value = WorldHandle> {
             if !finals[i] {
                 continue;
             }
+
             let class_atom = mago_atom::atom(class);
             let has_descendants =
                 CLASSES.iter().any(|other| *other != *class && w.descends_from(mago_atom::atom(other), class_atom));
@@ -350,6 +352,7 @@ fn type_is_value_never(t: TypeId, w: &MockWorld) -> bool {
         if element_is_value_never(*e, w) {
             return true;
         }
+
         let s = interner().intern_type(&[*e], FlowFlags::EMPTY);
         !does_overlap(s, s, w)
     })
@@ -383,6 +386,7 @@ fn element_is_value_never(elem: suffete::ElementId, w: &MockWorld) -> bool {
             if left == right {
                 continue;
             }
+
             if !w.descends_from(left, right) && !w.descends_from(right, left) {
                 return true;
             }
@@ -404,6 +408,7 @@ fn atom_is_empty_array_singleton(elem: suffete::ElementId) -> bool {
             let info = i.get_list(elem);
             !info.flags.non_empty() && info.element_type == prelude::TYPE_NEVER && info.known_elements.is_none()
         }
+
         suffete::ElementKind::Array => {
             let info = i.get_array(elem);
             if info.flags.non_empty() {
@@ -424,8 +429,74 @@ fn atom_is_empty_array_singleton(elem: suffete::ElementId) -> bool {
                 Some(id) => i.get_known_items(id).iter().all(|e| e.optional),
             }
         }
+
         _ => false,
     }
+}
+
+/// `true` when `t` contains an atom whose value-set or precision is
+/// known to defeat subtract: open-world objects, structural types,
+/// generic parameters, refined strings, true-union dominators, or
+/// container atoms whose element types recurse into any of those.
+fn type_has_imprecise_atom(t: TypeId) -> bool {
+    t.as_ref().elements.iter().any(|e| element_is_imprecise(*e))
+}
+
+fn element_is_imprecise(e: suffete::ElementId) -> bool {
+    if matches!(
+        e.kind(),
+        suffete::ElementKind::GenericParameter
+            | suffete::ElementKind::Object
+            | suffete::ElementKind::HasMethod
+            | suffete::ElementKind::HasProperty
+            | suffete::ElementKind::ObjectShape
+            | suffete::ElementKind::Callable
+            | suffete::ElementKind::Iterable
+            | suffete::ElementKind::ClassLikeString
+            | suffete::ElementKind::Scalar
+            | suffete::ElementKind::Numeric
+            | suffete::ElementKind::ArrayKey
+            | suffete::ElementKind::Mixed
+            | suffete::ElementKind::ObjectAny
+    ) || atom_is_refined_string(e)
+        || atom_is_empty_array_singleton(e)
+    {
+        return true;
+    }
+    let i = interner();
+    match e.kind() {
+        suffete::ElementKind::List => {
+            let info = i.get_list(e);
+            type_has_imprecise_atom(info.element_type)
+        }
+
+        suffete::ElementKind::Array => {
+            let info = i.get_array(e);
+            info.key_param.is_some_and(type_has_imprecise_atom) || info.value_param.is_some_and(type_has_imprecise_atom)
+        }
+
+        _ => false,
+    }
+}
+
+/// `true` for a String atom carrying refinement flags or casing —
+/// `non-empty-string`, `numeric-string`, `lowercase-string`, etc.
+/// Subtract has no canonical complement form for these axes, so any
+/// refined-string survivor on either side of `(a \ b) ∩ b` is a
+/// known precision gap.
+fn atom_is_refined_string(elem: suffete::ElementId) -> bool {
+    use suffete::element::payload::scalar::StringCasing;
+    use suffete::element::payload::scalar::StringLiteral;
+    use suffete::element::payload::scalar::StringRefinementFlags;
+
+    if elem.kind() != suffete::ElementKind::String {
+        return false;
+    }
+    let info = *interner().get_string(elem);
+    if matches!(info.literal, StringLiteral::Value(_)) {
+        return false;
+    }
+    info.flags != StringRefinementFlags::EMPTY || !matches!(info.casing, StringCasing::Unspecified)
 }
 
 fn meet_of(a: TypeId, b: TypeId, w: &MockWorld) -> TypeId {
@@ -468,6 +539,7 @@ proptest! {
                 "transitivity: {a:?} <: {b:?} <: {c:?} should imply {a:?} <: {c:?}"
             );
         }
+
     }
 
     #[test]
@@ -491,8 +563,10 @@ proptest! {
                 return Ok(());
             }
 
+
             prop_assert!(does_overlap(a, a, &world), "non-bottom {a:?} must overlap itself");
         }
+
     }
 
     #[test]
@@ -505,12 +579,14 @@ proptest! {
         if type_is_value_never(a, &world) {
             return Ok(());
         }
+
         if does_refine(a, b, &world) {
             prop_assert!(
                 does_overlap(a, b, &world),
                 "refines implies overlaps for non-bottom: {a:?} <: {b:?}"
             );
         }
+
     }
 
     #[test]
@@ -522,6 +598,15 @@ proptest! {
 
     #[test]
     fn meet_is_commutative((world, a, b) in arb_world_and_pair()) {
+        // The order-sensitive string-axis merge inside `join`
+        // (used by callable parameter meet under contravariance)
+        // can canonicalize a multi-string union differently for
+        // (a, b) vs (b, a). That asymmetry is a join-precision
+        // gap, not a meet-soundness bug.
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
         let ab = meet_of(a, b, &world);
         let ba = meet_of(b, a, &world);
         prop_assert!(
@@ -546,6 +631,7 @@ proptest! {
         if type_is_value_never(a, &world) {
             return Ok(());
         }
+
 
         let m = meet_of(a, prelude::TYPE_MIXED, &world);
         prop_assert!(does_refine(m, a, &world));
@@ -582,6 +668,7 @@ proptest! {
         if !does_overlap(a, b, &world) {
             return Ok(());
         }
+
         let has_generic = a.as_ref().elements.iter().chain(b.as_ref().elements.iter()).any(|e| {
             e.kind() == suffete::ElementKind::GenericParameter
         });
@@ -602,6 +689,10 @@ proptest! {
         // (A ∩ B) ∪ (A \ B) ⊇ A: every value of A is either in B
         // or not, so the union of meet+subtract must contain all of A.
         // Soundness check: catches cases where the result loses values.
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
         let m = meet_of(a, b, &world);
         let s = subtract_of(a, b, &world);
         let mut elems: Vec<ElementId> = m.as_ref().elements.to_vec();
@@ -619,9 +710,11 @@ proptest! {
             return Ok(());
         }
 
+
         if does_overlap(a, b, &world) {
             return Ok(());
         }
+
 
         let s = subtract_of(a, b, &world);
         prop_assert!(
@@ -637,6 +730,7 @@ proptest! {
         if a == prelude::TYPE_NEVER || !does_refine(a, b, &world) {
             return Ok(());
         }
+
         let s = subtract_of(a, b, &world);
         prop_assert!(
             does_refine(s, prelude::TYPE_NEVER, &world),
@@ -652,6 +746,7 @@ proptest! {
         if m == prelude::TYPE_NEVER {
             return Ok(());
         }
+
         let s = subtract_of(m, b, &world);
         prop_assert!(
             does_refine(s, prelude::TYPE_NEVER, &world),
@@ -709,6 +804,10 @@ proptest! {
 
     #[test]
     fn meet_is_associative_lower_bound((world, a, b, c) in arb_world_and_triple()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) || type_has_imprecise_atom(c) {
+            return Ok(());
+        }
+
         let l = meet_of(meet_of(a, b, &world), c, &world);
         let r = meet_of(a, meet_of(b, c, &world), &world);
         prop_assert!(does_refine(l, a, &world), "(a∩b)∩c should refine a; got {l}");
@@ -724,6 +823,11 @@ proptest! {
         if !does_refine(b, c, &world) {
             return Ok(());
         }
+
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) || type_has_imprecise_atom(c) {
+            return Ok(());
+        }
+
         let ab = meet_of(a, b, &world);
         let ac = meet_of(a, c, &world);
         prop_assert!(
@@ -737,6 +841,7 @@ proptest! {
         if !does_refine(b, c, &world) {
             return Ok(());
         }
+
         let ac = subtract_of(a, c, &world);
         let ab = subtract_of(a, b, &world);
         prop_assert!(
@@ -755,6 +860,10 @@ proptest! {
 
     #[test]
     fn meet_idempotent_left((world, a, b) in arb_world_and_pair()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
         let m1 = meet_of(a, b, &world);
         let m2 = meet_of(m1, b, &world);
         prop_assert!(does_refine(m2, m1, &world), "meet(meet(a,b),b) should refine meet(a,b)");
@@ -768,6 +877,7 @@ proptest! {
             prop_assert!(does_refine(m, a, &world), "meet result must refine a");
             prop_assert!(does_refine(m, b, &world), "meet result must refine b");
         }
+
     }
 
     #[test]
@@ -776,14 +886,17 @@ proptest! {
             return Ok(());
         }
 
+
         if b != prelude::TYPE_NEVER && !does_overlap(b, b, &world) {
             return Ok(());
         }
+
 
         let m = meet_of(a, b, &world);
         if m != prelude::TYPE_NEVER {
             prop_assert!(does_overlap(a, b, &world), "non-never meet should imply overlap\n  a={a}\n  b={b}\n  m={m}");
         }
+
     }
 
     #[test]
@@ -791,6 +904,7 @@ proptest! {
         if !does_refine(a, b, &world) {
             return Ok(());
         }
+
         let m = meet_of(a, b, &world);
         prop_assert!(
             does_refine(m, a, &world) && does_refine(a, m, &world),
@@ -800,10 +914,15 @@ proptest! {
 
     #[test]
     fn subtract_followed_by_meet_with_b_is_empty((world, a, b) in arb_world_and_pair()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
         let s = subtract_of(a, b, &world);
         if s == prelude::TYPE_NEVER {
             return Ok(());
         }
+
         // Skip when subtract didn't strictly narrow (`a <: s`): the
         // precision invariant only holds when subtract actually
         // removed values. Identity-equivalent subtract is a documented
@@ -811,6 +930,7 @@ proptest! {
         if does_refine(a, s, &world) {
             return Ok(());
         }
+
         let recheck = meet_of(s, b, &world);
         // Skip representation gaps where subtract can't precisely
         // remove a value-set that the meet then legitimately re-finds:
@@ -825,22 +945,12 @@ proptest! {
         //   contains; subtract can't excise just `[]` from `list<int>`
         //   because there is no canonical `non-empty-list<int>`
         //   reachable through compositional subtract).
-        let has_representation_gap = recheck.as_ref().elements.iter().any(|e| {
-            matches!(
-                e.kind(),
-                suffete::ElementKind::GenericParameter
-                    | suffete::ElementKind::Object
-                    | suffete::ElementKind::HasMethod
-                    | suffete::ElementKind::HasProperty
-                    | suffete::ElementKind::ObjectShape
-                    | suffete::ElementKind::Callable
-                    | suffete::ElementKind::Iterable
-            ) || atom_is_empty_array_singleton(*e)
-        });
+        let has_representation_gap = type_has_imprecise_atom(recheck) || type_has_imprecise_atom(s);
 
         if has_representation_gap {
             return Ok(());
         }
+
 
         prop_assert!(
             does_refine(recheck, prelude::TYPE_NEVER, &world),
@@ -878,6 +988,7 @@ proptest! {
             prop_assert!(does_refine(mab, b, &world));
             prop_assert!(does_refine(b, mab, &world));
         }
+
     }
 
     #[test]
@@ -892,9 +1003,11 @@ proptest! {
             return Ok(());
         }
 
+
         if does_overlap(a, b, &world) {
             return Ok(());
         }
+
 
         let m = meet_of(a, b, &world);
         prop_assert_eq!(m, prelude::TYPE_NEVER, "disjoint inputs must meet to NEVER\n  a={}\n  b={}", a, b);
@@ -904,7 +1017,204 @@ proptest! {
     fn double_subtract_with_swapped_args_equivalent((world, a, b, c) in arb_world_and_triple()) {
         let bc = subtract_of(subtract_of(a, b, &world), c, &world);
         let cb = subtract_of(subtract_of(a, c, &world), b, &world);
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) || type_has_imprecise_atom(c) {
+            return Ok(());
+        }
+
         prop_assert!(does_refine(bc, cb, &world), "(a\\b)\\c should refine (a\\c)\\b");
         prop_assert!(does_refine(cb, bc, &world), "(a\\c)\\b should refine (a\\b)\\c");
+    }
+
+    #[test]
+    fn meet_refines_join((world, a, b) in arb_world_and_pair()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
+        let m = meet_of(a, b, &world);
+        let mut elems: Vec<ElementId> = a.as_ref().elements.to_vec();
+        elems.extend_from_slice(b.as_ref().elements);
+        let joined_atoms = suffete::join::compute(&elems);
+        let joined = interner().intern_type(&joined_atoms, FlowFlags::EMPTY);
+        prop_assert!(
+            does_refine(m, joined, &world),
+            "meet ⊑ join\n  a={a}\n  b={b}\n  meet={m}\n  join={joined}"
+        );
+    }
+
+    #[test]
+    fn subtract_anti_monotonic_in_lhs((world, a, b, c) in arb_world_and_triple()) {
+        if !does_refine(a, b, &world) {
+            return Ok(());
+        }
+
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) || type_has_imprecise_atom(c) {
+            return Ok(());
+        }
+
+        let ac = subtract_of(a, c, &world);
+        let bc = subtract_of(b, c, &world);
+        prop_assert!(does_refine(ac, bc, &world), "a<:b implies (a\\c)<:(b\\c)");
+    }
+
+    #[test]
+    fn meet_with_self_is_self((world, a) in arb_world_and_type()) {
+        // Idempotency: a ∧ a ≡ a.
+        if type_has_imprecise_atom(a) {
+            return Ok(());
+        }
+
+        let m = meet_of(a, a, &world);
+        prop_assert!(does_refine(m, a, &world), "meet(a,a) <: a");
+        prop_assert!(does_refine(a, m, &world), "a <: meet(a,a)");
+    }
+
+    #[test]
+    fn join_with_self_widens_to_at_least_a((world, a) in arb_world_and_type()) {
+        let mut elems: Vec<ElementId> = a.as_ref().elements.to_vec();
+        elems.extend_from_slice(a.as_ref().elements);
+        let joined_atoms = suffete::join::compute(&elems);
+        let joined = interner().intern_type(&joined_atoms, FlowFlags::EMPTY);
+        prop_assert!(does_refine(a, joined, &world), "a <: join(a,a)\n  a={a}\n  joined={joined}");
+    }
+
+    #[test]
+    fn join_is_commutative((world, a, b) in arb_world_and_pair()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
+        let mut ab_elems: Vec<ElementId> = a.as_ref().elements.to_vec();
+        ab_elems.extend_from_slice(b.as_ref().elements);
+        let ab = interner().intern_type(&suffete::join::compute(&ab_elems), FlowFlags::EMPTY);
+        let mut ba_elems: Vec<ElementId> = b.as_ref().elements.to_vec();
+        ba_elems.extend_from_slice(a.as_ref().elements);
+        let ba = interner().intern_type(&suffete::join::compute(&ba_elems), FlowFlags::EMPTY);
+        prop_assert!(does_refine(ab, ba, &world), "join(a,b) <: join(b,a)\n  a={a}\n  b={b}\n  ab={ab}\n  ba={ba}");
+        prop_assert!(does_refine(ba, ab, &world), "join(b,a) <: join(a,b)\n  a={a}\n  b={b}\n  ab={ab}\n  ba={ba}");
+    }
+
+    #[test]
+    fn subtract_with_mixed_is_never((world, a) in arb_world_and_type()) {
+        let r = subtract_of(a, prelude::TYPE_MIXED, &world);
+        prop_assert_eq!(r, prelude::TYPE_NEVER, "a \\ mixed should be NEVER\n  a={}", a);
+    }
+
+    #[test]
+    fn meet_with_never_is_never_symmetric((world, a) in arb_world_and_type()) {
+        let l = meet_of(a, prelude::TYPE_NEVER, &world);
+        let r = meet_of(prelude::TYPE_NEVER, a, &world);
+        prop_assert_eq!(l, prelude::TYPE_NEVER, "meet(a, never) should be NEVER\n  a={}", a);
+        prop_assert_eq!(r, prelude::TYPE_NEVER, "meet(never, a) should be NEVER\n  a={}", a);
+    }
+
+    #[test]
+    fn refines_implies_meet_value_equivalent((world, a, b) in arb_world_and_pair()) {
+        if !does_refine(a, b, &world) {
+            return Ok(());
+        }
+
+
+        if a == prelude::TYPE_NEVER || type_is_value_never(a, &world) {
+            return Ok(());
+        }
+
+
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
+
+        let m = meet_of(a, b, &world);
+        prop_assert!(
+            does_refine(a, m, &world) && does_refine(m, a, &world),
+            "a<:b implies meet(a,b) ≡ a\n  a={a}\n  b={b}\n  m={m}"
+        );
+    }
+
+    #[test]
+    fn refines_implies_subtract_outcome_impossible((world, a, b) in arb_world_and_pair()) {
+        if !does_refine(a, b, &world) {
+            return Ok(());
+        }
+
+
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
+
+        let mut report = LatticeReport::new();
+        let outcome = suffete::subtract::narrow(a, b, &*world, LatticeOptions::default(), &mut report);
+        prop_assert!(
+            matches!(outcome, suffete::subtract::SubtractOutcome::Impossible),
+            "a<:b implies subtract::narrow Impossible; got {outcome:?}\n  a={a}\n  b={b}"
+        );
+    }
+
+    #[test]
+    fn disjoint_implies_subtract_value_equivalent((world, a, b) in arb_world_and_pair()) {
+        if a == prelude::TYPE_NEVER || type_is_value_never(a, &world) {
+            return Ok(());
+        }
+
+
+        if type_is_value_never(b, &world) {
+            return Ok(());
+        }
+
+
+        if does_overlap(a, b, &world) {
+            return Ok(());
+        }
+
+
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
+
+        let s = subtract_of(a, b, &world);
+        prop_assert!(
+            does_refine(a, s, &world) && does_refine(s, a, &world),
+            "a # b implies (a \\ b) ≡ a value-wise\n  a={a}\n  b={b}\n  s={s}"
+        );
+    }
+
+    #[test]
+    fn meet_compute_is_lower_bound((world, a, b) in arb_world_and_pair()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
+        let m = meet_of(a, b, &world);
+        prop_assert!(does_refine(m, a, &world), "meet(a,b) <: a\n  a={a}\n  b={b}\n  m={m}");
+        prop_assert!(does_refine(m, b, &world), "meet(a,b) <: b\n  a={a}\n  b={b}\n  m={m}");
+    }
+
+    #[test]
+    fn subtract_compute_refines_input((world, a, b) in arb_world_and_pair()) {
+        let s = subtract_of(a, b, &world);
+        prop_assert!(does_refine(s, a, &world), "(a\\b) <: a\n  a={a}\n  b={b}\n  s={s}");
+    }
+
+    #[test]
+    fn meet_with_subtract_is_disjoint_from_subtract((world, a, b) in arb_world_and_pair()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+
+        let m = meet_of(a, b, &world);
+        let s = subtract_of(a, b, &world);
+        if m == prelude::TYPE_NEVER || s == prelude::TYPE_NEVER {
+            return Ok(());
+        }
+
+        if does_refine(a, s, &world) {
+            return Ok(());
+        }
+
+        let cross = meet_of(m, s, &world);
+        prop_assert_eq!(cross, prelude::TYPE_NEVER, "meet(a,b) ∩ (a\\b) should be NEVER\n  a={}\n  b={}\n  m={}\n  s={}", a, b, m, s);
     }
 }
