@@ -258,40 +258,60 @@ fn atom_minus<W: World>(
     vec![a]
 }
 
-/// `Object \ Object` precision via `Negated` conjuncts on the
-/// surviving object's intersection list. Two shapes fire:
+/// `Object \ B` precision via `Negated` conjuncts on the surviving
+/// object's intersection list. Four shapes fire:
 ///
 /// - **Strict bare descendant.** `b` is a bare nominal descendant
 ///   of `a` (no `type_args` / `intersections`). Excluding the bare
 ///   descendant subsumes every value of `b`'s nominal subtree, so
 ///   the negation is exact.
+/// - **Specialized descendant.** `b` descends `a` but carries
+///   `type_args` or `intersections` (e.g. `C<int> \ A<int>` when
+///   `A` extends `C`). Recording `b` itself as the excluded atom
+///   removes the specific specialization without over-excluding
+///   sibling specializations of the same nominal class.
 /// - **Same class, different type args.** Under non-invariant
 ///   variance the value-sets can have a non-trivial difference
 ///   (`B<never> \ B<object>` under contravariant `T` leaves the
 ///   B-instances whose `T`-view doesn't contain `object`).
+/// - **Structural narrowing.** `b` is a `HasMethod` /
+///   `HasProperty` / `ObjectShape` atom. Open-world objects can
+///   gain or lack the structural feature, so the precise residual
+///   is "values of `a` that don't satisfy the structural
+///   constraint" — represented as `a & !b` via a `Negated`
+///   conjunct.
 ///
 /// All other shapes keep the conservative identity fallback so we
 /// don't introduce asymmetric precision the rest of the lattice
 /// can't yet honor.
 fn object_descendant_minus<W: World>(a: ElementId, b: ElementId, world: &W) -> Option<Vec<ElementId>> {
-    if a.kind() != ElementKind::Object || b.kind() != ElementKind::Object {
+    if a.kind() != ElementKind::Object {
         return None;
     }
     let i = interner();
     let a_info = *i.get_object(a);
-    let b_info = *i.get_object(b);
 
-    let strict_bare_descendant = a_info.name != b_info.name
-        && b_info.type_args.is_none()
-        && b_info.intersections.is_none()
-        && world.descends_from(b_info.name, a_info.name);
-    let same_class_different_args = a_info.name == b_info.name && a_info.type_args != b_info.type_args;
+    let b_is_object = b.kind() == ElementKind::Object;
+    let b_is_structural =
+        matches!(b.kind(), ElementKind::HasMethod | ElementKind::HasProperty | ElementKind::ObjectShape);
 
-    if !strict_bare_descendant && !same_class_different_args {
+    let (strict_bare_descendant, specialized_descendant, same_class_different_args) = if b_is_object {
+        let b_info = *i.get_object(b);
+        let descends = a_info.name != b_info.name && world.descends_from(b_info.name, a_info.name);
+        let strict = descends && b_info.type_args.is_none() && b_info.intersections.is_none();
+        let specialized = descends && !strict;
+        let same_class = a_info.name == b_info.name && a_info.type_args != b_info.type_args;
+        (strict, specialized, same_class)
+    } else {
+        (false, false, false)
+    };
+
+    if !strict_bare_descendant && !specialized_descendant && !same_class_different_args && !b_is_structural {
         return None;
     }
 
     let exclude_atom = if strict_bare_descendant {
+        let b_info = *i.get_object(b);
         i.intern_object(crate::element::payload::ObjectInfo { intersections: None, ..b_info })
     } else {
         b
@@ -307,6 +327,7 @@ fn object_descendant_minus<W: World>(a: ElementId, b: ElementId, world: &W) -> O
                 let inner_elements = neg_info.inner.as_ref().elements;
                 if inner_elements.len() == 1 && inner_elements[0].kind() == ElementKind::Object {
                     let existing_info = *i.get_object(inner_elements[0]);
+                    let b_info = *i.get_object(b);
                     if world.descends_from(b_info.name, existing_info.name) {
                         return Some(vec![a]);
                     }
@@ -452,7 +473,7 @@ fn dominator_member_covers(m: ElementId, b: ElementId) -> bool {
         (Bool, Bool | True | False) => true,
         (Int, Int) => true,
         (Float, Float) => true,
-        (String, String) => true,
+        (String, String | ClassLikeString) => true,
         (Int, Numeric | Scalar | ArrayKey) => true,
         (Float, Numeric | Scalar) => true,
         (Bool, Scalar) => true,

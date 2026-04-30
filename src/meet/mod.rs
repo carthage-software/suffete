@@ -112,6 +112,10 @@ pub fn narrow<W: World>(
                 atoms.extend(negated_atom_meet_multi(x, y, world, options, report));
                 continue;
             }
+            if let Some(pieces) = cross_dominator_meet(x, y) {
+                atoms.extend(pieces);
+                continue;
+            }
             if let Some(m) = atom_meet(x, y, world, options, report) {
                 atoms.push(m);
             }
@@ -201,6 +205,30 @@ fn atom_meet<W: World>(
     }
 
     family_atom_meet(a, b, world, options, report)
+}
+
+/// Cross-dominator pair meet: when neither side `refines` the other
+/// but their value-sets share members, decompose into the shared
+/// primitive members. Mirrors the symmetric overlap rule in
+/// [`crate::lattice::overlaps::family_overlap`] so the precision is
+/// consistent across `meet` / `overlaps`.
+///
+/// Today the only pair that needs this treatment is
+/// `(ArrayKey, Numeric)`: both contain `int` and the
+/// `string ∩ numeric` axis (numeric strings) but neither is a
+/// subset of the other, so subsumption can't fire.
+/// `(Scalar, Numeric)` and `(Scalar, ArrayKey)` already collapse
+/// via subsumption (the smaller side refines the larger).
+fn cross_dominator_meet(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
+    use crate::prelude::INT;
+    use crate::prelude::NUMERIC_STRING;
+    if matches!(
+        (a.kind(), b.kind()),
+        (ElementKind::ArrayKey, ElementKind::Numeric) | (ElementKind::Numeric, ElementKind::ArrayKey)
+    ) {
+        return Some(vec![INT, NUMERIC_STRING]);
+    }
+    None
 }
 
 /// Multi-atom variant of [`negated_atom_meet`] used by [`narrow`].
