@@ -434,15 +434,17 @@ fn refines_named_named<W: World>(
         return false;
     }
 
-    // TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_arity_zero_class_with_explicit_args_reduces_to_bare):
-    // when the world declares zero template parameters for either
-    // side but the atom carries explicit `type_args`, the args are
-    // syntactically invalid and should be dropped (reducing to the
-    // bare class). Today refines / overlaps / meet treat them
-    // inconsistently. Canonicalising the atom at intern time is the
-    // cleanest fix.
-
-    let container_args: Vec<TypeId> = match container.type_args {
+    // Arity-0 reduction: a class the world declares with no template
+    // parameters cannot meaningfully constrain anything via explicit
+    // args. Dropping them here makes `Foo<int>` and `Foo` agree on
+    // refines / overlaps / meet outcomes regardless of how the atom
+    // was constructed.
+    let container_args_raw = if world.template_parameter_arity(container.name) == 0 {
+        None
+    } else {
+        container.type_args
+    };
+    let container_args: Vec<TypeId> = match container_args_raw {
         Some(id) => interner().get_type_list(id).to_vec(),
         None => default_fill_template_args(container.name, world),
     };

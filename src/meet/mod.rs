@@ -263,14 +263,19 @@ fn family_atom_meet<W: World>(
         (ElementKind::ObjectShape, ElementKind::HasMethod | ElementKind::HasProperty) => Some(a),
         (ElementKind::HasMethod | ElementKind::HasProperty, ElementKind::ObjectShape) => Some(b),
 
-        // TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_meet_iterable_with_array_yields_array):
-        // `Iterable × Array` should narrow the array's key/value
-        // params by the iterable's. The list/array crossing
-        // (line above) handles `Iterable × List` indirectly through
-        // refines subsumption (a list refines an iterable), but a
-        // keyed array doesn't subsume to iterable cleanly because
-        // its key type may be wider; the rule needs an explicit
-        // intersection of key/value params.
+        (ElementKind::Iterable, ElementKind::Array) => {
+            family::array::iterable_array_meet(a, b, world, options, report)
+        }
+        (ElementKind::Array, ElementKind::Iterable) => {
+            family::array::iterable_array_meet(b, a, world, options, report)
+        }
+        (ElementKind::Iterable, ElementKind::List) => {
+            family::array::iterable_list_meet(a, b, world, options, report)
+        }
+        (ElementKind::List, ElementKind::Iterable) => {
+            family::array::iterable_list_meet(b, a, world, options, report)
+        }
+
         _ => None,
     }
 }

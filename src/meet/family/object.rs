@@ -14,11 +14,14 @@ use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
 use crate::TypeListId;
+use crate::element::payload::DefiningEntity;
+use crate::element::payload::GenericParameterInfo;
 use crate::element::payload::ObjectInfo;
 use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::prelude::TYPE_NEVER;
+use crate::world::TemplateParameter;
 use crate::world::Variance;
 use crate::world::World;
 
@@ -44,17 +47,119 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
         participants.extend_from_slice(i.get_element_list(id));
     }
 
-    // TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_compose_descendant_invariant_mismatch_collapses_to_never):
-    // when one participant descends another, resolve the descendant's
-    // view of the ancestor through `World::inherited_template_argument`
-    // and reconcile their args under the ancestor's variance before
-    // gluing. Today same-class merge runs but cross-class descendant
-    // resolution doesn't, so invariant arg mismatches like
-    // `meet(B<int>, C<object>)` survive when B descends C.
-
     let merged = merge_same_class_participants(participants, world, options, report)?;
+    let merged = reconcile_descendant_participants(merged, world, options, report)?;
 
     finalize_object_composition(merged, world)
+}
+
+/// Reconcile pairs of object participants where one nominally
+/// descends the other. The descendant's view of the ancestor (via
+/// `World::inherited_template_argument`) must be compatible with the
+/// ancestor's args under the ancestor's variance; if not, the
+/// intersection is uninhabited (`None`). When compatible, the
+/// ancestor is redundant — the descendant is strictly more
+/// specific — so we drop it from the merged list.
+fn reconcile_descendant_participants<W: World>(
+    merged: Vec<ElementId>,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<Vec<ElementId>> {
+    let i = interner();
+    let mut keep: Vec<bool> = vec![true; merged.len()];
+
+    for descendant_idx in 0..merged.len() {
+        if !keep[descendant_idx] || merged[descendant_idx].kind() != ElementKind::Object {
+            continue;
+        }
+        let descendant_info = *i.get_object(merged[descendant_idx]);
+
+        for ancestor_idx in 0..merged.len() {
+            if descendant_idx == ancestor_idx
+                || !keep[ancestor_idx]
+                || merged[ancestor_idx].kind() != ElementKind::Object
+            {
+                continue;
+            }
+            let ancestor_info = *i.get_object(merged[ancestor_idx]);
+            if descendant_info.name == ancestor_info.name {
+                continue;
+            }
+            if !world.descends_from(descendant_info.name, ancestor_info.name) {
+                continue;
+            }
+            if !descendant_args_satisfy_ancestor(descendant_info, ancestor_info, world, options, report) {
+                return None;
+            }
+            keep[ancestor_idx] = false;
+        }
+    }
+
+    Some(merged.into_iter().zip(keep).filter_map(|(elem, k)| k.then_some(elem)).collect())
+}
+
+/// Project `descendant`'s view of `ancestor` through the world's
+/// inherited-template-argument rule and substitute `descendant`'s
+/// actual args, then check each position against `ancestor`'s args
+/// under `ancestor`'s variance.
+fn descendant_args_satisfy_ancestor<W: World>(
+    descendant: ObjectInfo,
+    ancestor: ObjectInfo,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    let arity = world.template_parameter_arity(ancestor.name);
+    if arity == 0 {
+        return true;
+    }
+
+    let ancestor_args: Vec<TypeId> = match ancestor.type_args {
+        Some(id) => i.get_type_list(id).to_vec(),
+        None => return true,
+    };
+    if ancestor_args.len() != arity {
+        return true;
+    }
+
+    let descendant_actuals: Vec<TypeId> = descendant
+        .type_args
+        .map(|id| i.get_type_list(id).to_vec())
+        .unwrap_or_default();
+
+    for (position, &ancestor_arg) in ancestor_args.iter().enumerate() {
+        let Some(inherited) = world.inherited_template_argument(descendant.name, ancestor.name, position) else {
+            return true;
+        };
+        let resolved = crate::template::substitute(inherited, &|info: &GenericParameterInfo| -> Option<TypeId> {
+            let defining = *i.get_defining_entity(info.defining_entity);
+            if defining != DefiningEntity::ClassLike(descendant.name) {
+                return None;
+            }
+            let pos = world.template_parameter_index(descendant.name, info.name)?;
+            descendant_actuals.get(pos).copied()
+        });
+
+        let variance = world
+            .template_parameter_at(ancestor.name, position)
+            .map(|p: TemplateParameter| p.variance)
+            .unwrap_or_default();
+
+        let compatible = match variance {
+            Variance::Invariant => {
+                crate::lattice::refines(resolved, ancestor_arg, world, options, report)
+                    && crate::lattice::refines(ancestor_arg, resolved, world, options, report)
+            }
+            Variance::Covariant => crate::lattice::refines(resolved, ancestor_arg, world, options, report),
+            Variance::Contravariant => crate::lattice::refines(ancestor_arg, resolved, world, options, report),
+        };
+        if !compatible {
+            return false;
+        }
+    }
+    true
 }
 
 /// Compose a nominal object atom with a structural conjunct

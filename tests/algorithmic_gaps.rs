@@ -35,23 +35,13 @@ fn does_refine<W: suffete::world::World>(a: suffete::TypeId, b: suffete::TypeId,
     refines(a, b, w, LatticeOptions::default(), &mut LatticeReport::new())
 }
 
-// GAP 1: descendant template-argument resolution in `compose`.
-//
-// When two object atoms share a `descends_from` relationship, the
-// compose path in `src/meet/family/object.rs::compose_object_intersection`
-// should resolve the descendant's view of the ancestor through
-// `World::inherited_template_argument` and reconcile the args under
-// the ancestor's variance. Today the compose just glues the two
-// participants regardless of the relationship, which leaves invariant
-// arg mismatches uncaught.
-//
-// Concretely: `class B<T> extends C<T>`. `B<int>` viewed as `C` is
-// `C<int>`. `meet(B<int>, C<object>)` under invariant T must check
-// `int ≡ object` and collapse to `never` because they don't match.
-// Today the compose returns `B<int> & C<object>` which is uninhabited
-// but represented as inhabited.
+// CLOSED: `reconcile_descendant_participants` in
+// `src/meet/family/object.rs::compose_object_intersection` projects
+// the descendant's view of the ancestor through
+// `World::inherited_template_argument` and reconciles the args
+// under the ancestor's variance. The matching overlap rule lives
+// in `src/lattice/overlaps.rs::descendant_args_satisfy_ancestor`.
 #[test]
-#[ignore = "algorithmic gap: compose doesn't resolve descendant template args"]
 fn gap_compose_descendant_invariant_mismatch_collapses_to_never() {
     let mut w = MockWorld::new();
     w.with_templates("B", &[("T", Variance::Invariant)]);
@@ -70,16 +60,10 @@ fn gap_compose_descendant_invariant_mismatch_collapses_to_never() {
     );
 }
 
-// GAP 2: subtract fan-out for true-union dominator kinds.
-//
-// `scalar`, `numeric`, `array-key`, `mixed` decompose into disjoint
-// sub-families. `subtract(scalar, int)` should split `scalar` into
-// `bool | int | float | string` and remove `int`, yielding
-// `bool | float | string`. Today `src/subtract/mod.rs::atom_minus`
-// returns identity (the broad `scalar` atom) because no family rule
-// fires for `Scalar × Int`.
+// CLOSED: true-union subtract fan-out lives in
+// `src/subtract/mod.rs::true_union_minus`. Covers Scalar, Numeric,
+// ArrayKey minus broad sub-family members.
 #[test]
-#[ignore = "algorithmic gap: subtract has no fan-out for true-union dominators"]
 fn gap_subtract_scalar_minus_int_splits_to_other_scalars() {
     let cb = empty_world();
     let s = lattice_subtract(prelude::TYPE_SCALAR, prelude::TYPE_INT, &cb);
@@ -91,7 +75,6 @@ fn gap_subtract_scalar_minus_int_splits_to_other_scalars() {
 }
 
 #[test]
-#[ignore = "algorithmic gap: subtract has no fan-out for true-union dominators"]
 fn gap_subtract_array_key_minus_int_yields_string() {
     let cb = empty_world();
     let s = lattice_subtract(prelude::TYPE_ARRAY_KEY, prelude::TYPE_INT, &cb);
@@ -103,7 +86,6 @@ fn gap_subtract_array_key_minus_int_yields_string() {
 }
 
 #[test]
-#[ignore = "algorithmic gap: subtract has no fan-out for true-union dominators"]
 fn gap_subtract_numeric_minus_int_yields_float_or_numeric_string() {
     let cb = empty_world();
     let s = lattice_subtract(prelude::TYPE_NUMERIC, prelude::TYPE_INT, &cb);
@@ -117,13 +99,22 @@ fn gap_subtract_numeric_minus_int_yields_float_or_numeric_string() {
 // GAP 3: subtract for object descendants.
 //
 // `class A extends B`. `B \ A` should yield "B-instances that are not
-// also A-instances". A precise lattice would either represent this as
-// a refined object atom (e.g. `B & !A`) or, when `B` is final and
-// `A`'s descendants do not exhaust `B`, drop to `never`. Today
-// `src/subtract/mod.rs::atom_minus` returns the unchanged `B` because
-// no rule covers `Object × Object` subtract.
+// also A-instances". This requires either a negation/exclusion marker
+// on `ObjectInfo` (e.g. an `excluded: Vec<Atom>` set) or a
+// `NotObject` element kind. Without such a representation, the
+// lattice cannot express "B except A" structurally; the subtract
+// returns identity and the meet correctly recovers A.
+//
+// Implementation plan:
+//   1. Extend `ObjectInfo` with `excluded: Option<ElementListId>`
+//      (a sorted list of nominal classes whose instances are
+//      excluded from this object's value-set).
+//   2. `subtract(B, A)` when A descends B → mark `excluded += A`.
+//   3. `refines(B excluded={A}, A)` → false; `meet(B excluded={A},
+//      A)` → never; `overlaps` likewise.
+//   4. Subsumption: B excluded={A,...} <: B (drop excluded).
 #[test]
-#[ignore = "algorithmic gap: subtract doesn't remove descendant classes"]
+#[ignore = "algorithmic gap: needs ObjectInfo.excluded representation"]
 fn gap_subtract_b_minus_descendant_a_excludes_a_instances() {
     let mut w = MockWorld::new();
     w.declare("B");
@@ -140,17 +131,11 @@ fn gap_subtract_b_minus_descendant_a_excludes_a_instances() {
     assert_eq!(m, prelude::TYPE_NEVER, "(B \\ A) ∩ A should be never (got {m}; B \\ A = {s})");
 }
 
-// GAP 4: cross-kind meet — `Iterable × Array` (the `Iterable × List`
-// case already works via refines subsumption: a list refines an
-// iterable directly, so meet returns the list).
-//
-// `iterable<K, V>` ranges over `array` shapes, `Generator`, and any
-// `\Traversable`. Meeting it with `array<K', V'>` should restrict
-// to `array<K∩K', V∩V'>`. Today no rule fires in
-// `family_atom_meet` for the pair `(Iterable, Array)` and the meet
-// collapses to `never`.
+// CLOSED: `iterable_array_meet` and `iterable_list_meet` live in
+// `src/meet/family/array.rs`, with matching overlap rules in
+// `src/lattice/overlaps.rs::iterable_array_overlap` /
+// `iterable_list_overlap`.
 #[test]
-#[ignore = "algorithmic gap: meet has no Iterable×Array rule"]
 fn gap_meet_iterable_with_array_yields_array() {
     let cb = empty_world();
     let it = u(t_iterable(u(t_int()), u(t_string())));
@@ -189,16 +174,11 @@ fn gap_refines_string_covered_by_lowercase_and_non_lowercase() {
     );
 }
 
-// GAP 7: refines arity-mismatched object args consistency.
-//
-// The lattice currently treats arity-0 classes that carry explicit
-// args (e.g. `Foo<int>` where `Foo` has zero declared template
-// parameters) inconsistently across `refines`, `overlaps`, and
-// `meet`. The principled answer: such atoms are syntactically
-// invalid and should reduce to the bare class. The test pins the
-// reduction.
+// CLOSED: arity-0 reduction now fires in
+// `src/lattice/family/object.rs::refines_named_named`. A bare class
+// that the world declares with zero template parameters drops any
+// explicit `type_args` before the variance check.
 #[test]
-#[ignore = "algorithmic gap: arity-0 + explicit args should canonicalize to bare class"]
 fn gap_arity_zero_class_with_explicit_args_reduces_to_bare() {
     let mut w = MockWorld::new();
     w.declare("Foo");

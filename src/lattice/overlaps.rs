@@ -130,6 +130,18 @@ fn element_overlaps<W: World>(
         return true;
     }
 
+    if (a.kind() == ElementKind::Iterable && b.kind() == ElementKind::Array)
+        || (a.kind() == ElementKind::Array && b.kind() == ElementKind::Iterable)
+    {
+        return iterable_array_overlap(a, b, world, options, report);
+    }
+
+    if (a.kind() == ElementKind::Iterable && b.kind() == ElementKind::List)
+        || (a.kind() == ElementKind::List && b.kind() == ElementKind::Iterable)
+    {
+        return iterable_list_overlap(a, b, world, options, report);
+    }
+
     if matches!(
         (a.kind(), b.kind()),
         (ElementKind::HasMethod, ElementKind::HasMethod)
@@ -256,6 +268,86 @@ fn object_overlap<W: World>(
         }
     }
 
+    // Cross-class descendant check: when A descends B (or vice
+    // versa), the descendant's view of the ancestor's args must be
+    // compatible under the ancestor's variance. An invariant arg
+    // mismatch (e.g. `A<int(0)>` extending `B<T>` met with `B<int>`)
+    // makes the intersection uninhabited and overlap must reflect
+    // that or downstream `meet` (which now performs the same check)
+    // would disagree.
+    if a_info.name != b_info.name {
+        let (descendant, ancestor) = if world.descends_from(a_info.name, b_info.name) {
+            (a_info, b_info)
+        } else if world.descends_from(b_info.name, a_info.name) {
+            (b_info, a_info)
+        } else {
+            return true;
+        };
+        if !descendant_args_satisfy_ancestor(descendant, ancestor, world, options, report) {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn descendant_args_satisfy_ancestor<W: World>(
+    descendant: crate::element::payload::ObjectInfo,
+    ancestor: crate::element::payload::ObjectInfo,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    use crate::element::payload::DefiningEntity;
+    use crate::element::payload::GenericParameterInfo;
+    use crate::world::TemplateParameter;
+
+    let i = interner();
+    let arity = world.template_parameter_arity(ancestor.name);
+    if arity == 0 {
+        return true;
+    }
+    let ancestor_args: Vec<TypeId> = match ancestor.type_args {
+        Some(id) => i.get_type_list(id).to_vec(),
+        None => return true,
+    };
+    if ancestor_args.len() != arity {
+        return true;
+    }
+
+    let descendant_actuals: Vec<TypeId> = descendant
+        .type_args
+        .map(|id| i.get_type_list(id).to_vec())
+        .unwrap_or_default();
+
+    for (position, &ancestor_arg) in ancestor_args.iter().enumerate() {
+        let Some(inherited) = world.inherited_template_argument(descendant.name, ancestor.name, position) else {
+            return true;
+        };
+        let resolved = crate::template::substitute(inherited, &|info: &GenericParameterInfo| -> Option<TypeId> {
+            let defining = *i.get_defining_entity(info.defining_entity);
+            if defining != DefiningEntity::ClassLike(descendant.name) {
+                return None;
+            }
+            let pos = world.template_parameter_index(descendant.name, info.name)?;
+            descendant_actuals.get(pos).copied()
+        });
+        let variance = world
+            .template_parameter_at(ancestor.name, position)
+            .map(|p: TemplateParameter| p.variance)
+            .unwrap_or_default();
+        let compatible = match variance {
+            Variance::Invariant => {
+                crate::lattice::refines(resolved, ancestor_arg, world, options, report)
+                    && crate::lattice::refines(ancestor_arg, resolved, world, options, report)
+            }
+            Variance::Covariant => crate::lattice::refines(resolved, ancestor_arg, world, options, report),
+            Variance::Contravariant => crate::lattice::refines(ancestor_arg, resolved, world, options, report),
+        };
+        if !compatible {
+            return false;
+        }
+    }
     true
 }
 
@@ -449,6 +541,58 @@ fn list_overlap<W: World>(
 /// the empty array) unless either side demands non-empty. With at
 /// least one non-empty side, the array's key constraint must accept
 /// `int` (lists are int-keyed) and `E ∩ V` must overlap.
+/// `iterable<K,V> ∩ array<K',V'>` shares the empty array unless the
+/// array is non-empty; otherwise the iterable's K must admit some
+/// of the array's keys and V must admit some of the array's values.
+fn iterable_array_overlap<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    let (it_atom, arr_atom) = if a.kind() == ElementKind::Iterable { (a, b) } else { (b, a) };
+    let it_info = *i.get_iterable(it_atom);
+    let arr_info = *i.get_array(arr_atom);
+
+    if !arr_info.flags.non_empty() {
+        return true;
+    }
+    let arr_key = arr_info.key_param.unwrap_or(crate::prelude::TYPE_ARRAY_KEY);
+    let arr_value = arr_info.value_param.unwrap_or(crate::prelude::TYPE_MIXED);
+    overlaps(it_info.key_type, arr_key, world, options, report)
+        && overlaps(it_info.value_type, arr_value, world, options, report)
+}
+
+/// `iterable<K,V> ∩ list<E>` overlaps when `int` fits `K` (so the
+/// list's keys are admissible) and `V` overlaps the list element
+/// type (so any non-empty list value can match). The empty list is
+/// shared by any pair structurally, but the lattice has no atom
+/// that refines both sides simultaneously when `int <: K` fails,
+/// so this rule mirrors the meet rule's precision rather than the
+/// pure value-set semantics.
+fn iterable_list_overlap<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    let (it_atom, list_atom) = if a.kind() == ElementKind::Iterable { (a, b) } else { (b, a) };
+    let it_info = *i.get_iterable(it_atom);
+    let list_info = *i.get_list(list_atom);
+
+    if !crate::lattice::refines(crate::prelude::TYPE_INT, it_info.key_type, world, options, report) {
+        return false;
+    }
+    if !list_info.flags.non_empty() {
+        return true;
+    }
+    overlaps(it_info.value_type, list_info.element_type, world, options, report)
+}
+
 fn list_array_overlap<W: World>(
     a: ElementId,
     b: ElementId,

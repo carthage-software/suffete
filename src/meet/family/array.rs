@@ -151,6 +151,90 @@ pub(in crate::meet) fn list_array_meet<W: World>(
     }))
 }
 
+/// `iterable<K, V> ∧ array<K', V', items?>` narrows the array's
+/// key/value parameters with the iterable's. The result is still an
+/// array shape (the array is the more refined family member); the
+/// iterable side is consumed entirely. `known_items` value types
+/// also narrow against the iterable's value type.
+pub(in crate::meet) fn iterable_array_meet<W: World>(
+    iterable: ElementId,
+    array: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<ElementId> {
+    let i = interner();
+    let it_info = *i.get_iterable(iterable);
+    let arr_info = *i.get_array(array);
+
+    let key_param = match arr_info.key_param {
+        Some(ak) => Some(crate::meet::compute(ak, it_info.key_type, world, options, report)),
+        None => Some(it_info.key_type),
+    };
+    let value_param = match arr_info.value_param {
+        Some(av) => Some(crate::meet::compute(av, it_info.value_type, world, options, report)),
+        None => Some(it_info.value_type),
+    };
+
+    let known_items = match arr_info.known_items {
+        None => None,
+        Some(id) => {
+            let entries = i.get_known_items(id);
+            let mut narrowed: Vec<KnownItemEntry> = Vec::with_capacity(entries.len());
+            for entry in entries {
+                let value = crate::meet::compute(entry.value, it_info.value_type, world, options, report);
+                if value == crate::prelude::TYPE_NEVER && !entry.optional {
+                    return None;
+                }
+                narrowed.push(KnownItemEntry { value, ..*entry });
+            }
+            Some(i.intern_known_items(&narrowed))
+        }
+    };
+
+    if arr_info.flags.non_empty() {
+        let key_empty = key_param.is_some_and(|t| t == crate::prelude::TYPE_NEVER);
+        let value_empty = value_param.is_some_and(|t| t == crate::prelude::TYPE_NEVER);
+        if key_empty || value_empty {
+            return None;
+        }
+    }
+
+    Some(i.intern_array(KeyedArrayInfo { key_param, value_param, known_items, flags: arr_info.flags }))
+}
+
+/// `iterable<K, V> ∧ list<E>` narrows the list's element type by the
+/// iterable's value type. A list has implicit `int` keys, so the
+/// non-empty intersection only inhabits values when `int <: K`. When
+/// `int` doesn't fit `K`, the lattice has no representation that
+/// refines both sides structurally (the empty list `{[]}` is the
+/// only shared value, but `list<never>` doesn't refine
+/// `iterable<int(0), V>` because list keys are still `int`), so
+/// the meet conservatively returns `None`. The matching overlap
+/// rule reports the same to keep the lattice consistent.
+pub(in crate::meet) fn iterable_list_meet<W: World>(
+    iterable: ElementId,
+    list: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<ElementId> {
+    let i = interner();
+    let it_info = *i.get_iterable(iterable);
+    let list_info = *i.get_list(list);
+
+    if !crate::lattice::refines(crate::prelude::TYPE_INT, it_info.key_type, world, options, report) {
+        return None;
+    }
+
+    let element_type = crate::meet::compute(list_info.element_type, it_info.value_type, world, options, report);
+    if list_info.flags.non_empty() && element_type == crate::prelude::TYPE_NEVER {
+        return None;
+    }
+
+    Some(i.intern_list(ListInfo { element_type, ..list_info }))
+}
+
 fn unsealed_keyed_array_meet<W: World>(
     a_info: KeyedArrayInfo,
     b_info: KeyedArrayInfo,

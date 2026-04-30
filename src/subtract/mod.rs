@@ -202,6 +202,10 @@ fn atom_minus<W: World>(
         return generic_parameter_minus(a, b, world, options, report).unwrap_or_else(|| vec![a]);
     }
 
+    if let Some(pieces) = true_union_minus(a, b, world, options, report) {
+        return pieces;
+    }
+
     family_atom_minus(a, b).unwrap_or_else(|| vec![a])
 }
 
@@ -259,22 +263,76 @@ fn family_atom_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
         return string_minus(a, b);
     }
 
-    // TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_subtract_*_minus_int_*):
-    // true-union dominator subtract. `Scalar`, `Numeric`, `ArrayKey`,
-    // `Mixed` decompose into disjoint sub-families; subtracting a
-    // sub-family member should split the dominator into the remaining
-    // pieces (e.g. `scalar \ int = bool|float|string`). Each pair
-    // ((Scalar | Numeric | ArrayKey, scalar-family kind on the rhs))
-    // needs an explicit fan-out rule here.
 
     // TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_subtract_b_minus_descendant_a_excludes_a_instances):
-    // `Object \ Object` when one descends the other. `B \ A` where
-    // A descends B should remove A-instances from the B value-set.
-    // Without a complement representation (or a closed-world enum
-    // of subclasses) the lattice today returns identity, leaving
-    // overlap that the meet then recovers.
+    // `Object \ Object` when one descends the other. Needs an
+    // `ObjectInfo.excluded` representation (or `NotObject` element
+    // kind) to express "B except A's instances" structurally.
 
     None
+}
+
+/// Fan out a true-union dominator (`scalar`, `numeric`, `array-key`)
+/// when the right-hand side is a member of one of its sub-families.
+/// The dominator's value-set is the disjoint union of its members;
+/// subtracting splits the dominator into its constituents and
+/// delegates the in-family subtraction to the recursive call.
+///
+/// `scalar = bool | int | float | string`,
+/// `numeric = int | float | numeric-string`,
+/// `array-key = int | string`.
+fn true_union_minus<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<Vec<ElementId>> {
+    use crate::prelude::ARRAY_KEY;
+    use crate::prelude::BOOL;
+    use crate::prelude::FLOAT;
+    use crate::prelude::INT;
+    use crate::prelude::NUMERIC;
+    use crate::prelude::NUMERIC_STRING;
+    use crate::prelude::SCALAR;
+    use crate::prelude::STRING;
+
+    let members: &[ElementId] = if a == SCALAR {
+        &[BOOL, INT, FLOAT, STRING]
+    } else if a == NUMERIC {
+        &[INT, FLOAT, NUMERIC_STRING]
+    } else if a == ARRAY_KEY {
+        &[INT, STRING]
+    } else {
+        return None;
+    };
+
+    // Only fan out when `b` lands inside one of the sub-families.
+    // Otherwise we'd needlessly re-emit the dominator's constituents
+    // for an unrelated subtraction (e.g. `scalar \ Foo`).
+    if !members.iter().any(|m| dominator_member_covers(*m, b)) {
+        return None;
+    }
+
+    let mut pieces: Vec<ElementId> = Vec::with_capacity(members.len());
+    for &m in members {
+        for piece in atom_minus(m, b, world, options, report) {
+            pieces.push(piece);
+        }
+    }
+    Some(pieces)
+}
+
+/// `true` iff member `m` subsumes the kind of `b`, so subtracting
+/// `b` from `a` requires splitting `m` out of the dominator.
+fn dominator_member_covers(m: ElementId, b: ElementId) -> bool {
+    matches!(
+        (m.kind(), b.kind()),
+        (ElementKind::Bool, ElementKind::Bool | ElementKind::True | ElementKind::False)
+            | (ElementKind::Int, ElementKind::Int)
+            | (ElementKind::Float, ElementKind::Float)
+            | (ElementKind::String, ElementKind::String)
+    )
 }
 
 /// `String \ String` for axis-narrowing cases.
