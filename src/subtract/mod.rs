@@ -234,22 +234,45 @@ fn atom_minus<W: World>(
         return pieces;
     }
 
-    family_atom_minus(a, b).unwrap_or_else(|| vec![a])
+    if let Some(pieces) = family_atom_minus(a, b) {
+        return pieces;
+    }
+
+    // `mixed \ B` and `nonnull-mixed \ B` have no positive
+    // simplification once the family rules are exhausted, but with
+    // the `Negated` element they have a precise representation as
+    // the complement of the union of removed atoms. Without these
+    // fallbacks the result would be order-dependent: subtracting
+    // `[null, int]` versus `[int, null]` could land on
+    // `nonnull-mixed` (over-approximate) versus `!(int|null)`
+    // (precise) and break anti-monotonicity downstream.
+    if a == MIXED {
+        let b_t = interner().intern_type(&[b], FlowFlags::EMPTY);
+        return vec![ElementId::negated(b_t)];
+    }
+    if a == NON_NULL_MIXED {
+        let union_ty = interner().intern_type(&[NULL, b], FlowFlags::EMPTY);
+        return vec![ElementId::negated(union_ty)];
+    }
+
+    vec![a]
 }
 
-/// `Object \ Object` when the right-hand side is a strict descendant
-/// of the left. The result records the descendant as a `Negated`
-/// conjunct in the surviving object's `intersections` list, so
-/// downstream `meet`, `refines`, and `overlaps` know to rule out
-/// values whose nominal class falls inside the excluded subtree
-/// without bespoke handling — the existing intersection rules carry
-/// the work.
+/// `Object \ Object` precision via `Negated` conjuncts on the
+/// surviving object's intersection list. Two shapes fire:
 ///
-/// Only fires when `b` is a bare nominal class (no `type_args` or
-/// `intersections`): the lattice can express "B except A's
-/// instances" but not "B except A<int>'s instances" without further
-/// extension. When `a` already has `b` (or an ancestor of `b`)
-/// negated in its intersections, returns identity.
+/// - **Strict bare descendant.** `b` is a bare nominal descendant
+///   of `a` (no `type_args` / `intersections`). Excluding the bare
+///   descendant subsumes every value of `b`'s nominal subtree, so
+///   the negation is exact.
+/// - **Same class, different type args.** Under non-invariant
+///   variance the value-sets can have a non-trivial difference
+///   (`B<never> \ B<object>` under contravariant `T` leaves the
+///   B-instances whose `T`-view doesn't contain `object`).
+///
+/// All other shapes keep the conservative identity fallback so we
+/// don't introduce asymmetric precision the rest of the lattice
+/// can't yet honor.
 fn object_descendant_minus<W: World>(a: ElementId, b: ElementId, world: &W) -> Option<Vec<ElementId>> {
     if a.kind() != ElementKind::Object || b.kind() != ElementKind::Object {
         return None;
@@ -258,24 +281,28 @@ fn object_descendant_minus<W: World>(a: ElementId, b: ElementId, world: &W) -> O
     let a_info = *i.get_object(a);
     let b_info = *i.get_object(b);
 
-    if b_info.type_args.is_some() || b_info.intersections.is_some() {
-        return None;
-    }
-    if a_info.name == b_info.name {
-        return None;
-    }
-    if !world.descends_from(b_info.name, a_info.name) {
+    let strict_bare_descendant = a_info.name != b_info.name
+        && b_info.type_args.is_none()
+        && b_info.intersections.is_none()
+        && world.descends_from(b_info.name, a_info.name);
+    let same_class_different_args = a_info.name == b_info.name && a_info.type_args != b_info.type_args;
+
+    if !strict_bare_descendant && !same_class_different_args {
         return None;
     }
 
-    let bare_b = i.intern_object(crate::element::payload::ObjectInfo { intersections: None, ..b_info });
-    let bare_b_ty = i.intern_type(&[bare_b], FlowFlags::EMPTY);
-    let new_negated = ElementId::negated(bare_b_ty);
+    let exclude_atom = if strict_bare_descendant {
+        i.intern_object(crate::element::payload::ObjectInfo { intersections: None, ..b_info })
+    } else {
+        b
+    };
+    let exclude_ty = i.intern_type(&[exclude_atom], FlowFlags::EMPTY);
+    let new_negated = ElementId::negated(exclude_ty);
 
     let mut conjuncts: Vec<ElementId> = Vec::new();
     if let Some(id) = a_info.intersections {
         for &existing in i.get_element_list(id) {
-            if existing.kind() == ElementKind::Negated {
+            if strict_bare_descendant && existing.kind() == ElementKind::Negated {
                 let neg_info = *i.get_negated(existing);
                 let inner_elements = neg_info.inner.as_ref().elements;
                 if inner_elements.len() == 1 && inner_elements[0].kind() == ElementKind::Object {
@@ -335,10 +362,6 @@ fn generic_parameter_minus<W: World>(
 fn family_atom_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
     if a.kind() == ElementKind::Int && b.kind() == ElementKind::Int {
         return Some(int_minus(a, b));
-    }
-
-    if a == MIXED && b == NULL {
-        return Some(vec![NON_NULL_MIXED]);
     }
 
     if a == crate::prelude::BOOL && b == TRUE {
@@ -406,16 +429,36 @@ fn true_union_minus<W: World>(
     Some(pieces)
 }
 
-/// `true` iff member `m` subsumes the kind of `b`, so subtracting
-/// `b` from `a` requires splitting `m` out of the dominator.
+/// `true` iff member `m` and `b` share at least one runtime axis,
+/// so splitting the dominator into its members would let the
+/// per-member subtract drop or narrow some pieces. Covers two
+/// shapes:
+///
+/// - Same-axis: `b` is the same primitive family as `m`
+///   (`int \ int`, `string \ string`, etc.) so the family rule can
+///   refine.
+/// - Subsuming-axis: `b` is itself a true-union dominator that
+///   contains values of `m`'s kind (`array-key \ numeric` splits
+///   into `int|string`, and the `int` piece collapses to `never`
+///   because `int <: numeric`).
+///
+/// Without the subsuming-axis case the dominator is preserved
+/// intact even when its constituents are precisely subtractable,
+/// breaking anti-monotonicity (`(a\c) <: (a\b)` for `b <: c`)
+/// against more precise siblings on the other axis.
 fn dominator_member_covers(m: ElementId, b: ElementId) -> bool {
-    matches!(
-        (m.kind(), b.kind()),
-        (ElementKind::Bool, ElementKind::Bool | ElementKind::True | ElementKind::False)
-            | (ElementKind::Int, ElementKind::Int)
-            | (ElementKind::Float, ElementKind::Float)
-            | (ElementKind::String, ElementKind::String)
-    )
+    use ElementKind::*;
+    match (m.kind(), b.kind()) {
+        (Bool, Bool | True | False) => true,
+        (Int, Int) => true,
+        (Float, Float) => true,
+        (String, String) => true,
+        (Int, Numeric | Scalar | ArrayKey) => true,
+        (Float, Numeric | Scalar) => true,
+        (Bool, Scalar) => true,
+        (String, Numeric | Scalar | ArrayKey) => true,
+        _ => false,
+    }
 }
 
 /// `String \ String` for axis-narrowing cases.

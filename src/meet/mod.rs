@@ -214,16 +214,11 @@ fn negated_atom_meet_multi<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> Vec<ElementId> {
-    let i = interner();
     if a.kind() == ElementKind::Negated && b.kind() == ElementKind::Negated {
-        let a_info = *i.get_negated(a);
-        let b_info = *i.get_negated(b);
-        let mut union_elems: Vec<ElementId> = a_info.inner.as_ref().elements.to_vec();
-        union_elems.extend_from_slice(b_info.inner.as_ref().elements);
-        let union_ty = i.intern_type(&union_elems, FlowFlags::EMPTY);
-        return vec![ElementId::negated(union_ty)];
+        return vec![negated_pair_meet(a, b, world, options, report)];
     }
 
+    let i = interner();
     let (positive, negated_atom) = if a.kind() == ElementKind::Negated { (b, a) } else { (a, b) };
     let neg_info = *i.get_negated(negated_atom);
     let positive_t = i.intern_type(&[positive], FlowFlags::EMPTY);
@@ -232,6 +227,32 @@ fn negated_atom_meet_multi<W: World>(
         return Vec::new();
     }
     surviving.as_ref().elements.to_vec()
+}
+
+/// `meet(!T, !U) ≡ !(T ∪ U)`, with two collapses: when `T <: U` the
+/// union is `U` and the result is just `!U`; symmetrically for
+/// `U <: T`. Falls back to interning the negation of the structural
+/// union when neither side dominates.
+fn negated_pair_meet<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> ElementId {
+    let i = interner();
+    let a_inner = i.get_negated(a).inner;
+    let b_inner = i.get_negated(b).inner;
+    if refines(a_inner, b_inner, world, options, report) {
+        return b;
+    }
+    if refines(b_inner, a_inner, world, options, report) {
+        return a;
+    }
+    let mut union_elems: Vec<ElementId> = a_inner.as_ref().elements.to_vec();
+    union_elems.extend_from_slice(b_inner.as_ref().elements);
+    let union_ty = i.intern_type(&union_elems, FlowFlags::EMPTY);
+    ElementId::negated(union_ty)
 }
 
 /// `meet` with a `Negated` participant. `meet(X, !T)` ≡
@@ -250,16 +271,11 @@ fn negated_atom_meet<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> Option<ElementId> {
-    let i = interner();
     if a.kind() == ElementKind::Negated && b.kind() == ElementKind::Negated {
-        let a_info = *i.get_negated(a);
-        let b_info = *i.get_negated(b);
-        let mut union_elems: Vec<ElementId> = a_info.inner.as_ref().elements.to_vec();
-        union_elems.extend_from_slice(b_info.inner.as_ref().elements);
-        let union_ty = i.intern_type(&union_elems, FlowFlags::EMPTY);
-        return Some(ElementId::negated(union_ty));
+        return Some(negated_pair_meet(a, b, world, options, report));
     }
 
+    let i = interner();
     let (positive, negated_atom) = if a.kind() == ElementKind::Negated { (b, a) } else { (a, b) };
     let neg_info = *i.get_negated(negated_atom);
     let positive_t = i.intern_type(&[positive], FlowFlags::EMPTY);

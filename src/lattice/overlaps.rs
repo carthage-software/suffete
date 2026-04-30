@@ -261,6 +261,19 @@ fn object_overlap<W: World>(
         return false;
     }
 
+    // A `Negated` conjunct on either side that subsumes the other
+    // side's whole value-set rules out the overlap: every value of
+    // the other side falls inside the negation, leaving nothing
+    // shared. This is the value-equality form of the
+    // `negation_excludes_class` check used in `meet`, generalized
+    // to arbitrary inner shapes (template-arg mismatches under
+    // contravariance, structural conjuncts, etc.).
+    if negation_covers_other(a_info, b, world, options, report)
+        || negation_covers_other(b_info, a, world, options, report)
+    {
+        return false;
+    }
+
     if a_info.name == b_info.name
         && let (Some(a_args_id), Some(b_args_id)) = (a_info.type_args, b_info.type_args)
     {
@@ -337,6 +350,32 @@ fn object_overlap<W: World>(
     }
 
     true
+}
+
+/// `true` iff some `Negated` conjunct in `info`'s intersections
+/// covers the entire value-set of `other`: every runtime value of
+/// `other` would land inside the negation, so an `info ∩ other`
+/// instance cannot exist.
+fn negation_covers_other<W: World>(
+    info: crate::element::payload::ObjectInfo,
+    other: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let Some(intersections_id) = info.intersections else { return false };
+    let i = interner();
+    let other_t = i.intern_type(&[other], FlowFlags::EMPTY);
+    for &conjunct in i.get_element_list(intersections_id) {
+        if conjunct.kind() != ElementKind::Negated {
+            continue;
+        }
+        let neg_info = *i.get_negated(conjunct);
+        if crate::lattice::refines(other_t, neg_info.inner, world, options, report) {
+            return true;
+        }
+    }
+    false
 }
 
 fn descendant_args_satisfy_ancestor<W: World>(
@@ -709,6 +748,30 @@ fn family_overlap(a: ElementId, b: ElementId) -> bool {
     // the overlap out — its value is not in `numeric`.
     if matches!(pair, (ElementKind::Numeric, ElementKind::String) | (ElementKind::String, ElementKind::Numeric)) {
         return numeric_string_overlap(a, b);
+    }
+
+    // True-union dominator cross-axis overlap. Each of `scalar`,
+    // `numeric`, `array-key` is a disjoint-union of primitive
+    // members; whenever two dominators share at least one member
+    // family, runtime values inhabit both. Concretely:
+    //   scalar = bool | int | float | string
+    //   numeric = int | float | numeric-string ⊂ string
+    //   array-key = int | string
+    // so every pairwise combination shares at least `int`. Without
+    // this rule subtract's `array-key \ numeric` couldn't fan out
+    // (`!overlaps` short-circuited it to identity), and downstream
+    // anti-monotonicity broke against the precise `int \ numeric`
+    // narrowing on a sibling atom.
+    if matches!(
+        pair,
+        (ElementKind::Scalar, ElementKind::Numeric)
+            | (ElementKind::Numeric, ElementKind::Scalar)
+            | (ElementKind::Scalar, ElementKind::ArrayKey)
+            | (ElementKind::ArrayKey, ElementKind::Scalar)
+            | (ElementKind::ArrayKey, ElementKind::Numeric)
+            | (ElementKind::Numeric, ElementKind::ArrayKey)
+    ) {
+        return true;
     }
 
     false

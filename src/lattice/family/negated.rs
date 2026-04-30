@@ -41,14 +41,19 @@ pub fn refines_container_negated<W: World>(
     !crate::lattice::overlaps(input_t, info.inner, world, options, report)
 }
 
-/// `!T <: X` is true only in the structurally obvious cases:
+/// `!T <: X` iff `mixed \ T <: X` iff `T ∪ X ≡ mixed` (the union of
+/// `T` and `X` exhausts every value).
 ///
-/// - `X = mixed` (the absolute top accepts every value).
-/// - `X = !U` where `U <: T` (contravariance through the negation).
+/// Three exact paths:
 ///
-/// Other `X` shapes would require enumerating `mixed \ T` and
-/// proving every member fits `X`, which the lattice doesn't try
-/// without an exhaustive partition; we return `false` conservatively.
+/// - `X = mixed` ⇒ trivially true.
+/// - `X = !U` ⇒ contravariance: `!T <: !U` iff `U <: T`.
+/// - Otherwise: build the union `T ∪ X` as a [`TypeId`] and ask
+///   `mixed <: T ∪ X` via the standard `refines` dispatch. The
+///   recognized partitions (`null | nonnull-mixed`, integer ranges,
+///   string axes, true-union dominators) drive the answer; outside
+///   of those we fall back to `false` conservatively, never
+///   over-claiming.
 pub fn refines_input_negated<W: World>(
     input: ElementId,
     container: ElementId,
@@ -63,8 +68,11 @@ pub fn refines_input_negated<W: World>(
     let input_info = *i.get_negated(input);
     if container.kind() == ElementKind::Negated {
         let container_info = *i.get_negated(container);
-        // Contravariance: `!T <: !U` iff `U <: T`.
         return crate::lattice::refines(container_info.inner, input_info.inner, world, options, report);
     }
-    false
+
+    let mut union_elems: Vec<ElementId> = input_info.inner.as_ref().elements.to_vec();
+    union_elems.push(container);
+    let union_ty = i.intern_type(&union_elems, crate::FlowFlags::EMPTY);
+    crate::lattice::refines(crate::prelude::TYPE_MIXED, union_ty, world, options, report)
 }

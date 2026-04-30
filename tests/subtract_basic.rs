@@ -180,11 +180,14 @@ fn nullable_bool_minus_null_is_bool() {
 }
 
 #[test]
-fn mixed_minus_null_is_non_null_mixed() {
+fn mixed_minus_null_is_value_equal_to_non_null_mixed() {
     let cb = empty_world();
     let result = subtract_of(prelude::TYPE_MIXED, prelude::TYPE_NULL, &cb);
     let expected = u(mixed_nonnull());
-    assert_eq!(result, expected);
+    assert!(
+        refines_of(result, expected, &cb) && refines_of(expected, result, &cb),
+        "mixed \\ null should be value-equal to nonnull-mixed; got {result}, expected {expected}",
+    );
 }
 
 #[test]
