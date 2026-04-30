@@ -193,6 +193,7 @@ impl ElementId {
             name: mago_atom::atom(name),
             type_args: None,
             intersections: None,
+            excluded: None,
             flags: ObjectFlags::default(),
         };
         interner().intern_object(info)

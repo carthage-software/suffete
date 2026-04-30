@@ -96,25 +96,14 @@ fn gap_subtract_numeric_minus_int_yields_float_or_numeric_string() {
     );
 }
 
-// GAP 3: subtract for object descendants.
-//
-// `class A extends B`. `B \ A` should yield "B-instances that are not
-// also A-instances". This requires either a negation/exclusion marker
-// on `ObjectInfo` (e.g. an `excluded: Vec<Atom>` set) or a
-// `NotObject` element kind. Without such a representation, the
-// lattice cannot express "B except A" structurally; the subtract
-// returns identity and the meet correctly recovers A.
-//
-// Implementation plan:
-//   1. Extend `ObjectInfo` with `excluded: Option<ElementListId>`
-//      (a sorted list of nominal classes whose instances are
-//      excluded from this object's value-set).
-//   2. `subtract(B, A)` when A descends B → mark `excluded += A`.
-//   3. `refines(B excluded={A}, A)` → false; `meet(B excluded={A},
-//      A)` → never; `overlaps` likewise.
-//   4. Subsumption: B excluded={A,...} <: B (drop excluded).
+// CLOSED: `ObjectInfo.excluded` carries a sorted list of nominal
+// classes whose instances are removed from the object's value-set.
+// `src/subtract/mod.rs::object_descendant_minus` records the
+// exclusion; `src/lattice/family/object.rs::refines_named_named`,
+// `src/lattice/overlaps.rs::ancestor_excludes_descendant`, and
+// `src/meet/family/object.rs::reconcile_descendant_participants`
+// honor it on the consumer side.
 #[test]
-#[ignore = "algorithmic gap: needs ObjectInfo.excluded representation"]
 fn gap_subtract_b_minus_descendant_a_excludes_a_instances() {
     let mut w = MockWorld::new();
     w.declare("B");

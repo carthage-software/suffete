@@ -231,13 +231,19 @@ fn descendant_minus_ancestor_is_never() {
 }
 
 #[test]
-fn ancestor_minus_descendant_is_identity() {
+fn ancestor_minus_descendant_records_exclusion() {
     let cb = MockWorld::from_edges(&[("Dog", "Animal")]);
     let dog = u(t_named("Dog"));
     let animal = u(t_named("Animal"));
-    // Without a closed-world assumption, an `Animal` value might not be a `Dog`,
-    // so `Animal \ Dog` returns `Animal` unchanged.
-    assert_eq!(subtract_of(animal, dog, &cb), animal);
+    // `Animal \ Dog` records `Dog` in the result's `excluded`
+    // set: the surviving values are `Animal`-instances that are
+    // not also `Dog`-instances. The meet with `Dog` is therefore
+    // `never`, even though the structural display still names
+    // `Animal`.
+    let diff = subtract_of(animal, dog, &cb);
+    assert_ne!(diff, animal, "subtract should refine `Animal` rather than return identity");
+    let meet = suffete::meet::compute(diff, dog, &cb, LatticeOptions::default(), &mut LatticeReport::new());
+    assert_eq!(meet, prelude::TYPE_NEVER, "(Animal \\ Dog) ∩ Dog should be never");
 }
 
 #[test]

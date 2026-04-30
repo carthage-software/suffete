@@ -139,11 +139,14 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     let mut ranges: Vec<(Option<i64>, Option<i64>)> = containers
         .iter()
         .filter(|c| {
-            // Skip `UnspecifiedLiteral` containers: at the value level they
-            // span all ints, but the lattice keeps them distinct (refines
-            // doesn't accept `int <: literal-int`). Treating them as
-            // unbounded coverage would silently break that distinction.
-            c.kind() == ElementKind::Int && !matches!(*interner().get_int(**c), IntInfo::UnspecifiedLiteral)
+            // Skip `UnspecifiedLiteral` and `NonZero` containers: at
+            // the value level `UnspecifiedLiteral` spans every int
+            // and `NonZero` covers all but `{0}`, but neither is a
+            // single interval the bounds-based fan-out can reason
+            // about precisely. Treating them as unbounded coverage
+            // would falsely accept `int(0) <: non-zero-int`.
+            c.kind() == ElementKind::Int
+                && !matches!(*interner().get_int(**c), IntInfo::UnspecifiedLiteral | IntInfo::NonZero)
         })
         .map(|c| int_bounds_of(*c))
         .collect();
@@ -297,7 +300,7 @@ fn mixed_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
 
 fn int_bounds_of(elem: ElementId) -> (Option<i64>, Option<i64>) {
     match *interner().get_int(elem) {
-        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),
+        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral | IntInfo::NonZero => (None, None),
         IntInfo::Literal(n) => (Some(n), Some(n)),
         IntInfo::Range(rid) => {
             let r = *interner().get_int_range(rid);

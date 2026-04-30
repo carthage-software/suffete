@@ -286,9 +286,35 @@ fn object_overlap<W: World>(
         if !descendant_args_satisfy_ancestor(descendant, ancestor, world, options, report) {
             return false;
         }
+        // The ancestor's `excluded` set must not subsume the
+        // descendant: a value of the descendant whose nominal
+        // class lands in an excluded subtree falls out of the
+        // ancestor's value-set, so the intersection is empty.
+        if ancestor_excludes_descendant(ancestor, descendant, world) {
+            return false;
+        }
     }
 
     true
+}
+
+fn ancestor_excludes_descendant<W: World>(
+    ancestor: crate::element::payload::ObjectInfo,
+    descendant: crate::element::payload::ObjectInfo,
+    world: &W,
+) -> bool {
+    let Some(id) = ancestor.excluded else { return false };
+    let i = interner();
+    for &excluded_atom in i.get_element_list(id) {
+        if excluded_atom.kind() != ElementKind::Object {
+            continue;
+        }
+        let excluded_info = *i.get_object(excluded_atom);
+        if world.descends_from(descendant.name, excluded_info.name) {
+            return true;
+        }
+    }
+    false
 }
 
 fn descendant_args_satisfy_ancestor<W: World>(
@@ -315,10 +341,8 @@ fn descendant_args_satisfy_ancestor<W: World>(
         return true;
     }
 
-    let descendant_actuals: Vec<TypeId> = descendant
-        .type_args
-        .map(|id| i.get_type_list(id).to_vec())
-        .unwrap_or_default();
+    let descendant_actuals: Vec<TypeId> =
+        descendant.type_args.map(|id| i.get_type_list(id).to_vec()).unwrap_or_default();
 
     for (position, &ancestor_arg) in ancestor_args.iter().enumerate() {
         let Some(inherited) = world.inherited_template_argument(descendant.name, ancestor.name, position) else {
@@ -793,7 +817,7 @@ fn int_overlap(a: ElementId, b: ElementId) -> bool {
 
 fn int_bounds(info: IntInfo) -> (Option<i64>, Option<i64>) {
     match info {
-        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),
+        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral | IntInfo::NonZero => (None, None),
         IntInfo::Literal(n) => (Some(n), Some(n)),
         IntInfo::Range(range_id) => {
             let r = interner().get_int_range(range_id);

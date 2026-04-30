@@ -350,6 +350,7 @@ fn stdclass_type() -> TypeId {
         name: mago_atom::atom("stdClass"),
         type_args: None,
         intersections: None,
+        excluded: None,
         flags: ObjectFlags::default(),
     };
     singleton(i.intern_object(info))

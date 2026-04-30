@@ -263,18 +263,10 @@ fn family_atom_meet<W: World>(
         (ElementKind::ObjectShape, ElementKind::HasMethod | ElementKind::HasProperty) => Some(a),
         (ElementKind::HasMethod | ElementKind::HasProperty, ElementKind::ObjectShape) => Some(b),
 
-        (ElementKind::Iterable, ElementKind::Array) => {
-            family::array::iterable_array_meet(a, b, world, options, report)
-        }
-        (ElementKind::Array, ElementKind::Iterable) => {
-            family::array::iterable_array_meet(b, a, world, options, report)
-        }
-        (ElementKind::Iterable, ElementKind::List) => {
-            family::array::iterable_list_meet(a, b, world, options, report)
-        }
-        (ElementKind::List, ElementKind::Iterable) => {
-            family::array::iterable_list_meet(b, a, world, options, report)
-        }
+        (ElementKind::Iterable, ElementKind::Array) => family::array::iterable_array_meet(a, b, world, options, report),
+        (ElementKind::Array, ElementKind::Iterable) => family::array::iterable_array_meet(b, a, world, options, report),
+        (ElementKind::Iterable, ElementKind::List) => family::array::iterable_list_meet(a, b, world, options, report),
+        (ElementKind::List, ElementKind::Iterable) => family::array::iterable_list_meet(b, a, world, options, report),
 
         _ => None,
     }

@@ -94,6 +94,7 @@ fn intersection_types_descend_via_inspect() {
         name: atom("Marker"),
         type_args: Some(i.intern_type_list(&[u(inner_int_lit)])),
         intersections: None,
+        excluded: None,
         flags: ObjectFlags::default(),
     });
     let conjuncts = i.intern_element_list(&[inner_obj]);

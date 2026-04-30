@@ -61,7 +61,7 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
 /// ancestor is redundant — the descendant is strictly more
 /// specific — so we drop it from the merged list.
 fn reconcile_descendant_participants<W: World>(
-    merged: Vec<ElementId>,
+    mut merged: Vec<ElementId>,
     world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
@@ -92,11 +92,40 @@ fn reconcile_descendant_participants<W: World>(
             if !descendant_args_satisfy_ancestor(descendant_info, ancestor_info, world, options, report) {
                 return None;
             }
+            // If the ancestor explicitly excludes a class on the
+            // descendant's path (e.g. `B excluded={A}` met with `A`),
+            // the intersection is empty.
+            if ancestor_excludes_descendant(ancestor_info, descendant_info, world) {
+                return None;
+            }
+            // Descendant inherits the ancestor's `excluded` set on
+            // the way up so future meets can keep enforcing it.
+            if let Some(merged_excluded) = merge_excluded(descendant_info.excluded, ancestor_info.excluded)
+                && merged_excluded != descendant_info.excluded.unwrap_or(merged_excluded)
+            {
+                merged[descendant_idx] =
+                    i.intern_object(ObjectInfo { excluded: Some(merged_excluded), ..descendant_info });
+            }
             keep[ancestor_idx] = false;
         }
     }
 
     Some(merged.into_iter().zip(keep).filter_map(|(elem, k)| k.then_some(elem)).collect())
+}
+
+fn ancestor_excludes_descendant<W: World>(ancestor: ObjectInfo, descendant: ObjectInfo, world: &W) -> bool {
+    let Some(id) = ancestor.excluded else { return false };
+    let i = interner();
+    for &excluded_atom in i.get_element_list(id) {
+        if excluded_atom.kind() != ElementKind::Object {
+            continue;
+        }
+        let excluded_info = *i.get_object(excluded_atom);
+        if world.descends_from(descendant.name, excluded_info.name) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Project `descendant`'s view of `ancestor` through the world's
@@ -124,10 +153,8 @@ fn descendant_args_satisfy_ancestor<W: World>(
         return true;
     }
 
-    let descendant_actuals: Vec<TypeId> = descendant
-        .type_args
-        .map(|id| i.get_type_list(id).to_vec())
-        .unwrap_or_default();
+    let descendant_actuals: Vec<TypeId> =
+        descendant.type_args.map(|id| i.get_type_list(id).to_vec()).unwrap_or_default();
 
     for (position, &ancestor_arg) in ancestor_args.iter().enumerate() {
         let Some(inherited) = world.inherited_template_argument(descendant.name, ancestor.name, position) else {
@@ -289,6 +316,32 @@ fn single_inheritance_consistent<W: World>(objects: &[ElementId], world: &W) -> 
     true
 }
 
+/// Union the `excluded` lists from two same-class participants.
+/// `excluded` is monotonic — every participant constrains the
+/// nominal class away from a set of descendants, and the meet
+/// keeps every constraint. Empty lists drop, identical lists
+/// dedupe via the interner.
+fn merge_excluded(a: Option<crate::ElementListId>, b: Option<crate::ElementListId>) -> Option<crate::ElementListId> {
+    match (a, b) {
+        (None, None) => None,
+        (Some(id), None) | (None, Some(id)) => Some(id),
+        (Some(a_id), Some(b_id)) => {
+            if a_id == b_id {
+                return Some(a_id);
+            }
+            let i = interner();
+            let mut merged: Vec<ElementId> = i.get_element_list(a_id).to_vec();
+            for &elem in i.get_element_list(b_id) {
+                if !merged.contains(&elem) {
+                    merged.push(elem);
+                }
+            }
+            merged.sort();
+            Some(i.intern_element_list(&merged))
+        }
+    }
+}
+
 fn merge_same_class_participants<W: World>(
     participants: Vec<ElementId>,
     world: &W,
@@ -321,6 +374,7 @@ fn merge_same_class_participants<W: World>(
                 name: info.name,
                 type_args: merged_args,
                 intersections: None,
+                excluded: merge_excluded(existing.excluded, info.excluded),
                 flags: info.flags,
             });
             absorbed = true;
