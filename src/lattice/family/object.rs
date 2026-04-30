@@ -434,27 +434,12 @@ fn refines_named_named<W: World>(
         return false;
     }
 
-    // Container-side `excluded`: every nominal class in `excluded`
-    // (and its descendants) must NOT cover the input. If `input`
-    // descends from any excluded class, the input lands in the
-    // removed subtree and refines must reject.
-    if let Some(id) = container.excluded {
-        for &excluded_atom in interner().get_element_list(id) {
-            if excluded_atom.kind() != ElementKind::Object {
-                continue;
-            }
-            let excluded_info = *interner().get_object(excluded_atom);
-            if world.descends_from(input.name, excluded_info.name) {
-                return false;
-            }
-        }
-    }
-
-    // Input-side `excluded` is a refinement: an input `B
-    // excluded={A}` is a B-instance not in A. Since the value-set
-    // is a subset of B's, refines into a container B (or any of
-    // B's ancestors) holds whenever bare-B refines the container.
-    // Nothing extra to check beyond the standard variance logic.
+    // Negated conjuncts in the container's `intersections` are
+    // checked by the standard intersection-conjunct loop earlier in
+    // `refines` (each conjunct must accept the input), so the
+    // descendant-exclusion logic falls out for free here. Input-side
+    // negations likewise compose through the existing
+    // input-intersection rule.
 
     // Arity-0 reduction: a class the world declares with no template
     // parameters cannot meaningfully constrain anything via explicit

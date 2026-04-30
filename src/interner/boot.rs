@@ -66,7 +66,6 @@ impl Interner {
         debug_assert_eq!(self.intern_int(IntInfo::Literal(0)), INT_ZERO);
         debug_assert_eq!(self.intern_int(IntInfo::Literal(1)), INT_ONE);
         debug_assert_eq!(self.intern_int(IntInfo::Literal(-1)), INT_MINUS_ONE);
-        debug_assert_eq!(self.intern_int(IntInfo::NonZero), NON_ZERO_INT);
     }
 
     fn range_int(&self, lower: Option<i64>, upper: Option<i64>) -> IntInfo {

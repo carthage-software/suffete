@@ -160,38 +160,10 @@ fn subtract_narrow_narrowed_for_int_range_split() {
 }
 
 #[test]
-fn subtract_int_minus_zero_canonicalizes_to_non_zero_int() {
-    // `int \ int(0)` is the canonical "non-zero integer" form.
-    // Today's int range subtract would split into
-    // `negative-int | positive-int`; the new `IntInfo::NonZero`
-    // variant collapses that into a single atom.
+fn subtract_int_minus_zero_splits_into_negative_and_positive_ranges() {
     let r = subtract_narrow(prelude::TYPE_INT, u(t_lit_int(0)));
-    let expected = u(t_non_zero_int());
+    let expected = u_many(vec![t_negative_int(), t_positive_int()]);
     assert_eq!(r, SubtractOutcome::Narrowed(expected));
-}
-
-#[test]
-fn refines_non_zero_int_does_not_admit_zero() {
-    let nz = u(t_non_zero_int());
-    let lit_zero = u(t_lit_int(0));
-    let lit_one = u(t_lit_int(1));
-    let cb = empty_world();
-    assert!(!suffete::lattice::refines(lit_zero, nz, &cb, LatticeOptions::default(), &mut LatticeReport::new()));
-    assert!(suffete::lattice::refines(lit_one, nz, &cb, LatticeOptions::default(), &mut LatticeReport::new()));
-    assert!(suffete::lattice::refines(
-        u(t_positive_int()),
-        nz,
-        &cb,
-        LatticeOptions::default(),
-        &mut LatticeReport::new()
-    ));
-    assert!(suffete::lattice::refines(
-        u(t_negative_int()),
-        nz,
-        &cb,
-        LatticeOptions::default(),
-        &mut LatticeReport::new()
-    ));
 }
 
 #[test]

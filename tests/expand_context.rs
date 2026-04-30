@@ -23,7 +23,6 @@ fn t_object_with_flags(name: &str, is_static: bool, is_this: bool) -> ElementId 
         name: atom(name),
         type_args: None,
         intersections: None,
-        excluded: None,
         flags: ObjectFlags::default().with_is_static(is_static).with_is_this(is_this),
     })
 }

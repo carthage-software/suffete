@@ -35,6 +35,9 @@ pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOption
         return true;
     }
 
+    let a = expand_double_negation(a);
+    let b = expand_double_negation(b);
+
     let a_type = a.as_ref();
     let b_type = b.as_ref();
 
@@ -74,6 +77,41 @@ pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOption
 
             generic_parameter_union_covers(*input, b_type.elements, world, options, report)
         })
+}
+
+/// Expand `!!X` element shapes inside a union to `X`'s elements. The
+/// element-level intern collapses single-atom double negation, but
+/// multi-atom `T = a|b` survives as a `Negated(Negated(T))` outer
+/// element wrapping a single-atom-typed inner Negated. The lattice
+/// can't see through that without lifting back to the union, so we
+/// flatten here before any structural dispatch.
+fn expand_double_negation(t: TypeId) -> TypeId {
+    let elements = t.as_ref().elements;
+    if !elements.iter().any(is_double_negation) {
+        return t;
+    }
+    let i = interner();
+    let mut expanded: Vec<ElementId> = Vec::with_capacity(elements.len());
+    for &elem in elements {
+        if is_double_negation(&elem) {
+            let inner_neg = i.get_negated(elem);
+            let inner_elem = inner_neg.inner.as_ref().elements[0];
+            let inner_inner = i.get_negated(inner_elem).inner;
+            expanded.extend_from_slice(inner_inner.as_ref().elements);
+        } else {
+            expanded.push(elem);
+        }
+    }
+    i.intern_type(&expanded, FlowFlags::EMPTY)
+}
+
+fn is_double_negation(elem: &ElementId) -> bool {
+    if elem.kind() != ElementKind::Negated {
+        return false;
+    }
+    let i = interner();
+    let inner = i.get_negated(*elem).inner.as_ref().elements;
+    inner.len() == 1 && inner[0].kind() == ElementKind::Negated
 }
 
 /// True iff a single generic-parameter input `T extends X` is covered
@@ -139,14 +177,11 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     let mut ranges: Vec<(Option<i64>, Option<i64>)> = containers
         .iter()
         .filter(|c| {
-            // Skip `UnspecifiedLiteral` and `NonZero` containers: at
-            // the value level `UnspecifiedLiteral` spans every int
-            // and `NonZero` covers all but `{0}`, but neither is a
-            // single interval the bounds-based fan-out can reason
-            // about precisely. Treating them as unbounded coverage
-            // would falsely accept `int(0) <: non-zero-int`.
-            c.kind() == ElementKind::Int
-                && !matches!(*interner().get_int(**c), IntInfo::UnspecifiedLiteral | IntInfo::NonZero)
+            // Skip `UnspecifiedLiteral` containers: at the value level they
+            // span all ints, but the lattice keeps them distinct (refines
+            // doesn't accept `int <: literal-int`). Treating them as
+            // unbounded coverage would silently break that distinction.
+            c.kind() == ElementKind::Int && !matches!(*interner().get_int(**c), IntInfo::UnspecifiedLiteral)
         })
         .map(|c| int_bounds_of(*c))
         .collect();
@@ -300,7 +335,7 @@ fn mixed_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
 
 fn int_bounds_of(elem: ElementId) -> (Option<i64>, Option<i64>) {
     match *interner().get_int(elem) {
-        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral | IntInfo::NonZero => (None, None),
+        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),
         IntInfo::Literal(n) => (Some(n), Some(n)),
         IntInfo::Range(rid) => {
             let r = *interner().get_int_range(rid);
@@ -423,6 +458,12 @@ fn dispatch_refines<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
+    if input.kind() == ElementKind::Negated {
+        return family::negated::refines_input_negated(input, container, world, options, report);
+    }
+    if container.kind() == ElementKind::Negated {
+        return family::negated::refines_container_negated(input, container, world, options, report);
+    }
     match container.kind() {
         ElementKind::Bool => family::bool::refines(input, container),
         ElementKind::Resource => family::resource::refines(input, container),
@@ -457,6 +498,7 @@ fn dispatch_refines<W: World>(
         | ElementKind::Placeholder
         | ElementKind::True
         | ElementKind::False => false,
+        ElementKind::Negated => unreachable!("handled above"),
     }
 }
 

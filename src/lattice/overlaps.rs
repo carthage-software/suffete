@@ -98,6 +98,27 @@ fn element_overlaps<W: World>(
         return overlaps(constraint, other, world, options, report);
     }
 
+    // `!T` overlaps `X` iff `X \ T ≢ ⊥` (some `X` value is outside
+    // `T`). Sound conservative path: we ask the subtract side, which
+    // rejects when `X <: T` and otherwise produces the surviving
+    // pieces; if any survive, an overlap exists.
+    if a.kind() == ElementKind::Negated || b.kind() == ElementKind::Negated {
+        let (negated, other) = if a.kind() == ElementKind::Negated { (a, b) } else { (b, a) };
+        let i = interner();
+        if other.kind() == ElementKind::Negated {
+            // `!T ∩ !U` is non-empty iff `T ∪ U ≢ mixed`. Without
+            // exhaustive `mixed` enumeration we answer optimistically
+            // true unless one side strictly refines the other (which
+            // collapses one of the negations to the more general
+            // form, leaving a non-empty complement).
+            return true;
+        }
+        let neg_info = *i.get_negated(negated);
+        let other_t = i.intern_type(&[other], FlowFlags::EMPTY);
+        let surviving = crate::subtract::compute(other_t, neg_info.inner, world, options, report);
+        return surviving != crate::prelude::TYPE_NEVER;
+    }
+
     if a.kind() == ElementKind::Object && b.kind() == ElementKind::Object {
         return object_overlap(a, b, world, options, report);
     }
@@ -286,35 +307,36 @@ fn object_overlap<W: World>(
         if !descendant_args_satisfy_ancestor(descendant, ancestor, world, options, report) {
             return false;
         }
-        // The ancestor's `excluded` set must not subsume the
-        // descendant: a value of the descendant whose nominal
-        // class lands in an excluded subtree falls out of the
-        // ancestor's value-set, so the intersection is empty.
-        if ancestor_excludes_descendant(ancestor, descendant, world) {
-            return false;
+        // Any `Negated` conjunct on the ancestor that subsumes the
+        // descendant's nominal class makes the intersection
+        // uninhabited: the ancestor's value-set rules out every
+        // class in the descendant's subtree.
+        if let Some(id) = ancestor.intersections {
+            let i = interner();
+            for &conjunct in i.get_element_list(id) {
+                if conjunct.kind() != ElementKind::Negated {
+                    continue;
+                }
+                let neg_info = *i.get_negated(conjunct);
+                let inner_elements = neg_info.inner.as_ref().elements;
+                let inner_covers_descendant = inner_elements.iter().any(|&inner| {
+                    if inner.kind() != ElementKind::Object {
+                        return false;
+                    }
+                    let inner_info = *i.get_object(inner);
+                    if inner_info.intersections.is_some() {
+                        return false;
+                    }
+                    world.descends_from(descendant.name, inner_info.name)
+                });
+                if inner_covers_descendant {
+                    return false;
+                }
+            }
         }
     }
 
     true
-}
-
-fn ancestor_excludes_descendant<W: World>(
-    ancestor: crate::element::payload::ObjectInfo,
-    descendant: crate::element::payload::ObjectInfo,
-    world: &W,
-) -> bool {
-    let Some(id) = ancestor.excluded else { return false };
-    let i = interner();
-    for &excluded_atom in i.get_element_list(id) {
-        if excluded_atom.kind() != ElementKind::Object {
-            continue;
-        }
-        let excluded_info = *i.get_object(excluded_atom);
-        if world.descends_from(descendant.name, excluded_info.name) {
-            return true;
-        }
-    }
-    false
 }
 
 fn descendant_args_satisfy_ancestor<W: World>(
@@ -817,7 +839,7 @@ fn int_overlap(a: ElementId, b: ElementId) -> bool {
 
 fn int_bounds(info: IntInfo) -> (Option<i64>, Option<i64>) {
     match info {
-        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral | IntInfo::NonZero => (None, None),
+        IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),
         IntInfo::Literal(n) => (Some(n), Some(n)),
         IntInfo::Range(range_id) => {
             let r = interner().get_int_range(range_id);

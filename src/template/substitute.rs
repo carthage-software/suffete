@@ -154,7 +154,6 @@ mod tests {
                 name: mago_atom::atom("Container"),
                 type_args: Some(interner().intern_type_list(&[t_ty])),
                 intersections: None,
-                excluded: None,
                 flags: crate::element::payload::ObjectFlags::default(),
             };
             ty_of(interner().intern_object(info))
@@ -165,7 +164,6 @@ mod tests {
                 name: mago_atom::atom("Container"),
                 type_args: Some(interner().intern_type_list(&[TYPE_INT])),
                 intersections: None,
-                excluded: None,
                 flags: crate::element::payload::ObjectFlags::default(),
             };
             ty_of(interner().intern_object(info))
@@ -225,7 +223,6 @@ mod tests {
                 name: mago_atom::atom("Container"),
                 type_args: Some(interner().intern_type_list(&[list_t_ty])),
                 intersections: None,
-                excluded: None,
                 flags: crate::element::payload::ObjectFlags::default(),
             };
             ty_of(interner().intern_object(info))
@@ -237,7 +234,6 @@ mod tests {
                 name: mago_atom::atom("Container"),
                 type_args: Some(interner().intern_type_list(&[list_int_ty])),
                 intersections: None,
-                excluded: None,
                 flags: crate::element::payload::ObjectFlags::default(),
             };
             ty_of(interner().intern_object(info))

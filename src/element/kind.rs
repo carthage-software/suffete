@@ -43,6 +43,9 @@ pub enum ElementKind {
     Conditional,
     Derived,
     ObjectAny,
+    /// `!T`, the complement of `T` against the universal type
+    /// (`mixed`). Carries a single inner [`TypeId`].
+    Negated,
 }
 
 impl ElementKind {

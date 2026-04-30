@@ -134,6 +134,7 @@ impl ElementId {
             ElementKind::Alias => Element::Alias(i.get_alias(self)),
             ElementKind::Conditional => Element::Conditional(i.get_conditional(self)),
             ElementKind::Derived => Element::Derived(i.get_derived(self)),
+            ElementKind::Negated => Element::Negated(i.get_negated(self)),
         }
     }
 
@@ -193,7 +194,6 @@ impl ElementId {
             name: mago_atom::atom(name),
             type_args: None,
             intersections: None,
-            excluded: None,
             flags: ObjectFlags::default(),
         };
         interner().intern_object(info)
@@ -203,6 +203,12 @@ impl ElementId {
     pub fn enum_any(name: &str) -> Self {
         let info = EnumInfo { name: mago_atom::atom(name), case: None };
         interner().intern_enum(info)
+    }
+
+    /// Intern `!T` (the complement of `T` against `mixed`). Universal
+    /// collapses (`!never → mixed`, `!mixed → never`) fire at intern.
+    pub fn negated(inner: TypeId) -> Self {
+        interner().intern_negated(crate::element::payload::NegatedInfo { inner })
     }
 
     /// Intern an enum-case element (`name::case`).

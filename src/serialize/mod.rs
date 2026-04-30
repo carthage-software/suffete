@@ -207,6 +207,9 @@ pub enum SerializableElement {
     },
     Derived(SerializableDerived),
     ObjectAny,
+    Negated {
+        inner: SerializableType,
+    },
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -226,7 +229,6 @@ pub enum SerializableInt {
     UnspecifiedLiteral,
     Literal(i64),
     Range { lower: Option<i64>, upper: Option<i64> },
-    NonZero,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -655,6 +657,10 @@ fn encode_element(elem: ElementId) -> SerializableElement {
             }
         }
         ElementKind::Derived => SerializableElement::Derived(encode_derived(*i.get_derived(elem))),
+        ElementKind::Negated => {
+            let info = *i.get_negated(elem);
+            SerializableElement::Negated { inner: encode_type(info.inner) }
+        }
     }
 }
 
@@ -686,7 +692,6 @@ fn encode_int(info: IntInfo) -> SerializableInt {
             let r = interner().get_int_range(rid);
             SerializableInt::Range { lower: r.lower(), upper: r.upper() }
         }
-        IntInfo::NonZero => SerializableInt::NonZero,
     }
 }
 
@@ -893,13 +898,7 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
                 .with_is_static(*is_static)
                 .with_is_this(*is_this)
                 .with_remapped_parameters(*remapped_parameters);
-            i.intern_object(ObjectInfo {
-                name: *name,
-                type_args: type_args_id,
-                intersections: intersections_id,
-                excluded: None,
-                flags,
-            })
+            i.intern_object(ObjectInfo { name: *name, type_args: type_args_id, intersections: intersections_id, flags })
         }
         SerializableElement::Enum { name, case } => i.intern_enum(EnumInfo { name: *name, case: *case }),
         SerializableElement::ObjectShape { known_properties, intersections, sealed } => {
@@ -1020,6 +1019,7 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
             })
         }
         SerializableElement::Derived(d) => i.intern_derived(decode_derived(d)),
+        SerializableElement::Negated { inner } => ElementId::negated(decode_type(inner)),
     }
 }
 
@@ -1040,7 +1040,6 @@ fn decode_int(s: SerializableInt) -> IntInfo {
             let id = interner().intern_int_range(IntRange::new(lower, upper));
             IntInfo::Range(id)
         }
-        SerializableInt::NonZero => IntInfo::NonZero,
     }
 }
 

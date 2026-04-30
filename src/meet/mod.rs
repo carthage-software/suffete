@@ -108,6 +108,10 @@ pub fn narrow<W: World>(
     let mut atoms: Vec<ElementId> = Vec::new();
     for &x in input_type.elements.iter() {
         for &y in narrowing_type.elements.iter() {
+            if x.kind() == ElementKind::Negated || y.kind() == ElementKind::Negated {
+                atoms.extend(negated_atom_meet_multi(x, y, world, options, report));
+                continue;
+            }
             if let Some(m) = atom_meet(x, y, world, options, report) {
                 atoms.push(m);
             }
@@ -170,6 +174,18 @@ fn atom_meet<W: World>(
         return None;
     }
 
+    // `meet(X, !T)` ≡ `subtract(X, T)`: route through subtract so
+    // `Negated` participation flows through the existing per-kind
+    // subtract rules. The symmetric case mirrors. `meet(!T, !U)` =
+    // `!(T ∪ U)`, expressed by interning the negation of the union.
+    // `narrow` handles the multi-atom case directly via
+    // [`negated_atom_meet_multi`]; this single-atom path is reached
+    // only from internal callers and conservatively drops when the
+    // result needs more than one atom.
+    if a.kind() == ElementKind::Negated || b.kind() == ElementKind::Negated {
+        return negated_atom_meet(a, b, world, options, report);
+    }
+
     let i = interner();
     let a_t = i.intern_type(&[a], FlowFlags::EMPTY);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
@@ -185,6 +201,80 @@ fn atom_meet<W: World>(
     }
 
     family_atom_meet(a, b, world, options, report)
+}
+
+/// Multi-atom variant of [`negated_atom_meet`] used by [`narrow`].
+/// Produces every atom in the meet without forcing a single-atom
+/// representation, so `meet(non-negative-int, !int(1))` correctly
+/// yields `[int(0), int<2,∞>]` instead of dropping to `None`.
+fn negated_atom_meet_multi<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Vec<ElementId> {
+    let i = interner();
+    if a.kind() == ElementKind::Negated && b.kind() == ElementKind::Negated {
+        let a_info = *i.get_negated(a);
+        let b_info = *i.get_negated(b);
+        let mut union_elems: Vec<ElementId> = a_info.inner.as_ref().elements.to_vec();
+        union_elems.extend_from_slice(b_info.inner.as_ref().elements);
+        let union_ty = i.intern_type(&union_elems, FlowFlags::EMPTY);
+        return vec![ElementId::negated(union_ty)];
+    }
+
+    let (positive, negated_atom) = if a.kind() == ElementKind::Negated { (b, a) } else { (a, b) };
+    let neg_info = *i.get_negated(negated_atom);
+    let positive_t = i.intern_type(&[positive], FlowFlags::EMPTY);
+    let surviving = crate::subtract::compute(positive_t, neg_info.inner, world, options, report);
+    if surviving == crate::prelude::TYPE_NEVER {
+        return Vec::new();
+    }
+    surviving.as_ref().elements.to_vec()
+}
+
+/// `meet` with a `Negated` participant. `meet(X, !T)` ≡
+/// `subtract(X, T)`; `meet(!T, !U)` ≡ `!(T ∪ U)`. Returning a single
+/// `ElementId` constrains the surviving form: when `subtract`
+/// produces multiple atoms (e.g. `int \ int(0) → negative-int |
+/// positive-int`), we union them under a single negated atom only
+/// when both operands were negated; otherwise we conservatively
+/// drop to `None` and let the caller (via the loop in `narrow`)
+/// fall back through other meet pairs. A future refactor of
+/// `atom_meet` to return `Vec<ElementId>` would make this exact.
+fn negated_atom_meet<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<ElementId> {
+    let i = interner();
+    if a.kind() == ElementKind::Negated && b.kind() == ElementKind::Negated {
+        let a_info = *i.get_negated(a);
+        let b_info = *i.get_negated(b);
+        let mut union_elems: Vec<ElementId> = a_info.inner.as_ref().elements.to_vec();
+        union_elems.extend_from_slice(b_info.inner.as_ref().elements);
+        let union_ty = i.intern_type(&union_elems, FlowFlags::EMPTY);
+        return Some(ElementId::negated(union_ty));
+    }
+
+    let (positive, negated_atom) = if a.kind() == ElementKind::Negated { (b, a) } else { (a, b) };
+    let neg_info = *i.get_negated(negated_atom);
+    let positive_t = i.intern_type(&[positive], FlowFlags::EMPTY);
+    let surviving = crate::subtract::compute(positive_t, neg_info.inner, world, options, report);
+    let elements = surviving.as_ref().elements;
+    if elements.is_empty() || surviving == crate::prelude::TYPE_NEVER {
+        return None;
+    }
+    if elements.len() == 1 {
+        return Some(elements[0]);
+    }
+    // Multi-atom subtract result can't fit a single-atom return.
+    // Conservative drop; the surviving values still flow through
+    // the wider `subtract` API for non-meet uses.
+    None
 }
 
 /// `Foo & Bar` is uninhabited when finality witnesses no value can

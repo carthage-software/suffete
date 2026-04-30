@@ -5,24 +5,19 @@ use mago_atom::Atom;
 use crate::ElementListId;
 use crate::TypeListId;
 
-/// `Foo`, `Foo<int>`, `Foo&Bar`, `static`, `$this`, and the
-/// post-subtract form `Foo` excluding instances of named descendants.
+/// `Foo`, `Foo<int>`, `Foo&Bar`, `static`, `$this`.
 ///
-/// `type_args`, `intersections`, and `excluded` are interned slice
-/// handles so two object elements with the same shape share storage.
-///
-/// `excluded` carries a sorted list of bare-named `Object` atoms: a
-/// value satisfies `Foo excluded={A, B}` iff it is a `Foo` runtime
-/// instance whose nominal class is *not* `A` or any descendant of
-/// `A` (and likewise for `B`). The list is `None` for an
-/// unrestricted `Foo`. Subtract produces the form, refines /
-/// overlaps / meet consult it as a downward refinement.
+/// `type_args` and `intersections` are interned slice handles so two
+/// object elements with the same nominal class + same generic args
+/// share storage. Post-subtract narrowing of the form "Foo except
+/// instances of D" is expressed as a `Negated(D)` conjunct inside
+/// `intersections`, not via a dedicated `excluded` field — see
+/// [`crate::element::payload::NegatedInfo`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ObjectInfo {
     pub name: Atom,
     pub type_args: Option<TypeListId>,
     pub intersections: Option<ElementListId>,
-    pub excluded: Option<ElementListId>,
     pub flags: ObjectFlags,
 }
 

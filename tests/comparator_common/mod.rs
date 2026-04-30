@@ -590,9 +590,6 @@ pub fn t_int_unspec_lit() -> ElementId {
 pub fn t_positive_int() -> ElementId {
     prelude::POSITIVE_INT
 }
-pub fn t_non_zero_int() -> ElementId {
-    prelude::NON_ZERO_INT
-}
 pub fn t_negative_int() -> ElementId {
     prelude::NEGATIVE_INT
 }
@@ -719,7 +716,6 @@ pub fn t_generic_named(name: &str, args: Vec<TypeId>) -> ElementId {
         name: atom(name),
         type_args: Some(i.intern_type_list(&args)),
         intersections: None,
-        excluded: None,
         flags: ObjectFlags::default(),
     };
     i.intern_object(info)
@@ -734,7 +730,6 @@ pub fn t_named_intersected(head: &str, conjuncts: &[ElementId]) -> ElementId {
         name: atom(head),
         type_args: None,
         intersections: Some(i.intern_element_list(conjuncts)),
-        excluded: None,
         flags: ObjectFlags::default(),
     };
     i.intern_object(info)
@@ -749,7 +744,6 @@ pub fn t_named_static(name: &str) -> ElementId {
         name: atom(name),
         type_args: None,
         intersections: None,
-        excluded: None,
         flags: ObjectFlags::default().with_is_static(true),
     };
     i.intern_object(info)
@@ -791,7 +785,6 @@ pub fn t_named_this(name: &str) -> ElementId {
         name: atom(name),
         type_args: None,
         intersections: None,
-        excluded: None,
         flags: ObjectFlags::default().with_is_static(true).with_is_this(true),
     };
     i.intern_object(info)

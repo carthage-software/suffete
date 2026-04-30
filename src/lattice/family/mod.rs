@@ -25,6 +25,7 @@ pub mod generic;
 pub mod int;
 pub mod iterable;
 pub mod mixed;
+pub mod negated;
 pub mod numeric;
 pub mod object;
 pub mod reference;

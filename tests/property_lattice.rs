@@ -1217,4 +1217,81 @@ proptest! {
         let cross = meet_of(m, s, &world);
         prop_assert_eq!(cross, prelude::TYPE_NEVER, "meet(a,b) ∩ (a\\b) should be NEVER\n  a={}\n  b={}\n  m={}\n  s={}", a, b, m, s);
     }
+
+    #[test]
+    fn negated_meet_with_self_is_never((world, a) in arb_world_and_type()) {
+        if type_has_imprecise_atom(a) || type_is_value_never(a, &world) {
+            return Ok(());
+        }
+        let m = meet_of(a, neg_of(a), &world);
+        prop_assert_eq!(
+            m,
+            prelude::TYPE_NEVER,
+            "meet(T, !T) should be NEVER\n  T={}\n  !T={}\n  m={}",
+            a,
+            neg_of(a),
+            m,
+        );
+    }
+
+    #[test]
+    fn negated_meet_equals_subtract((world, a, b) in arb_world_and_pair()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+        let lhs = meet_of(a, neg_of(b), &world);
+        let rhs = subtract_of(a, b, &world);
+        prop_assert!(
+            does_refine(lhs, rhs, &world) && does_refine(rhs, lhs, &world),
+            "meet(a, !b) ≡ subtract(a, b)\n  a={a}\n  b={b}\n  lhs={lhs}\n  rhs={rhs}",
+        );
+    }
+
+    #[test]
+    fn negated_subtract_equals_meet((world, a, b) in arb_world_and_pair()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) {
+            return Ok(());
+        }
+        let lhs = subtract_of(a, neg_of(b), &world);
+        let rhs = meet_of(a, b, &world);
+        prop_assert!(
+            does_refine(lhs, rhs, &world) && does_refine(rhs, lhs, &world),
+            "subtract(a, !b) ≡ meet(a, b)\n  a={a}\n  b={b}\n  lhs={lhs}\n  rhs={rhs}",
+        );
+    }
+
+    #[test]
+    fn double_negation_value_equal((world, a) in arb_world_and_type()) {
+        if type_has_imprecise_atom(a) {
+            return Ok(());
+        }
+        let dn = neg_of(neg_of(a));
+        prop_assert!(
+            does_refine(a, dn, &world) && does_refine(dn, a, &world),
+            "!!T ≡ T value-wise\n  T={a}\n  !!T={dn}",
+        );
+    }
+
+    #[test]
+    fn negated_refines_iff_no_overlap((world, a, b) in arb_world_and_pair()) {
+        if type_has_imprecise_atom(a) || type_has_imprecise_atom(b) || type_is_value_never(a, &world) {
+            return Ok(());
+        }
+        let nb = neg_of(b);
+        let refines_neg = does_refine(a, nb, &world);
+        let no_overlap = !does_overlap(a, b, &world);
+        if refines_neg != no_overlap {
+            prop_assert_eq!(
+                refines_neg,
+                no_overlap,
+                "X <: !T iff !overlaps(X, T)\n  X={}\n  T={}\n  !T={}\n  refines={}\n  no_overlap={}",
+                a, b, nb, refines_neg, no_overlap,
+            );
+        }
+    }
+}
+
+fn neg_of(t: TypeId) -> TypeId {
+    let neg = suffete::ElementId::negated(t);
+    interner().intern_type(&[neg], FlowFlags::EMPTY)
 }

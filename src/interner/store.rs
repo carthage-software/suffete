@@ -34,6 +34,7 @@ use crate::element::payload::KnownPropertyEntry;
 use crate::element::payload::ListInfo;
 use crate::element::payload::MemberReference;
 use crate::element::payload::MixedInfo;
+use crate::element::payload::NegatedInfo;
 use crate::element::payload::ObjectInfo;
 use crate::element::payload::ObjectShapeInfo;
 use crate::element::payload::ParamInfo;
@@ -84,6 +85,7 @@ pub struct Interner {
     alias: Arena<AliasInfo>,
     conditional: Arena<ConditionalInfo>,
     derived: Arena<DerivedInfo>,
+    negated: Arena<NegatedInfo>,
     int_range: Arena<IntRange>,
     defining_entity: Arena<DefiningEntity>,
     signature: Arena<Signature>,
@@ -126,6 +128,7 @@ impl Interner {
             alias: Arena::new(),
             conditional: Arena::new(),
             derived: Arena::new(),
+            negated: Arena::new(),
             int_range: Arena::new(),
             defining_entity: Arena::new(),
             signature: Arena::new(),
@@ -252,6 +255,29 @@ element_arena_methods! {
     Alias,            alias,             AliasInfo,            intern_alias,             get_alias;
     Conditional,      conditional,       ConditionalInfo,      intern_conditional,       get_conditional;
     Derived,          derived,           DerivedInfo,          intern_derived,           get_derived;
+    Negated,          negated,           NegatedInfo,          intern_negated_raw,       get_negated;
+}
+
+impl Interner {
+    pub fn intern_negated(&self, info: NegatedInfo) -> ElementId {
+        if info.inner == crate::prelude::TYPE_NEVER {
+            return crate::prelude::MIXED;
+        }
+
+        if info.inner == crate::prelude::TYPE_MIXED {
+            return crate::prelude::NEVER;
+        }
+
+        let outer_elements = info.inner.as_ref().elements;
+        if outer_elements.len() == 1 && outer_elements[0].kind() == crate::ElementKind::Negated {
+            let inner_inner = self.get_negated(outer_elements[0]).inner.as_ref().elements;
+            if inner_inner.len() == 1 {
+                return inner_inner[0];
+            }
+        }
+
+        self.intern_negated_raw(info)
+    }
 }
 
 macro_rules! side_table_methods {

@@ -13,16 +13,14 @@ define_handle! {
     IntRangeId
 }
 
-/// `int`, `literal-int`, integer literals, bounded integer ranges, and
-/// the open `non-zero-int` form.
+/// `int`, `literal-int`, integer literals, and bounded integer ranges.
 ///
 /// `Range` carries an [`IntRangeId`] handle (not the bounds inline) so this
 /// enum stays at 16 bytes per slot. Most ranges in real worlds are
-/// well-known (`positive-int`, ...) and dedupe to one entry in the
-/// `IntRange` interner. `NonZero` is its own variant rather than a
-/// pair of ranges because its value-set (`int \ {0}`) is not a single
-/// interval and the lattice should answer refines / overlaps queries
-/// directly without splitting into two atoms.
+/// well-known (`positive-int`, …) and dedupe to one entry in the
+/// `IntRange` interner. Open complements like `int \ int(0)` are
+/// expressed via the universal [`NegatedInfo`](crate::element::payload::NegatedInfo)
+/// machinery (`int & !int(0)`) rather than a dedicated variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum IntInfo {
@@ -30,7 +28,6 @@ pub enum IntInfo {
     UnspecifiedLiteral,
     Literal(i64),
     Range(IntRangeId),
-    NonZero,
 }
 
 /// A bounded integer range. Either bound may be open (±∞), recorded in
@@ -127,7 +124,6 @@ impl Display for IntInfo {
             IntInfo::UnspecifiedLiteral => f.write_str("literal-int"),
             IntInfo::Literal(n) => write!(f, "int({n})"),
             IntInfo::Range(rid) => Display::fmt(interner().get_int_range(*rid), f),
-            IntInfo::NonZero => f.write_str("non-zero-int"),
         }
     }
 }

@@ -186,6 +186,30 @@ fn atom_minus<W: World>(
         return Vec::new();
     }
 
+    // `subtract(X, !T)` ≡ `meet(X, T)`: removing "everything but T"
+    // keeps the part of X that lands inside T. `subtract(!T, X)`
+    // ≡ `!(T ∪ X)` (push X into the negation). Routing here keeps
+    // the duality with meet symmetric and lets the existing meet
+    // rules carry the work.
+    if b.kind() == ElementKind::Negated {
+        let neg_info = *interner().get_negated(b);
+        let kept = crate::meet::compute(
+            interner().intern_type(&[a], FlowFlags::EMPTY),
+            neg_info.inner,
+            world,
+            options,
+            report,
+        );
+        return kept.as_ref().elements.to_vec();
+    }
+    if a.kind() == ElementKind::Negated {
+        let neg_info = *interner().get_negated(a);
+        let mut union_elems: Vec<ElementId> = neg_info.inner.as_ref().elements.to_vec();
+        union_elems.push(b);
+        let union_ty = interner().intern_type(&union_elems, FlowFlags::EMPTY);
+        return vec![ElementId::negated(union_ty)];
+    }
+
     let i = interner();
     let a_t = i.intern_type(&[a], FlowFlags::EMPTY);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
@@ -214,15 +238,18 @@ fn atom_minus<W: World>(
 }
 
 /// `Object \ Object` when the right-hand side is a strict descendant
-/// of the left. The result records the descendant in `excluded` so
+/// of the left. The result records the descendant as a `Negated`
+/// conjunct in the surviving object's `intersections` list, so
 /// downstream `meet`, `refines`, and `overlaps` know to rule out
-/// values whose nominal class falls inside the excluded subtree.
+/// values whose nominal class falls inside the excluded subtree
+/// without bespoke handling — the existing intersection rules carry
+/// the work.
 ///
-/// Only fires when `b` is a bare nominal class (no `type_args`,
-/// `intersections`, or `excluded`): the lattice can express
-/// "B except A's instances" but not "B except A<int>'s instances"
-/// without further extension. When `a` already has `b` (or an
-/// ancestor of `b`) in its `excluded` set, returns identity.
+/// Only fires when `b` is a bare nominal class (no `type_args` or
+/// `intersections`): the lattice can express "B except A's
+/// instances" but not "B except A<int>'s instances" without further
+/// extension. When `a` already has `b` (or an ancestor of `b`)
+/// negated in its intersections, returns identity.
 fn object_descendant_minus<W: World>(a: ElementId, b: ElementId, world: &W) -> Option<Vec<ElementId>> {
     if a.kind() != ElementKind::Object || b.kind() != ElementKind::Object {
         return None;
@@ -231,7 +258,7 @@ fn object_descendant_minus<W: World>(a: ElementId, b: ElementId, world: &W) -> O
     let a_info = *i.get_object(a);
     let b_info = *i.get_object(b);
 
-    if b_info.type_args.is_some() || b_info.intersections.is_some() || b_info.excluded.is_some() {
+    if b_info.type_args.is_some() || b_info.intersections.is_some() {
         return None;
     }
     if a_info.name == b_info.name {
@@ -241,26 +268,33 @@ fn object_descendant_minus<W: World>(a: ElementId, b: ElementId, world: &W) -> O
         return None;
     }
 
-    let bare_b = i.intern_object(crate::element::payload::ObjectInfo { intersections: None, excluded: None, ..b_info });
+    let bare_b = i.intern_object(crate::element::payload::ObjectInfo { intersections: None, ..b_info });
+    let bare_b_ty = i.intern_type(&[bare_b], FlowFlags::EMPTY);
+    let new_negated = ElementId::negated(bare_b_ty);
 
-    let mut excluded: Vec<ElementId> = Vec::new();
-    if let Some(id) = a_info.excluded {
+    let mut conjuncts: Vec<ElementId> = Vec::new();
+    if let Some(id) = a_info.intersections {
         for &existing in i.get_element_list(id) {
-            if existing.kind() == ElementKind::Object {
-                let existing_info = *i.get_object(existing);
-                if world.descends_from(b_info.name, existing_info.name) {
-                    return Some(vec![a]);
+            if existing.kind() == ElementKind::Negated {
+                let neg_info = *i.get_negated(existing);
+                let inner_elements = neg_info.inner.as_ref().elements;
+                if inner_elements.len() == 1 && inner_elements[0].kind() == ElementKind::Object {
+                    let existing_info = *i.get_object(inner_elements[0]);
+                    if world.descends_from(b_info.name, existing_info.name) {
+                        return Some(vec![a]);
+                    }
                 }
             }
-            excluded.push(existing);
+            conjuncts.push(existing);
         }
     }
-    if !excluded.contains(&bare_b) {
-        excluded.push(bare_b);
+    if !conjuncts.contains(&new_negated) {
+        conjuncts.push(new_negated);
     }
-    excluded.sort();
+    conjuncts.sort();
 
-    let new_info = crate::element::payload::ObjectInfo { excluded: Some(i.intern_element_list(&excluded)), ..a_info };
+    let new_info =
+        crate::element::payload::ObjectInfo { intersections: Some(i.intern_element_list(&conjuncts)), ..a_info };
     Some(vec![i.intern_object(new_info)])
 }
 
@@ -431,62 +465,10 @@ fn string_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
 /// Difference of two integer atoms when neither side fully refines the
 /// other. Produces 0, 1, or 2 surviving pieces, each of which is a
 /// `Range` collapsed to a `Literal` when its bounds coincide.
-///
-/// Two `NonZero` shortcuts fire before the bounds-based split:
-///
-/// - `int \ int(0)` (broad `int` minus the zero literal) collapses to
-///   the canonical `non-zero-int` atom rather than the
-///   `negative-int | positive-int` two-piece split.
-/// - `non-zero-int \ int(0)` is identity (zero is already excluded).
 fn int_minus(a: ElementId, b: ElementId) -> Vec<ElementId> {
     let i = interner();
-    let a_info = *i.get_int(a);
-    let b_info = *i.get_int(b);
-
-    if matches!(a_info, IntInfo::Unspecified) && matches!(b_info, IntInfo::Literal(0)) {
-        return vec![crate::prelude::NON_ZERO_INT];
-    }
-    if matches!(a_info, IntInfo::NonZero) {
-        return match b_info {
-            IntInfo::Literal(0) => vec![a],
-            IntInfo::Range(rid) => {
-                let r = *i.get_int_range(rid);
-                if matches!(r.lower(), Some(0)) && matches!(r.upper(), Some(0)) { vec![a] } else { vec![a] }
-            }
-            // Subtracting any other concrete int from `non-zero-int`
-            // would leave "non-zero-int except {n}" — not a single
-            // representable atom, so the lattice keeps `non-zero-int`
-            // unchanged (sound; loses one literal of precision).
-            _ => vec![a],
-        };
-    }
-    if matches!(b_info, IntInfo::NonZero) {
-        // a \ non-zero-int: every value of `a` except the non-zero
-        // ones survives. The only int value not in `non-zero-int`
-        // is `0`, so the result is `a ∩ {0}` — which we read off
-        // `a`'s bounds.
-        return match a_info {
-            IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => vec![ElementId::int_literal(0)],
-            IntInfo::Literal(0) => vec![a],
-            IntInfo::Literal(_) => Vec::new(),
-            IntInfo::Range(rid) => {
-                let r = *i.get_int_range(rid);
-                let lo = r.lower();
-                let hi = r.upper();
-                let contains_zero = match (lo, hi) {
-                    (Some(l), Some(h)) => l <= 0 && 0 <= h,
-                    (Some(l), None) => l <= 0,
-                    (None, Some(h)) => 0 <= h,
-                    (None, None) => true,
-                };
-                if contains_zero { vec![ElementId::int_literal(0)] } else { Vec::new() }
-            }
-            IntInfo::NonZero => Vec::new(),
-        };
-    }
-
-    let (alo, ahi) = int_bounds(a_info);
-    let (blo, bhi) = int_bounds(b_info);
+    let (alo, ahi) = int_bounds(*i.get_int(a));
+    let (blo, bhi) = int_bounds(*i.get_int(b));
 
     let mut pieces: Vec<ElementId> = Vec::new();
 
@@ -543,11 +525,6 @@ fn int_bounds(info: IntInfo) -> (Option<i64>, Option<i64>) {
             let r = interner().get_int_range(range_id);
             (r.lower(), r.upper())
         }
-        // `NonZero` is routed through the shortcut at the top of
-        // `int_minus` and never reaches the bounds-based path. Its
-        // value-set isn't a single interval, so the open-open
-        // sentinel is just a placeholder.
-        IntInfo::NonZero => (None, None),
     }
 }
 

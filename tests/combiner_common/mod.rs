@@ -333,7 +333,6 @@ pub fn t_generic_named(name: &str, args: Vec<TypeId>) -> ElementId {
         name: atom(name),
         type_args: Some(i.intern_type_list(&args)),
         intersections: None,
-        excluded: None,
         flags: ObjectFlags::default(),
     };
     i.intern_object(info)

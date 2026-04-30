@@ -57,7 +57,6 @@ pub const LITERAL_INT: ElementId = ElementId::new(ElementKind::Int, 5);
 pub const INT_ZERO: ElementId = ElementId::new(ElementKind::Int, 6);
 pub const INT_ONE: ElementId = ElementId::new(ElementKind::Int, 7);
 pub const INT_MINUS_ONE: ElementId = ElementId::new(ElementKind::Int, 8);
-pub const NON_ZERO_INT: ElementId = ElementId::new(ElementKind::Int, 9);
 
 pub const FLOAT: ElementId = ElementId::new(ElementKind::Float, 0);
 pub const LITERAL_FLOAT: ElementId = ElementId::new(ElementKind::Float, 1);

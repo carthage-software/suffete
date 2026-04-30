@@ -1,5 +1,4 @@
-//! Int family: `int`, `literal-int`, integer literals, bounded ranges,
-//! and `non-zero-int`.
+//! Int family: `int`, `literal-int`, integer literals, bounded ranges.
 //!
 //! Container variants accept inputs as follows:
 //!
@@ -7,8 +6,10 @@
 //! - `UnspecifiedLiteral` (`literal-int`) accepts `Literal(_)` and itself.
 //! - `Literal(N)` accepts only the same literal (handled by reflexivity).
 //! - `Range(R)` accepts `Literal(N)` if `N ∈ R`, and `Range(R')` if `R' ⊆ R`.
-//! - `NonZero` accepts any input whose value-set excludes `0`: `Literal(N)`
-//!   for non-zero `N`, ranges that do not include `0`, and itself.
+//!
+//! "Non-zero int" and similar open complements are expressed as
+//! `int & !int(0)` via the universal `Negated` machinery — no
+//! dedicated variant lives in this family.
 
 use crate::ElementId;
 use crate::ElementKind;
@@ -37,12 +38,6 @@ pub fn refines(input: ElementId, container: ElementId) -> bool {
             let outer = *i.get_int_range(container_rid);
             range_contains_range(outer, inner)
         }
-        (IntInfo::Literal(n), IntInfo::NonZero) => n != 0,
-        (IntInfo::Range(rid), IntInfo::NonZero) => {
-            let r = *i.get_int_range(rid);
-            !range_contains_value(r, 0)
-        }
-        (IntInfo::NonZero, IntInfo::NonZero) => true,
         _ => false,
     }
 }

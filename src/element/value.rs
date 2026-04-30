@@ -19,6 +19,7 @@ use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::ListInfo;
 use crate::element::payload::MemberReference;
 use crate::element::payload::MixedInfo;
+use crate::element::payload::NegatedInfo;
 use crate::element::payload::ObjectInfo;
 use crate::element::payload::ObjectShapeInfo;
 use crate::element::payload::ResourceInfo;
@@ -74,6 +75,7 @@ pub enum Element {
     Alias(&'static AliasInfo),
     Conditional(&'static ConditionalInfo),
     Derived(&'static DerivedInfo),
+    Negated(&'static NegatedInfo),
 }
 
 impl Element {
@@ -113,6 +115,7 @@ impl Element {
             Element::Alias(_) => ElementKind::Alias,
             Element::Conditional(_) => ElementKind::Conditional,
             Element::Derived(_) => ElementKind::Derived,
+            Element::Negated(_) => ElementKind::Negated,
         }
     }
 }
@@ -154,6 +157,7 @@ impl Display for Element {
             Element::Alias(info) => Display::fmt(*info, f),
             Element::Conditional(info) => Display::fmt(*info, f),
             Element::Derived(info) => Display::fmt(*info, f),
+            Element::Negated(info) => Display::fmt(*info, f),
         }
     }
 }
