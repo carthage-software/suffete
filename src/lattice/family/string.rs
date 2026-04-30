@@ -15,6 +15,16 @@
 //! Class-like-string inputs are also accepted here: class names are
 //! non-empty and not `"0"`, so they satisfy `non-empty` and `truthy`. They
 //! do not satisfy casing or `is_callable` constraints by default.
+//!
+//! TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_refines_string_covered_by_lowercase_and_non_lowercase):
+//! the lattice currently has no complement form for casing /
+//! refinement axes (`non-lowercase-string`, `non-numeric-string`,
+//! etc.). Once those land, partition-style fan-outs in
+//! `crate::lattice::refines::string_union_covers` become precise:
+//! `string` should refine `lowercase | non-lowercase`,
+//! `string` should refine `numeric-string | non-numeric-string`,
+//! and the corresponding subtract rules become exact rather than
+//! identity for these axes.
 
 use crate::ElementId;
 use crate::ElementKind;

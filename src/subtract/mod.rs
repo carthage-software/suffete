@@ -259,6 +259,21 @@ fn family_atom_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
         return string_minus(a, b);
     }
 
+    // TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_subtract_*_minus_int_*):
+    // true-union dominator subtract. `Scalar`, `Numeric`, `ArrayKey`,
+    // `Mixed` decompose into disjoint sub-families; subtracting a
+    // sub-family member should split the dominator into the remaining
+    // pieces (e.g. `scalar \ int = bool|float|string`). Each pair
+    // ((Scalar | Numeric | ArrayKey, scalar-family kind on the rhs))
+    // needs an explicit fan-out rule here.
+
+    // TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_subtract_b_minus_descendant_a_excludes_a_instances):
+    // `Object \ Object` when one descends the other. `B \ A` where
+    // A descends B should remove A-instances from the B value-set.
+    // Without a complement representation (or a closed-world enum
+    // of subclasses) the lattice today returns identity, leaving
+    // overlap that the meet then recovers.
+
     None
 }
 

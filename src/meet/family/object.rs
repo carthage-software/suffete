@@ -44,6 +44,14 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
         participants.extend_from_slice(i.get_element_list(id));
     }
 
+    // TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_compose_descendant_invariant_mismatch_collapses_to_never):
+    // when one participant descends another, resolve the descendant's
+    // view of the ancestor through `World::inherited_template_argument`
+    // and reconcile their args under the ancestor's variance before
+    // gluing. Today same-class merge runs but cross-class descendant
+    // resolution doesn't, so invariant arg mismatches like
+    // `meet(B<int>, C<object>)` survive when B descends C.
+
     let merged = merge_same_class_participants(participants, world, options, report)?;
 
     finalize_object_composition(merged, world)
