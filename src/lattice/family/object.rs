@@ -246,7 +246,7 @@ fn refines_has_property<W: World>(input: ElementId, property: Atom, world: &W) -
     let i = interner();
     match input.kind() {
         ElementKind::HasProperty => i.get_has_property(input).property_name == property,
-        ElementKind::Object => world.class_property_type(i.get_object(input).name, property).is_some(),
+        ElementKind::Object => world.class_has_property(i.get_object(input).name, property),
         ElementKind::Enum => {
             let info = i.get_enum(input);
             enum_property_present(info.name, property, world)
@@ -454,8 +454,7 @@ fn refines_named_named<W: World>(
     let container_args: Vec<TypeId> = if arity == 0 {
         Vec::new()
     } else {
-        let supplied: &[TypeId] =
-            container.type_args.map(|id| interner().get_type_list(id)).unwrap_or_default();
+        let supplied: &[TypeId] = container.type_args.map(|id| interner().get_type_list(id)).unwrap_or_default();
         let defaults = default_fill_template_args(container.name, world);
         (0..arity).map(|i| supplied.get(i).copied().unwrap_or_else(|| defaults[i])).collect()
     };

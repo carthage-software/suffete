@@ -397,6 +397,14 @@ impl World for MockWorld {
         self.collect_visible_properties(class).into_iter().find(|p| p.name == property).map(|p| p.type_)
     }
 
+    fn class_has_property(&self, class: Atom, property: Atom) -> bool {
+        let Some(ancestors) = self.ancestors.get(&class) else {
+            return false;
+        };
+
+        ancestors.iter().any(|a| self.properties.get(a).is_some_and(|props| props.iter().any(|p| p.name == property)))
+    }
+
     fn class_property_count(&self, class: Atom) -> usize {
         self.collect_visible_properties(class).len()
     }

@@ -215,14 +215,16 @@ fn upper_bound_invariant_nullable_int_minus_null() {
 }
 
 #[test]
-fn unrelated_named_objects_subtract_is_identity_open_world() {
+fn unrelated_named_objects_subtract_records_exclusion_open_world() {
     let mut w = MockWorld::new();
     w.declare("Foo");
     w.declare("Bar");
     let foo = u(t_named("Foo"));
     let bar = u(t_named("Bar"));
-    // Open world: a subclass of Foo could also extend Bar; subtract is conservative.
-    assert_eq!(subtract_of(foo, bar, &w), foo);
+    let result = subtract_of(foo, bar, &w);
+    assert!(refines_of(result, foo, &w), "subtract result must refine input Foo");
+    let meet = suffete::meet::compute(result, bar, &w, LatticeOptions::default(), &mut LatticeReport::new());
+    assert_eq!(meet, prelude::TYPE_NEVER, "(Foo \\ Bar) ∩ Bar should be empty");
 }
 
 #[test]

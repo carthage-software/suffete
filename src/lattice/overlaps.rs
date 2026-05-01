@@ -221,12 +221,14 @@ fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: Elem
         ElementKind::HasProperty => i.get_has_property(structural).intersections,
         _ => None,
     };
+
     if let Some(id) = nested {
         conjuncts.extend_from_slice(i.get_element_list(id));
     }
+
     conjuncts.iter().all(|&c| match c.kind() {
         ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(c).method_name),
-        ElementKind::HasProperty => world.class_property_type(class, i.get_has_property(c).property_name).is_some(),
+        ElementKind::HasProperty => world.class_has_property(class, i.get_has_property(c).property_name),
         _ => true,
     })
 }
@@ -332,6 +334,7 @@ fn object_overlap<W: World>(
         } else {
             return true;
         };
+
         if !descendant_args_satisfy_ancestor(descendant, ancestor, world, options, report) {
             return false;
         }
@@ -571,7 +574,7 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                         let satisfied = match s.kind() {
                             ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(s).method_name),
                             ElementKind::HasProperty => {
-                                world.class_property_type(class, i.get_has_property(s).property_name).is_some()
+                                world.class_has_property(class, i.get_has_property(s).property_name)
                             }
                             _ => true,
                         };

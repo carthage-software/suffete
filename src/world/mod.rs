@@ -92,6 +92,19 @@ pub trait World {
     /// type that refines `T`.
     fn class_property_type(&self, class: Atom, property: Atom) -> Option<TypeId>;
 
+    /// `true` iff `class` declares or inherits a property named
+    /// `property`. Mirrors PHP's `property_exists()` semantics.
+    ///
+    /// Provided as a fast-path companion to [`Self::class_property_type`]
+    /// for callers that only need the existence answer (e.g. checking
+    /// whether a `HasProperty` structural conjunct is redundant
+    /// against a nominal class). Backing maps can typically answer
+    /// this with a `contains_key` instead of a value clone, which is
+    /// what the default impl falls back to.
+    fn class_has_property(&self, class: Atom, property: Atom) -> bool {
+        self.class_property_type(class, property).is_some()
+    }
+
     /// What kind of enum `enum_name` is.
     ///
     /// Returns `None` when the enum is unknown (or `enum_name` does not

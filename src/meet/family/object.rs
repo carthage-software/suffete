@@ -235,6 +235,12 @@ pub(in crate::meet) fn compose_object_with_structural<W: World>(
         return None;
     }
 
+    let drop_as_redundant = matches!(structural.kind(), ElementKind::HasMethod | ElementKind::HasProperty)
+        && nominal_classes.iter().any(|&c| class_satisfies_structural(c, structural, world));
+    if drop_as_redundant {
+        return Some(object);
+    }
+
     let mut participants: Vec<ElementId> = Vec::new();
     participants.push(i.intern_object(ObjectInfo { intersections: None, ..object_info }));
     if let Some(id) = object_info.intersections {
@@ -274,7 +280,7 @@ fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: Elem
 
     conjuncts.iter().all(|&c| match c.kind() {
         ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(c).method_name),
-        ElementKind::HasProperty => world.class_property_type(class, i.get_has_property(c).property_name).is_some(),
+        ElementKind::HasProperty => world.class_has_property(class, i.get_has_property(c).property_name),
         _ => true,
     })
 }
@@ -299,6 +305,30 @@ fn finalize_object_composition<W: World>(merged: Vec<ElementId>, world: &W) -> O
     for &neg in other_parts.iter().filter(|e| e.kind() == ElementKind::Negated) {
         for &obj in &object_parts {
             if negation_excludes_class(neg, i.get_object(obj).name, world) {
+                return None;
+            }
+        }
+        // A `Negated` whose inner accepts any other positive
+        // conjunct in the intersection is contradictory: the
+        // value-set has to satisfy that conjunct (positively) and
+        // simultaneously fall outside it (via the negation). Fires
+        // for `(X & !X)` shaped intersections where `X` is a
+        // structural conjunct (`HasMethod`, `HasProperty`,
+        // `ObjectShape`) or any other non-Object conjunct that
+        // already lives in `other_parts`.
+        let neg_inner = i.get_negated(neg).inner;
+        for &positive in &other_parts {
+            if positive == neg {
+                continue;
+            }
+            let pos_t = i.intern_type(&[positive], FlowFlags::EMPTY);
+            if crate::lattice::refines(
+                pos_t,
+                neg_inner,
+                world,
+                crate::lattice::LatticeOptions::default(),
+                &mut crate::lattice::LatticeReport::new(),
+            ) {
                 return None;
             }
         }
@@ -411,10 +441,7 @@ fn merge_args<W: World>(
         (None, None) => Some(None),
         (Some(id), None) | (None, Some(id)) => {
             let all_contravariant = (0..arity).all(|idx| {
-                matches!(
-                    world.template_parameter_at(a.name, idx).map(|t| t.variance),
-                    Some(Variance::Contravariant)
-                )
+                matches!(world.template_parameter_at(a.name, idx).map(|t| t.variance), Some(Variance::Contravariant))
             });
 
             if all_contravariant { Some(None) } else { Some(Some(id)) }
@@ -429,10 +456,15 @@ fn merge_args<W: World>(
             let a_supplied: &[TypeId] = i.get_type_list(a_id);
             let b_supplied: &[TypeId] = i.get_type_list(b_id);
             let fill = |idx: usize| -> TypeId {
-                world.template_parameter_at(a.name, idx).and_then(|p| p.upper_bound).unwrap_or(crate::prelude::TYPE_MIXED)
+                world
+                    .template_parameter_at(a.name, idx)
+                    .and_then(|p| p.upper_bound)
+                    .unwrap_or(crate::prelude::TYPE_MIXED)
             };
-            let a_args: Vec<TypeId> = (0..arity).map(|idx| a_supplied.get(idx).copied().unwrap_or_else(|| fill(idx))).collect();
-            let b_args: Vec<TypeId> = (0..arity).map(|idx| b_supplied.get(idx).copied().unwrap_or_else(|| fill(idx))).collect();
+            let a_args: Vec<TypeId> =
+                (0..arity).map(|idx| a_supplied.get(idx).copied().unwrap_or_else(|| fill(idx))).collect();
+            let b_args: Vec<TypeId> =
+                (0..arity).map(|idx| b_supplied.get(idx).copied().unwrap_or_else(|| fill(idx))).collect();
 
             let mut merged: Vec<TypeId> = Vec::with_capacity(arity);
             for (idx, (&a_arg, &b_arg)) in a_args.iter().zip(b_args.iter()).enumerate() {
