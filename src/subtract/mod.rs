@@ -140,6 +140,16 @@ pub fn compute<W: World>(
 }
 
 /// Apply `α \ β₁ \ β₂ \ … \ βₙ` by folding over the right-hand atoms.
+///
+/// After the fold, a final union-coverage check rescues cases the
+/// per-atom path can't see: e.g.
+/// `list<'foo'> \ list<float(0)> \ non-empty-list<class-string>` with
+/// the order `non-empty-list<class-string>` first then `list<float(0)>`
+/// stalls at `non-empty-list<'foo'>` because each per-step `refines`
+/// only sees one container atom. The full-union `refines` recognizes
+/// that the surviving atom IS covered by the union and drains to
+/// empty. Mirrors how the meet/refines `*_union_covers` rules let
+/// the lattice see partition-style subsumption.
 fn subtract_all<W: World>(
     x: ElementId,
     bs: &[ElementId],
@@ -152,12 +162,24 @@ fn subtract_all<W: World>(
         if current.is_empty() {
             break;
         }
+
         let mut next: Vec<ElementId> = Vec::new();
         for c in current {
             next.extend(atom_minus(c, b, world, options, report));
         }
+
         current = next;
     }
+
+    if !current.is_empty() {
+        let i = interner();
+        let bs_t = i.intern_type(bs, FlowFlags::EMPTY);
+        let current_t = i.intern_type(&current, FlowFlags::EMPTY);
+        if refines(current_t, bs_t, world, options, report) {
+            return Vec::new();
+        }
+    }
+
     current
 }
 
@@ -383,7 +405,106 @@ fn family_atom_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
         return string_minus(a, b);
     }
 
+    if a.kind() == ElementKind::List && b.kind() == ElementKind::List {
+        return list_minus(a, b);
+    }
+
+    if a.kind() == ElementKind::Array && b.kind() == ElementKind::Array {
+        return array_minus(a, b);
+    }
+
+    if a.kind() == ElementKind::List && b.kind() == ElementKind::Iterable {
+        return list_minus_iterable(a, b);
+    }
+
+    if a.kind() == ElementKind::Array && b.kind() == ElementKind::Iterable {
+        return array_minus_iterable(a, b);
+    }
+
     None
+}
+
+/// `list<E> \ iterable<K, V>`: any iterable accepts the empty
+/// iterator, so when `a` allows the empty list it sits in `b`
+/// and gets removed. Returning `non-empty-list<E>` is sound;
+/// element-type narrowing for non-empty values would need list
+/// intersections, so we leave that to the post-fold union-coverage
+/// rescue.
+fn list_minus_iterable(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
+    let _ = b;
+    let i = interner();
+    let a_info = *i.get_list(a);
+    if a_info.flags.non_empty() {
+        return None;
+    }
+    if a_info.known_elements.is_some() {
+        return None;
+    }
+    let new_info = crate::element::payload::ListInfo { flags: a_info.flags.with_non_empty(true), ..a_info };
+    Some(vec![i.intern_list(new_info)])
+}
+
+/// `array<K, V> \ iterable<K2, V2>`: symmetric to `list_minus_iterable`.
+fn array_minus_iterable(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
+    let _ = b;
+    let i = interner();
+    let a_info = *i.get_array(a);
+    if a_info.flags.non_empty() {
+        return None;
+    }
+    if a_info.known_items.is_some() {
+        return None;
+    }
+    let new_info = crate::element::payload::KeyedArrayInfo { flags: a_info.flags.with_non_empty(true), ..a_info };
+    Some(vec![i.intern_array(new_info)])
+}
+
+/// `list<E1> \ list<E2>` empty-list-singleton elimination. The empty
+/// list inhabits any list type with `non_empty=false`; whenever both
+/// sides allow it, the empty list is in `b` and so removed from
+/// `a \ b`. Returning `non-empty-list<E1>` is sound (still `⊇ a\b`,
+/// since every non-empty value of `a\b` is also a non-empty value
+/// of `a`) and tightens enough to keep `(a\b) ∩ b` from leaking the
+/// empty-list singleton through container properties.
+///
+/// We don't try to narrow `E1` itself: precise element-type
+/// subtraction requires "list of E1 with at least one element in
+/// E1\E2" which has no canonical sound-and-precise atom form.
+fn list_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
+    let i = interner();
+    let a_info = *i.get_list(a);
+    let b_info = *i.get_list(b);
+    if a_info.flags.non_empty() || b_info.flags.non_empty() {
+        return None;
+    }
+
+    if a_info.known_elements.is_some() || b_info.known_elements.is_some() {
+        return None;
+    }
+
+    let new_info = crate::element::payload::ListInfo { flags: a_info.flags.with_non_empty(true), ..a_info };
+
+    Some(vec![i.intern_list(new_info)])
+}
+
+/// `array<K, V>` empty-array-singleton elimination, mirroring
+/// [`list_minus`]. The empty array inhabits any unsealed array
+/// with `non_empty=false`; both sides allowing it means the empty
+/// array is in `b` and dropped from `a \ b`.
+fn array_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
+    let i = interner();
+    let a_info = *i.get_array(a);
+    let b_info = *i.get_array(b);
+    if a_info.flags.non_empty() || b_info.flags.non_empty() {
+        return None;
+    }
+
+    if a_info.known_items.is_some() || b_info.known_items.is_some() {
+        return None;
+    }
+
+    let new_info = crate::element::payload::KeyedArrayInfo { flags: a_info.flags.with_non_empty(true), ..a_info };
+    Some(vec![i.intern_array(new_info)])
 }
 
 /// Fan out a true-union dominator (`scalar`, `numeric`, `array-key`)
@@ -456,17 +577,18 @@ fn true_union_minus<W: World>(
 /// against more precise siblings on the other axis.
 fn dominator_member_covers(m: ElementId, b: ElementId) -> bool {
     use ElementKind::*;
-    match (m.kind(), b.kind()) {
-        (Bool, Bool | True | False) => true,
-        (Int, Int) => true,
-        (Float, Float) => true,
-        (String, String | ClassLikeString) => true,
-        (Int, Numeric | Scalar | ArrayKey) => true,
-        (Float, Numeric | Scalar) => true,
-        (Bool, Scalar) => true,
-        (String, Numeric | Scalar | ArrayKey) => true,
-        _ => false,
-    }
+
+    matches!(
+        (m.kind(), b.kind()),
+        (Bool, Bool | True | False)
+            | (Int, Int)
+            | (Float, Float)
+            | (String, String | ClassLikeString)
+            | (Int, Numeric | Scalar | ArrayKey)
+            | (Float, Numeric | Scalar)
+            | (Bool, Scalar)
+            | (String, Numeric | Scalar | ArrayKey)
+    )
 }
 
 /// `String \ String` for axis-narrowing cases.
@@ -528,12 +650,14 @@ fn int_minus(a: ElementId, b: ElementId) -> Vec<ElementId> {
             Some(x) => x < b_low,
             None => true,
         };
+
         if a_starts_below {
             let piece_hi = b_low - 1;
             let piece_hi = match ahi {
                 Some(x) => Some(x.min(piece_hi)),
                 None => Some(piece_hi),
             };
+
             if non_empty_interval(alo, piece_hi) {
                 pieces.push(make_int_piece(alo, piece_hi));
             }
@@ -547,11 +671,13 @@ fn int_minus(a: ElementId, b: ElementId) -> Vec<ElementId> {
             Some(x) => x > b_high,
             None => true,
         };
+
         if a_ends_above {
             let piece_lo = match alo {
                 Some(x) => Some(x.max(piece_lo)),
                 None => Some(piece_lo),
             };
+
             if non_empty_interval(piece_lo, ahi) {
                 pieces.push(make_int_piece(piece_lo, ahi));
             }

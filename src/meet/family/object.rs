@@ -17,6 +17,7 @@ use crate::TypeListId;
 use crate::element::payload::DefiningEntity;
 use crate::element::payload::GenericParameterInfo;
 use crate::element::payload::ObjectInfo;
+use crate::element::payload::ObjectShapeInfo;
 use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
@@ -214,6 +215,28 @@ fn descendant_args_satisfy_ancestor<W: World>(
 /// an unknown class might gain the structural feature via a subclass,
 /// so we keep the intersection alive. A final class that doesn't
 /// already satisfy the structural feature collapses to `None`.
+/// `object{...} ∩ has-method<m>` (or `has-property<p>`): an
+/// object-shape literal records its known properties but never
+/// guarantees methods, and its known properties may be optional or
+/// the shape itself may be unsealed. Composing the shape with a
+/// structural conjunct narrows the value-set to "shape-matching
+/// values that also satisfy the structural" — represented by
+/// adding the structural to the shape's `intersections` list.
+pub(in crate::meet) fn compose_shape_with_structural(shape: ElementId, structural: ElementId) -> Option<ElementId> {
+    let i = interner();
+    let shape_info = *i.get_object_shape(shape);
+    let mut conjuncts: Vec<ElementId> =
+        shape_info.intersections.map(|id| i.get_element_list(id).to_vec()).unwrap_or_default();
+
+    if !conjuncts.contains(&structural) {
+        conjuncts.push(structural);
+    }
+
+    conjuncts.sort();
+    let intersections = Some(i.intern_element_list(&conjuncts));
+    Some(i.intern_object_shape(ObjectShapeInfo { intersections, ..shape_info }))
+}
+
 pub(in crate::meet) fn compose_object_with_structural<W: World>(
     object: ElementId,
     structural: ElementId,

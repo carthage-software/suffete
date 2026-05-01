@@ -359,9 +359,12 @@ fn family_atom_meet<W: World>(
         | (ElementKind::ObjectShape, ElementKind::Object) => {
             family::object::compose_object_with_structural(b, a, world)
         }
-        (ElementKind::ObjectShape, ElementKind::HasMethod | ElementKind::HasProperty) => Some(a),
-        (ElementKind::HasMethod | ElementKind::HasProperty, ElementKind::ObjectShape) => Some(b),
-
+        (ElementKind::ObjectShape, ElementKind::HasMethod | ElementKind::HasProperty) => {
+            family::object::compose_shape_with_structural(a, b)
+        }
+        (ElementKind::HasMethod | ElementKind::HasProperty, ElementKind::ObjectShape) => {
+            family::object::compose_shape_with_structural(b, a)
+        }
         (ElementKind::Iterable, ElementKind::Array) => family::array::iterable_array_meet(a, b, world, options, report),
         (ElementKind::Array, ElementKind::Iterable) => family::array::iterable_array_meet(b, a, world, options, report),
         (ElementKind::Iterable, ElementKind::List) => family::array::iterable_list_meet(a, b, world, options, report),

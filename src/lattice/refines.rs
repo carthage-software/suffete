@@ -75,8 +75,131 @@ pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOption
                 return true;
             }
 
+            if list_union_covers(*input, b_type.elements, world, options, report) {
+                return true;
+            }
+
+            if array_union_covers(*input, b_type.elements, world, options, report) {
+                return true;
+            }
+
             generic_parameter_union_covers(*input, b_type.elements, world, options, report)
         })
+}
+
+/// True iff a `array<K, V>` input is covered by the union of all
+/// `Array` elements in `containers`. Mirrors [`list_union_covers`]:
+/// the empty-array singleton needs coverage by some non-empty=false
+/// container, and the (key, value) parameters must refine the
+/// pointwise union of the containers' parameters.
+fn array_union_covers<W: World>(
+    input: ElementId,
+    containers: &[ElementId],
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    if input.kind() != ElementKind::Array {
+        return false;
+    }
+    let i = interner();
+    let input_info = *i.get_array(input);
+    if input_info.known_items.is_some() {
+        return false;
+    }
+    let (Some(input_key), Some(input_value)) = (input_info.key_param, input_info.value_param) else {
+        return false;
+    };
+    let mut key_types: Vec<TypeId> = Vec::new();
+    let mut value_types: Vec<TypeId> = Vec::new();
+    let mut covers_empty = false;
+    for &c in containers {
+        if c.kind() != ElementKind::Array {
+            continue;
+        }
+        let c_info = *i.get_array(c);
+        if c_info.known_items.is_some() {
+            continue;
+        }
+        let (Some(k), Some(v)) = (c_info.key_param, c_info.value_param) else {
+            continue;
+        };
+        if !c_info.flags.non_empty() {
+            covers_empty = true;
+        }
+        key_types.push(k);
+        value_types.push(v);
+    }
+    if key_types.is_empty() {
+        return false;
+    }
+    if !input_info.flags.non_empty() && !covers_empty {
+        return false;
+    }
+    let mut key_union: Vec<ElementId> = Vec::new();
+    for t in &key_types {
+        key_union.extend_from_slice(t.as_ref().elements);
+    }
+    let key_t = i.intern_type(&key_union, FlowFlags::EMPTY);
+    let mut value_union: Vec<ElementId> = Vec::new();
+    for t in &value_types {
+        value_union.extend_from_slice(t.as_ref().elements);
+    }
+    let value_t = i.intern_type(&value_union, FlowFlags::EMPTY);
+    refines(input_key, key_t, world, options, report) && refines(input_value, value_t, world, options, report)
+}
+
+/// True iff a `list<E>` input is covered by the union of all `List`
+/// elements in `containers`. Empty-list coverage requires some
+/// container with `non_empty=false`; non-empty coverage requires
+/// `E` to refine the union of all container element types.
+///
+/// Needed because element-by-element refines can't see partitions
+/// like `list<int> <: list<int(0)> | non-empty-list<int>` — the
+/// empty-list singleton flows through one branch and the non-empty
+/// element coverage flows through another.
+fn list_union_covers<W: World>(
+    input: ElementId,
+    containers: &[ElementId],
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    if input.kind() != ElementKind::List {
+        return false;
+    }
+    let i = interner();
+    let input_info = *i.get_list(input);
+    if input_info.known_elements.is_some() {
+        return false;
+    }
+    let mut element_types: Vec<TypeId> = Vec::new();
+    let mut covers_empty = false;
+    for &c in containers {
+        if c.kind() != ElementKind::List {
+            continue;
+        }
+        let c_info = *i.get_list(c);
+        if c_info.known_elements.is_some() {
+            continue;
+        }
+        if !c_info.flags.non_empty() {
+            covers_empty = true;
+        }
+        element_types.push(c_info.element_type);
+    }
+    if element_types.is_empty() {
+        return false;
+    }
+    if !input_info.flags.non_empty() && !covers_empty {
+        return false;
+    }
+    let mut union_elems: Vec<ElementId> = Vec::new();
+    for t in &element_types {
+        union_elems.extend_from_slice(t.as_ref().elements);
+    }
+    let union_ty = i.intern_type(&union_elems, FlowFlags::EMPTY);
+    refines(input_info.element_type, union_ty, world, options, report)
 }
 
 /// Expand `!!X` element shapes inside a union to `X`'s elements. The

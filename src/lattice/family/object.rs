@@ -194,39 +194,48 @@ pub fn refines<W: World>(
         }
     }
 
+    if input.kind() == ElementKind::ObjectShape {
+        let input_info = *i.get_object_shape(input);
+        if let Some(intersections_id) = input_info.intersections {
+            let head = i.intern_object_shape(ObjectShapeInfo { intersections: None, ..input_info });
+            if element_refines_via_type(head, container, world, options, report) {
+                return true;
+            }
+
+            for &conjunct in i.get_element_list(intersections_id) {
+                if element_refines_via_type(conjunct, container, world, options, report) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
     match (input.kind(), container.kind()) {
         (ElementKind::Object, ElementKind::Object) => {
             let input_info = *i.get_object(input);
             let container_info = *i.get_object(container);
             refines_named_named(input_info, container_info, world, options, report)
         }
-
-        // Enum-vs-enum: same enum name, container has no case constraint.
         (ElementKind::Enum, ElementKind::Enum) => {
             let input_info = i.get_enum(input);
             let container_info = i.get_enum(container);
             input_info.name == container_info.name && container_info.case.is_none()
         }
-
-        // Enums and named-objects don't cross — enums implement interfaces
-        // but those flow as named objects (separate dispatch branch).
         (ElementKind::Object, ElementKind::Enum) | (ElementKind::Enum, ElementKind::Object) => false,
-
         (_, ElementKind::HasMethod) => {
             let container_info = i.get_has_method(container);
             refines_has_method(input, container_info.method_name, world)
         }
-
         (_, ElementKind::HasProperty) => {
             let container_info = i.get_has_property(container);
             refines_has_property(input, container_info.property_name, world)
         }
-
         (_, ElementKind::ObjectShape) => {
             let container_info = *i.get_object_shape(container);
             refines_object_shape(input, container_info, world, options, report)
         }
-
         _ => false,
     }
 }
@@ -237,7 +246,7 @@ fn refines_has_method<W: World>(input: ElementId, method: Atom, world: &W) -> bo
         ElementKind::HasMethod => i.get_has_method(input).method_name == method,
         ElementKind::Object => world.class_has_method(i.get_object(input).name, method),
         ElementKind::Enum => world.class_has_method(i.get_enum(input).name, method),
-        ElementKind::ObjectShape => true,
+        ElementKind::ObjectShape => false,
         _ => false,
     }
 }
@@ -251,7 +260,17 @@ fn refines_has_property<W: World>(input: ElementId, property: Atom, world: &W) -
             let info = i.get_enum(input);
             enum_property_present(info.name, property, world)
         }
-        ElementKind::ObjectShape => true,
+        ElementKind::ObjectShape => {
+            let shape = *i.get_object_shape(input);
+            shape
+                .known_properties
+                .map(|id| {
+                    i.get_known_properties(id)
+                        .iter()
+                        .any(|entry: &KnownPropertyEntry| entry.name == property && !entry.optional)
+                })
+                .unwrap_or(false)
+        }
         _ => false,
     }
 }
