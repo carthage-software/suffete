@@ -194,10 +194,10 @@ fn atom_meet<W: World>(
     let a_t = i.intern_type(&[a], FlowFlags::EMPTY);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
     if refines(a_t, b_t, world, options, report) {
-        return if object_intersection_is_uninhabited(a, world) { None } else { Some(a) };
+        return if crate::lattice::overlaps::is_uninhabited(a, world) { None } else { Some(a) };
     }
     if refines(b_t, a_t, world, options, report) {
-        return if object_intersection_is_uninhabited(b, world) { None } else { Some(b) };
+        return if crate::lattice::overlaps::is_uninhabited(b, world) { None } else { Some(b) };
     }
 
     if a.kind() == ElementKind::GenericParameter || b.kind() == ElementKind::GenericParameter {
@@ -319,41 +319,6 @@ fn negated_atom_meet<W: World>(
     // Conservative drop; the surviving values still flow through
     // the wider `subtract` API for non-meet uses.
     None
-}
-
-/// `Foo & Bar` is uninhabited when finality witnesses no value can
-/// satisfy every conjunct: any final class in the intersection has
-/// no subclasses, so it must descend every other class for a value
-/// to exist (otherwise the only candidate inhabitant — the final
-/// class itself — fails one of the constraints). Used as a guard
-/// so subsumption doesn't return an uninhabited intersection.
-fn object_intersection_is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
-    if elem.kind() != ElementKind::Object {
-        return false;
-    }
-    let i = interner();
-    let info = *i.get_object(elem);
-    let Some(intersections_id) = info.intersections else { return false };
-    let mut classes: Vec<mago_atom::Atom> = vec![info.name];
-    for &conjunct in i.get_element_list(intersections_id) {
-        if conjunct.kind() == ElementKind::Object {
-            classes.push(i.get_object(conjunct).name);
-        }
-    }
-    for &final_candidate in &classes {
-        if !world.is_final(final_candidate) {
-            continue;
-        }
-        for &other in &classes {
-            if other == final_candidate {
-                continue;
-            }
-            if !world.descends_from(final_candidate, other) && !world.descends_from(other, final_candidate) {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 fn family_atom_meet<W: World>(

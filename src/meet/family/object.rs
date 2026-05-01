@@ -398,37 +398,43 @@ fn merge_args<W: World>(
     report: &mut LatticeReport,
 ) -> Option<Option<TypeListId>> {
     let i = interner();
+    let arity = world.template_parameter_arity(a.name);
+
+    // Arity-0 classes can carry meaningless explicit args; collapse
+    // both sides to the bare nominal form so the same atom is
+    // produced regardless of how each side was constructed.
+    if arity == 0 {
+        return Some(None);
+    }
+
     match (a.type_args, b.type_args) {
         (None, None) => Some(None),
         (Some(id), None) | (None, Some(id)) => {
-            let arity = world.template_parameter_arity(a.name);
-            let all_contravariant = arity > 0
-                && (0..arity).all(|idx| {
-                    matches!(
-                        world.template_parameter_at(a.name, idx).map(|t| t.variance),
-                        Some(Variance::Contravariant)
-                    )
-                });
+            let all_contravariant = (0..arity).all(|idx| {
+                matches!(
+                    world.template_parameter_at(a.name, idx).map(|t| t.variance),
+                    Some(Variance::Contravariant)
+                )
+            });
 
             if all_contravariant { Some(None) } else { Some(Some(id)) }
         }
         (Some(a_id), Some(b_id)) => {
-            let a_args: Vec<TypeId> = i.get_type_list(a_id).to_vec();
-            let b_args: Vec<TypeId> = i.get_type_list(b_id).to_vec();
-            if a_args.len() != b_args.len() {
-                let arity = world.template_parameter_arity(a.name);
-                if a_args.len() == arity {
-                    return Some(Some(a_id));
-                }
+            // Normalize both sides to exactly `arity` positions:
+            // truncate over-supplied trailing args, default-fill
+            // under-supplied tail with the template parameter's
+            // upper bound (or `mixed` if absent). Mirrors the
+            // normalization in `refines` / `overlaps` so the three
+            // operations agree on the per-position view of each atom.
+            let a_supplied: &[TypeId] = i.get_type_list(a_id);
+            let b_supplied: &[TypeId] = i.get_type_list(b_id);
+            let fill = |idx: usize| -> TypeId {
+                world.template_parameter_at(a.name, idx).and_then(|p| p.upper_bound).unwrap_or(crate::prelude::TYPE_MIXED)
+            };
+            let a_args: Vec<TypeId> = (0..arity).map(|idx| a_supplied.get(idx).copied().unwrap_or_else(|| fill(idx))).collect();
+            let b_args: Vec<TypeId> = (0..arity).map(|idx| b_supplied.get(idx).copied().unwrap_or_else(|| fill(idx))).collect();
 
-                if b_args.len() == arity {
-                    return Some(Some(b_id));
-                }
-
-                return Some(Some(a_id));
-            }
-
-            let mut merged: Vec<TypeId> = Vec::with_capacity(a_args.len());
+            let mut merged: Vec<TypeId> = Vec::with_capacity(arity);
             for (idx, (&a_arg, &b_arg)) in a_args.iter().zip(b_args.iter()).enumerate() {
                 let variance =
                     world.template_parameter_at(a.name, idx).map(|t| t.variance).unwrap_or(Variance::Invariant);

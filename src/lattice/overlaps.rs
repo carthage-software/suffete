@@ -277,10 +277,25 @@ fn object_overlap<W: World>(
     if a_info.name == b_info.name
         && let (Some(a_args_id), Some(b_args_id)) = (a_info.type_args, b_info.type_args)
     {
-        let a_args = i.get_type_list(a_args_id);
-        let b_args = i.get_type_list(b_args_id);
-        if a_args.len() == b_args.len() {
-            for (idx, (&a_arg, &b_arg)) in a_args.iter().zip(b_args.iter()).enumerate() {
+        // Arity normalization mirrors `refines_named_named`:
+        // arity-0 classes ignore any explicit args; arity > 0
+        // classes truncate over-supply and default-fill under-supply
+        // before per-position checks. When either side omits
+        // `type_args` entirely it denotes "any T" and the
+        // per-position check is skipped (handled at the outer let).
+        let arity = world.template_parameter_arity(a_info.name);
+        if arity > 0 {
+            let a_supplied = i.get_type_list(a_args_id);
+            let b_supplied = i.get_type_list(b_args_id);
+            let fill = |idx: usize| -> TypeId {
+                world
+                    .template_parameter_at(a_info.name, idx)
+                    .and_then(|p| p.upper_bound)
+                    .unwrap_or(crate::prelude::TYPE_MIXED)
+            };
+            for idx in 0..arity {
+                let a_arg = a_supplied.get(idx).copied().unwrap_or_else(|| fill(idx));
+                let b_arg = b_supplied.get(idx).copied().unwrap_or_else(|| fill(idx));
                 let variance =
                     world.template_parameter_at(a_info.name, idx).map(|t| t.variance).unwrap_or(Variance::Invariant);
                 match variance {
@@ -504,16 +519,47 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
             if let Some(intersections_id) = info.intersections {
                 let mut classes: Vec<mago_atom::Atom> = vec![info.name];
                 let mut structurals: Vec<ElementId> = Vec::new();
+                let mut negations: Vec<ElementId> = Vec::new();
                 for &conjunct in i.get_element_list(intersections_id) {
                     match conjunct.kind() {
                         ElementKind::Object => classes.push(i.get_object(conjunct).name),
                         ElementKind::HasMethod | ElementKind::HasProperty => structurals.push(conjunct),
+                        ElementKind::Negated => negations.push(conjunct),
                         _ => {}
                     }
                 }
 
                 if intersection_uninhabited_under_finality(&classes, world) {
                     return true;
+                }
+
+                // A `Negated` conjunct that subsumes any positive
+                // class in the intersection makes it uninhabited:
+                // every positive instance falls inside the negation.
+                // Mirrors the value-set rule used by `compose_object_intersection`'s
+                // `negation_excludes_class`, but without bespoke
+                // descent-only logic — we ask the lattice whether the
+                // bare nominal class refines the negation's inner.
+                for &neg in &negations {
+                    let neg_inner = i.get_negated(neg).inner;
+                    for &class in &classes {
+                        let bare = i.intern_object(crate::element::payload::ObjectInfo {
+                            name: class,
+                            type_args: None,
+                            intersections: None,
+                            flags: crate::element::payload::ObjectFlags::default(),
+                        });
+                        let bare_t = i.intern_type(&[bare], FlowFlags::EMPTY);
+                        if crate::lattice::refines(
+                            bare_t,
+                            neg_inner,
+                            world,
+                            crate::lattice::LatticeOptions::default(),
+                            &mut crate::lattice::LatticeReport::new(),
+                        ) {
+                            return true;
+                        }
+                    }
                 }
 
                 for &class in &classes {
