@@ -104,79 +104,27 @@ dashmap = "6"
 serde = { version = "1", features = ["derive"], optional = true }
 
 [[bench]]
-name = "id"
+name = "workload_intern_churn"
 harness = false
 
 [[bench]]
-name = "element"
+name = "workload_lattice_storm"
 harness = false
 
 [[bench]]
-name = "ty"
+name = "workload_narrow_funnel"
 harness = false
 
 [[bench]]
-name = "builder"
+name = "workload_join_bulk"
 harness = false
 
 [[bench]]
-name = "interner"
+name = "workload_template_walk"
 harness = false
 
 [[bench]]
-name = "predicates"
-harness = false
-
-[[bench]]
-name = "inspect"
-harness = false
-
-[[bench]]
-name = "transform"
-harness = false
-
-[[bench]]
-name = "join"
-harness = false
-
-[[bench]]
-name = "meet"
-harness = false
-
-[[bench]]
-name = "subtract"
-harness = false
-
-[[bench]]
-name = "lattice"
-harness = false
-
-[[bench]]
-name = "cast"
-harness = false
-
-[[bench]]
-name = "compatibility"
-harness = false
-
-[[bench]]
-name = "expand"
-harness = false
-
-[[bench]]
-name = "hierarchy"
-harness = false
-
-[[bench]]
-name = "template"
-harness = false
-
-[[bench]]
-name = "widen"
-harness = false
-
-[[bench]]
-name = "serialize"
+name = "workload_expand_resolve"
 harness = false
 
 [profile.release]

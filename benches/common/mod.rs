@@ -1,26 +1,32 @@
-//! Shared helpers for the benchmark suite.
+//! Shared helpers for the workload benchmark suite.
 //!
-//! Provides:
-//! - [`bench_world()`]: a default `NullWorld` for benches that need a `&impl World`.
-//! - Input builders for the standard "tiny / small / wide / deep" shapes
-//!   used across the suite, so each benchmark tracks the same axes
-//!   (singleton, small union, wide union, deeply nested) consistently.
+//! Each bench in `benches/` is one focused workload running ~500ms of
+//! simulated work per iteration. They share:
+//!
+//! - [`Rng`]: zero-dep deterministic PRNG (xorshift64*) so a given
+//!   bench run produces identical inputs across measurements.
+//! - [`TypePool`]: a pre-built fixture of representative `TypeId`s
+//!   covering the kinds and shapes that turn up in real PHP code, with
+//!   a population mix tuned to match what Mago actually feeds in (mostly
+//!   singletons, occasional unions, rare deep nesting).
+//! - [`bench_world`]: a `NullWorld` for benches that don't need a class
+//!   hierarchy.
 
 #![allow(
-    clippy::significant_drop_tightening,
-    clippy::wildcard_imports,
-    clippy::missing_const_for_fn,
-    clippy::separated_literal_suffix,
-    clippy::doc_markdown,
-    clippy::redundant_closure,
-    clippy::arithmetic_side_effects,
     dead_code,
     clippy::missing_docs_in_private_items,
     clippy::missing_inline_in_public_items,
     clippy::must_use_candidate,
     clippy::absolute_paths,
     clippy::std_instead_of_alloc,
-    clippy::std_instead_of_core
+    clippy::std_instead_of_core,
+    clippy::missing_assert_message,
+    clippy::arithmetic_side_effects,
+    clippy::wildcard_imports,
+    clippy::missing_const_for_fn,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::needless_pass_by_value
 )]
 
 use suffete::ElementId;
@@ -30,188 +36,207 @@ use suffete::interner::interner;
 use suffete::prelude;
 use suffete::world::NullWorld;
 
-/// World instance shared across benches that don't need a class hierarchy.
+/// World instance used across benches.
 #[inline]
 pub fn bench_world() -> NullWorld {
     NullWorld
 }
 
-// -- Atomic singleton handles --------------------------------------------------
+// -- Deterministic PRNG -------------------------------------------------------
 
-#[inline]
-pub fn t_int() -> TypeId {
-    prelude::TYPE_INT
+/// Xorshift64* RNG: tiny, deterministic, non-cryptographic. Fine for
+/// benches because we want reproducibility, not entropy.
+#[derive(Clone, Copy)]
+pub struct Rng(u64);
+
+impl Rng {
+    pub const fn new(seed: u64) -> Self {
+        // Avoid the all-zero state by OR-ing in a fixed bit.
+        Self(seed | 0x1)
+    }
+
+    #[inline]
+    pub fn next_u64(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    #[inline]
+    pub fn next_u32(&mut self) -> u32 {
+        self.next_u64() as u32
+    }
+
+    /// Uniform pick from `0..n` (n must be >= 1).
+    #[inline]
+    pub fn pick(&mut self, n: usize) -> usize {
+        (self.next_u64() as usize) % n.max(1)
+    }
+
+    /// Pick one element from `slice` uniformly. Panics if empty.
+    #[inline]
+    pub fn pick_from<T: Copy>(&mut self, slice: &[T]) -> T {
+        slice[self.pick(slice.len())]
+    }
+
+    /// Roll a true with probability `p` (0..=100).
+    #[inline]
+    pub fn chance(&mut self, p: u32) -> bool {
+        (self.next_u32() % 100) < p
+    }
 }
 
-#[inline]
-pub fn t_string() -> TypeId {
-    prelude::TYPE_STRING
-}
+// -- Element constructors -----------------------------------------------------
 
-#[inline]
-pub fn t_float() -> TypeId {
-    prelude::TYPE_FLOAT
-}
-
-#[inline]
-pub fn t_bool() -> TypeId {
-    prelude::TYPE_BOOL
-}
-
-#[inline]
-pub fn t_null() -> TypeId {
-    prelude::TYPE_NULL
-}
-
-#[inline]
-pub fn t_mixed() -> TypeId {
-    prelude::TYPE_MIXED
-}
-
-#[inline]
-pub fn t_never() -> TypeId {
-    prelude::TYPE_NEVER
-}
-
-#[inline]
-pub fn t_object() -> TypeId {
-    prelude::TYPE_OBJECT
-}
-
-#[inline]
-pub fn t_array_key() -> TypeId {
-    prelude::TYPE_ARRAY_KEY
-}
-
-#[inline]
-pub fn t_scalar() -> TypeId {
-    prelude::TYPE_SCALAR
-}
-
-#[inline]
-pub fn t_numeric() -> TypeId {
-    prelude::TYPE_NUMERIC
-}
-
-// -- Element constructors ------------------------------------------------------
-
-#[inline]
-pub fn e_int_lit(value: i64) -> ElementId {
-    ElementId::int_literal(value)
-}
-
-#[inline]
-pub fn e_str_lit(value: &str) -> ElementId {
-    ElementId::string_literal(value)
-}
-
-#[inline]
-pub fn e_named(name: &str) -> ElementId {
-    ElementId::object_named(name)
-}
-
-#[inline]
-pub fn e_list(element_type: TypeId, non_empty: bool) -> ElementId {
-    ElementId::list(element_type, non_empty)
-}
-
-#[inline]
-pub fn e_keyed(key_type: TypeId, value_type: TypeId, non_empty: bool) -> ElementId {
-    ElementId::keyed_unsealed(key_type, value_type, non_empty)
-}
-
-#[inline]
-pub fn e_iterable(key_type: TypeId, value_type: TypeId) -> ElementId {
-    ElementId::iterable(key_type, value_type)
-}
-
-// -- Type builders -------------------------------------------------------------
-
-/// Singleton union wrapping `elem`.
 #[inline]
 pub fn ut(elem: ElementId) -> TypeId {
     interner().intern_type(&[elem], FlowFlags::EMPTY)
 }
 
-/// Multi-element union from a slice (no canonicalisation; mirrors `TypeId::union`).
 #[inline]
 pub fn um(elems: &[ElementId]) -> TypeId {
     TypeId::union(elems)
 }
 
-// -- Standard input shapes -----------------------------------------------------
+// -- TypePool -----------------------------------------------------------------
 
-/// `int(0)`. Singleton; cheapest non-trivial type.
-#[inline]
-pub fn tiny_singleton() -> TypeId {
-    ut(e_int_lit(0))
+/// A pre-built fixture of representative types. Generated once at bench
+/// startup, then drawn from in the hot loop. The mix is roughly
+/// 60% singletons (atomic kinds, named objects, literals),
+/// 25% small unions (2-4 elements),
+/// 10% wide unions (8-32 elements),
+/// 5%  deeply nested (lists / arrays / iterables of unions of …).
+pub struct TypePool {
+    pub singletons: Vec<TypeId>,
+    pub small_unions: Vec<TypeId>,
+    pub wide_unions: Vec<TypeId>,
+    pub deep_nested: Vec<TypeId>,
+    /// Flattened pick distribution: each TypeId appears proportional to its
+    /// category weight, so `pool.pick(rng)` matches the realistic mix above.
+    pub weighted: Vec<TypeId>,
 }
 
-/// `int|string|null`. 3-element union.
-#[inline]
-pub fn small_union() -> TypeId {
-    um(&[ElementId::int_literal(0), ElementId::int_literal(1), ElementId::int_literal(2)])
-}
+impl TypePool {
+    pub fn new(seed: u64) -> Self {
+        let mut rng = Rng::new(seed);
+        let singletons = build_singletons(&mut rng);
+        let small_unions = build_small_unions(&mut rng, &singletons);
+        let wide_unions = build_wide_unions(&mut rng, &singletons);
+        let deep_nested = build_deep_nested(&mut rng, &singletons);
 
-/// 32 distinct int literals in one union.
-#[inline]
-pub fn wide_union() -> TypeId {
-    let mut elems = Vec::with_capacity(32);
-    for i in 0_i64..32 {
-        elems.push(e_int_lit(i));
+        let mut weighted: Vec<TypeId> = Vec::with_capacity(1000);
+        for _ in 0..600 {
+            weighted.push(rng_pick(&mut rng, &singletons));
+        }
+        for _ in 0..250 {
+            weighted.push(rng_pick(&mut rng, &small_unions));
+        }
+        for _ in 0..100 {
+            weighted.push(rng_pick(&mut rng, &wide_unions));
+        }
+        for _ in 0..50 {
+            weighted.push(rng_pick(&mut rng, &deep_nested));
+        }
+
+        Self { singletons, small_unions, wide_unions, deep_nested, weighted }
     }
-    um(&elems)
+
+    /// Random type from the realistic-mix distribution.
+    #[inline]
+    pub fn pick(&self, rng: &mut Rng) -> TypeId {
+        rng.pick_from(&self.weighted)
+    }
 }
 
-/// `list<list<list<int>>>`. 3-deep nested generic list.
-#[inline]
-pub fn deep_nested() -> TypeId {
-    let inner = ut(e_list(t_int(), false));
-    let mid = ut(e_list(inner, false));
-    ut(e_list(mid, false))
+fn rng_pick<T: Copy>(rng: &mut Rng, slice: &[T]) -> T {
+    slice[rng.pick(slice.len())]
 }
 
-/// `array<string, list<int>>`. Common shape with payload.
-#[inline]
-pub fn keyed_array_payload() -> TypeId {
-    let value = ut(e_list(t_int(), false));
-    ut(e_keyed(t_string(), value, false))
-}
-
-/// `Foo` named object with no template args.
-#[inline]
-pub fn named_object() -> TypeId {
-    ut(e_named("Foo"))
-}
-
-/// 32 distinct string-literal elements; exercises string-axis canonicalization in join.
-#[inline]
-pub fn wide_string_literals() -> Vec<ElementId> {
-    let mut out = Vec::with_capacity(32);
-    for idx in 0..32 {
-        out.push(e_str_lit(&format!("s{idx}")));
+fn build_singletons(rng: &mut Rng) -> Vec<TypeId> {
+    let mut out: Vec<TypeId> = vec![
+        prelude::TYPE_INT,
+        prelude::TYPE_STRING,
+        prelude::TYPE_FLOAT,
+        prelude::TYPE_BOOL,
+        prelude::TYPE_NULL,
+        prelude::TYPE_VOID,
+        prelude::TYPE_MIXED,
+        prelude::TYPE_NEVER,
+        prelude::TYPE_OBJECT,
+        prelude::TYPE_ARRAY_KEY,
+        prelude::TYPE_SCALAR,
+        prelude::TYPE_NUMERIC,
+    ];
+    // Literal ints, varied.
+    for _ in 0..30 {
+        let v = (rng.next_u64() % 200) as i64 - 100;
+        out.push(ut(ElementId::int_literal(v)));
+    }
+    // Literal strings, varied.
+    let words = ["foo", "bar", "baz", "qux", "hello", "world", "abc", "xyz", "0", "1", ""];
+    for _ in 0..30 {
+        let w = rng.pick_from(&words);
+        out.push(ut(ElementId::string_literal(w)));
+    }
+    // Named objects.
+    let classes = ["Foo", "Bar", "Baz", "Qux", "Container", "List", "Map", "Set"];
+    for c in classes {
+        out.push(ut(ElementId::object_named(c)));
+    }
+    // Refined ints (ranges).
+    for _ in 0..10 {
+        let lo = (rng.next_u64() % 100) as i64;
+        out.push(ut(ElementId::int_range(Some(lo), Some(lo + 50))));
     }
     out
 }
 
-/// 32 distinct int literals; exercises range-merge logic in join.
-#[inline]
-pub fn wide_int_literals() -> Vec<ElementId> {
-    let mut out = Vec::with_capacity(32);
-    for idx in 0_i64..32 {
-        out.push(e_int_lit(idx));
+fn build_small_unions(rng: &mut Rng, atoms: &[TypeId]) -> Vec<TypeId> {
+    let mut out = Vec::with_capacity(40);
+    for _ in 0..40 {
+        let n = 2 + (rng.next_u32() % 3) as usize;
+        let mut elems: Vec<ElementId> = Vec::with_capacity(n);
+        for _ in 0..n {
+            let t = rng_pick(rng, atoms);
+            elems.extend(t.as_ref().elements);
+        }
+        out.push(TypeId::union(&elems));
     }
     out
 }
 
-/// Standard input set; pass each into a benchmark group with `bench_with_input`.
-pub fn standard_inputs() -> Vec<(&'static str, TypeId)> {
-    vec![
-        ("tiny", tiny_singleton()),
-        ("small_union", small_union()),
-        ("wide_union", wide_union()),
-        ("deep_nested", deep_nested()),
-        ("keyed_array_payload", keyed_array_payload()),
-        ("named_object", named_object()),
-    ]
+fn build_wide_unions(rng: &mut Rng, atoms: &[TypeId]) -> Vec<TypeId> {
+    let mut out = Vec::with_capacity(20);
+    for _ in 0..20 {
+        let n = 8 + (rng.next_u32() % 25) as usize;
+        let mut elems: Vec<ElementId> = Vec::with_capacity(n * 2);
+        for _ in 0..n {
+            let t = rng_pick(rng, atoms);
+            elems.extend(t.as_ref().elements);
+        }
+        out.push(TypeId::union(&elems));
+    }
+    out
+}
+
+fn build_deep_nested(rng: &mut Rng, atoms: &[TypeId]) -> Vec<TypeId> {
+    let mut out = Vec::with_capacity(20);
+    for _ in 0..15 {
+        let inner = rng_pick(rng, atoms);
+        // list<list<list<inner>>>
+        let l1 = ut(ElementId::list(inner, false));
+        let l2 = ut(ElementId::list(l1, false));
+        let l3 = ut(ElementId::list(l2, false));
+        out.push(l3);
+    }
+    // Some keyed-array-of-list shapes.
+    for _ in 0..5 {
+        let value_inner = rng_pick(rng, atoms);
+        let list_t = ut(ElementId::list(value_inner, false));
+        out.push(ut(ElementId::keyed_unsealed(prelude::TYPE_STRING, list_t, false)));
+    }
+    out
 }
