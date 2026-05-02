@@ -2,6 +2,8 @@
 
 use std::sync::OnceLock;
 
+use dashmap::DashMap;
+
 use crate::ElementId;
 use crate::ElementKind;
 use crate::ElementListId;
@@ -99,6 +101,7 @@ pub struct Interner {
     known_properties: SliceArena<KnownPropertyEntry>,
     param_list: SliceArena<ParamInfo>,
     types: Arena<Type>,
+    singleton_type_cache: DashMap<ElementId, u32>,
 }
 
 impl Interner {
@@ -144,6 +147,7 @@ impl Interner {
             known_properties: SliceArena::new(),
             param_list: SliceArena::new(),
             types: Arena::new(),
+            singleton_type_cache: DashMap::new(),
         }
     }
 
@@ -169,16 +173,42 @@ impl Interner {
     /// indicate interner corruption.
     #[inline]
     pub fn intern_type(&self, elements: &[ElementId], flags: FlowFlags) -> TypeId {
-        let mut sorted: Vec<ElementId> = if elements.is_empty() { vec![NEVER] } else { elements.to_vec() };
-        sorted.sort_unstable();
-        sorted.dedup();
+        if elements.len() == 1 {
+            let elem = elements[0];
+            if let Some(slot) = self.singleton_type_cache.get(&elem) {
+                return TypeId::from_parts(*slot, flags, 0);
+            }
 
-        let list_id = self.element_list.intern(&sorted);
+            let id = self.intern_type_slow(elements, flags);
+            self.singleton_type_cache.insert(elem, id.slot());
+            return id;
+        }
+
+        self.intern_type_slow(elements, flags)
+    }
+
+    /// Slow-path `intern_type`: sort + dedup + arena hits. Always
+    /// reachable; the singleton fast path falls through here on cache
+    /// miss to populate it.
+    fn intern_type_slow(&self, elements: &[ElementId], flags: FlowFlags) -> TypeId {
+        let list_id = if elements.is_empty() {
+            self.element_list.intern(&[NEVER])
+        } else if elements.len() == 1 {
+            // Already len-1 ; sort + dedup are no-ops, skip the alloc.
+            self.element_list.intern(elements)
+        } else {
+            let mut sorted: Vec<ElementId> = elements.to_vec();
+            sorted.sort_unstable();
+            sorted.dedup();
+            self.element_list.intern(&sorted)
+        };
+
         // Just-interned: corruption invariant ; lookup cannot return None.
         #[allow(clippy::panic)]
         let Some(static_slice) = self.element_list.get(list_id) else {
             panic!("interner corruption: just-interned slice failed to resolve");
         };
+
         let value = Type { elements: static_slice };
         TypeId::from_parts(self.types.intern(value), flags, 0)
     }
@@ -199,6 +229,7 @@ impl Interner {
         let Some(value) = self.types.get(id.slot()) else {
             panic!("invalid TypeId slot: {} (forged handle, or used before boot)", id.slot());
         };
+
         value
     }
 }

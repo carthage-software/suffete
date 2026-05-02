@@ -115,10 +115,28 @@ pub fn narrow<W: World>(
     let input_type = input.as_ref();
     let narrowing_type = narrowing.as_ref();
 
-    let mut atoms: Vec<ElementId> = Vec::new();
+    let mut atoms: Vec<ElementId> = Vec::with_capacity(input_type.elements.len());
+    let bs_type = if narrowing.flags() == FlowFlags::EMPTY {
+        narrowing
+    } else {
+        interner().intern_type(narrowing_type.elements, FlowFlags::EMPTY)
+    };
+
+    let mut current_scratch: Vec<ElementId> = Vec::new();
+    let mut next_scratch: Vec<ElementId> = Vec::new();
     for &x in input_type.elements {
-        let pieces = subtract_all(x, narrowing_type.elements, world, options, report);
-        atoms.extend(pieces);
+        let pieces = subtract_all(
+            x,
+            narrowing_type.elements,
+            bs_type,
+            world,
+            options,
+            report,
+            &mut current_scratch,
+            &mut next_scratch,
+        );
+
+        atoms.extend(pieces.iter().copied());
     }
 
     if atoms.is_empty() {
@@ -147,38 +165,47 @@ pub fn compute<W: World>(
 /// then drain to empty when the surviving atoms refine the full
 /// `bs` union (the per-atom fold sees one container at a time and
 /// can stall on partition-style coverage).
+///
+/// `bs_type` is the pre-interned `TypeId` for `bs` (caller-hoisted to
+/// amortize across input atoms). `current_scratch` and `next_scratch`
+/// are reused per call ; the function clears and refills them, returning
+/// a borrowed view into `current_scratch` for the caller to copy out.
 #[inline]
-fn subtract_all<W: World>(
+#[allow(clippy::too_many_arguments)]
+fn subtract_all<'scratch, W: World>(
     x: ElementId,
     bs: &[ElementId],
+    bs_type: TypeId,
     world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
-) -> Vec<ElementId> {
-    let mut current: Vec<ElementId> = vec![x];
+    current_scratch: &'scratch mut Vec<ElementId>,
+    next_scratch: &mut Vec<ElementId>,
+) -> &'scratch [ElementId] {
+    current_scratch.clear();
+    current_scratch.push(x);
     for &b in bs {
-        if current.is_empty() {
+        if current_scratch.is_empty() {
             break;
         }
 
-        let mut next: Vec<ElementId> = Vec::new();
-        for c in current {
-            next.extend(atom_minus(c, b, world, options, report));
+        next_scratch.clear();
+        for &c in current_scratch.iter() {
+            next_scratch.extend(atom_minus(c, b, world, options, report));
         }
 
-        current = next;
+        core::mem::swap(current_scratch, next_scratch);
     }
 
-    if !current.is_empty() {
+    if !current_scratch.is_empty() {
         let i = interner();
-        let bs_t = i.intern_type(bs, FlowFlags::EMPTY);
-        let current_t = i.intern_type(&current, FlowFlags::EMPTY);
-        if refines(current_t, bs_t, world, options, report) {
-            return Vec::new();
+        let current_t = i.intern_type(current_scratch, FlowFlags::EMPTY);
+        if refines(current_t, bs_type, world, options, report) {
+            current_scratch.clear();
         }
     }
 
-    current
+    current_scratch.as_slice()
 }
 
 pub(in crate::subtract) fn atom_minus<W: World>(
@@ -191,9 +218,11 @@ pub(in crate::subtract) fn atom_minus<W: World>(
     if a == b || a == NEVER {
         return Vec::new();
     }
+
     if b == NEVER {
         return vec![a];
     }
+
     if b == MIXED {
         return Vec::new();
     }
