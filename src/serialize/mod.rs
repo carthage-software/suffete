@@ -1252,6 +1252,8 @@ const fn decode_visibility(v: SerializableVisibility) -> Visibility {
 
 #[cfg(feature = "serde")]
 mod serde_impl {
+    #![allow(clippy::renamed_function_params, clippy::missing_trait_methods)]
+
     use super::ElementId;
     use super::SerializableElement;
     use super::SerializableType;

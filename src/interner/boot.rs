@@ -1,3 +1,5 @@
+#![allow(clippy::shadow_unrelated)]
+
 use crate::FlowFlags;
 use crate::element::payload::CallableInfo;
 use crate::element::payload::ClassLikeKind;
@@ -70,7 +72,7 @@ impl Interner {
             debug_assert_eq!(booted, FALSY_MIXED);
 
             let booted = self.intern_mixed(MixedInfo::EMPTY.with_is_isset_from_loop(true));
-            debug_assert_eq!(booted, ISSET_FROM_LOOP)
+            debug_assert_eq!(booted, ISSET_FROM_LOOP);
         }
     }
 
@@ -101,7 +103,7 @@ impl Interner {
         debug_assert_eq!(booted, INT_ONE);
 
         let booted = self.intern_int(IntInfo::Literal(-1));
-        debug_assert_eq!(booted, INT_MINUS_ONE)
+        debug_assert_eq!(booted, INT_MINUS_ONE);
     }
 
     #[inline]
@@ -194,7 +196,7 @@ impl Interner {
         debug_assert_eq!(booted, NON_EMPTY_LITERAL_STRING);
 
         let booted = self.intern_string(empty_literal);
-        debug_assert_eq!(booted, EMPTY_STRING)
+        debug_assert_eq!(booted, EMPTY_STRING);
     }
 
     #[inline]
@@ -211,7 +213,7 @@ impl Interner {
         debug_assert_eq!(booted, ENUM_STRING);
 
         let booted = self.intern_class_like_string(make(ClassLikeKind::Trait));
-        debug_assert_eq!(booted, TRAIT_STRING)
+        debug_assert_eq!(booted, TRAIT_STRING);
     }
 
     #[inline]
@@ -223,7 +225,7 @@ impl Interner {
         debug_assert_eq!(booted, OPEN_RESOURCE);
 
         let booted = self.intern_resource(ResourceInfo::Closed);
-        debug_assert_eq!(booted, CLOSED_RESOURCE)
+        debug_assert_eq!(booted, CLOSED_RESOURCE);
     }
 
     #[inline]
@@ -232,13 +234,13 @@ impl Interner {
             KeyedArrayInfo { key_param: None, value_param: None, known_items: None, flags: KeyedArrayFlags::default() };
 
         let booted = self.intern_array(empty);
-        debug_assert_eq!(booted, EMPTY_ARRAY)
+        debug_assert_eq!(booted, EMPTY_ARRAY);
     }
 
     #[inline]
     fn boot_callable(&self) {
         let booted = self.intern_callable(CallableInfo::Any);
-        debug_assert_eq!(booted, CALLABLE)
+        debug_assert_eq!(booted, CALLABLE);
     }
 
     #[inline]
@@ -286,7 +288,7 @@ impl Interner {
         debug_assert_eq!(booted, TYPE_ARRAY_KEY);
 
         let booted = self.intern_type(&[CALLABLE], FlowFlags::EMPTY);
-        debug_assert_eq!(booted, TYPE_CALLABLE)
+        debug_assert_eq!(booted, TYPE_CALLABLE);
     }
 
     #[inline]
@@ -303,7 +305,7 @@ impl Interner {
         };
 
         let booted = self.intern_array(array_key_mixed);
-        debug_assert_eq!(booted, ARRAY_KEY_MIXED)
+        debug_assert_eq!(booted, ARRAY_KEY_MIXED);
     }
 
     #[inline]
@@ -330,7 +332,7 @@ impl Interner {
         debug_assert_eq!(booted, TYPE_NULL_OR_OBJECT);
 
         let booted = self.intern_type(&[INT_MINUS_ONE, INT_ZERO, INT_ONE], FlowFlags::EMPTY);
-        debug_assert_eq!(booted, TYPE_MINUS_ONE_ZERO_ONE)
+        debug_assert_eq!(booted, TYPE_MINUS_ONE_ZERO_ONE);
     }
 }
 
