@@ -48,6 +48,7 @@ mod family;
 
 use crate::ElementId;
 use crate::ElementKind;
+use crate::element::simd as element_simd;
 use crate::lattice::CoercionCauses;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
@@ -102,19 +103,18 @@ pub fn compute_with(elements: &[ElementId], options: &JoinOptions) -> Vec<Elemen
         return vec![NEVER];
     }
 
-    if elements.iter().any(|e| e.kind() == ElementKind::Mixed)
+    if element_simd::any_of_kind(elements, ElementKind::Mixed)
         && let Some(mixed_result) = family::mixed::apply_mixed_constraint_join(elements)
     {
         return vec![mixed_result];
     }
 
-    let mut out: Vec<ElementId> = if options.merge_string_axes
-        && elements.iter().filter(|e| e.kind() == ElementKind::String).take(2).count() >= 2
-    {
-        family::string::apply_string_axis_merge_in_order(elements)
-    } else {
-        elements.to_vec()
-    };
+    let mut out: Vec<ElementId> =
+        if options.merge_string_axes && element_simd::count_of_kind(elements, ElementKind::String) >= 2 {
+            family::string::apply_string_axis_merge_in_order(elements)
+        } else {
+            elements.to_vec()
+        };
     out.sort_unstable();
     out.dedup();
     canonicalize(&mut out);
@@ -410,24 +410,29 @@ fn apply_subtype_absorption(elements: &mut Vec<ElementId>) {
 /// and deduplicated on entry; sorted order is preserved on exit.
 #[inline]
 fn canonicalize(elements: &mut Vec<ElementId>) {
-    if elements.contains(&MIXED) {
+    // Every `contains` here goes through the SIMD scan ; the slice is
+    // queried for ~10 distinct singletons in a row and short-circuits
+    // on hit.
+    if element_simd::contains(elements, MIXED) {
         elements.clear();
         elements.push(MIXED);
         return;
     }
 
-    let has_non_never = elements.iter().any(|e| *e != NEVER);
-    if has_non_never {
-        elements.retain(|e| *e != NEVER);
+    if element_simd::contains(elements, NEVER) {
+        // Drop NEVER unless it is the only inhabitant.
+        if elements.iter().any(|e| *e != NEVER) {
+            elements.retain(|e| *e != NEVER);
+        }
     }
 
-    if elements.contains(&VOID) && elements.contains(&NULL) {
+    if element_simd::contains(elements, VOID) && element_simd::contains(elements, NULL) {
         elements.retain(|e| *e != VOID);
     }
 
-    let has_bool = elements.contains(&BOOL);
-    let has_true = elements.contains(&TRUE);
-    let has_false = elements.contains(&FALSE);
+    let has_bool = element_simd::contains(elements, BOOL);
+    let has_true = element_simd::contains(elements, TRUE);
+    let has_false = element_simd::contains(elements, FALSE);
 
     #[allow(clippy::else_if_without_else)]
     if has_bool {
@@ -438,9 +443,9 @@ fn canonicalize(elements: &mut Vec<ElementId>) {
         elements.insert(pos, BOOL);
     }
 
-    let has_open_resource = elements.contains(&OPEN_RESOURCE);
-    let has_closed_resource = elements.contains(&CLOSED_RESOURCE);
-    let has_resource = elements.contains(&RESOURCE);
+    let has_open_resource = element_simd::contains(elements, OPEN_RESOURCE);
+    let has_closed_resource = element_simd::contains(elements, CLOSED_RESOURCE);
+    let has_resource = element_simd::contains(elements, RESOURCE);
     if has_open_resource && has_closed_resource && !has_resource {
         elements.retain(|e| *e != OPEN_RESOURCE && *e != CLOSED_RESOURCE);
         let pos = elements.binary_search(&RESOURCE).unwrap_or_else(|p| p);
@@ -453,7 +458,7 @@ fn canonicalize(elements: &mut Vec<ElementId>) {
     apply_same_kind_dominator(elements, RESOURCE);
     apply_same_kind_dominator(elements, CALLABLE);
 
-    if elements.contains(&OBJECT) {
+    if element_simd::contains(elements, OBJECT) {
         elements.retain(|e| *e == OBJECT || !is_object_family_kind(e.kind()));
     }
 }
@@ -462,7 +467,7 @@ fn canonicalize(elements: &mut Vec<ElementId>) {
 /// kind (the dominator is the unrefined / top-of-its-family form).
 #[inline]
 fn apply_same_kind_dominator(elements: &mut Vec<ElementId>, dominator: ElementId) {
-    if !elements.contains(&dominator) {
+    if !element_simd::contains(elements, dominator) {
         return;
     }
 

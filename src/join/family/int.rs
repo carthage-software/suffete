@@ -73,7 +73,7 @@ pub(in crate::join) fn apply_merge_int_ranges(elements: &mut Vec<ElementId>) {
 /// Drop integer literals and add the broad `int` form when the
 /// literal count exceeds `threshold`.
 pub(in crate::join) fn apply_int_literal_collapse(elements: &mut Vec<ElementId>, threshold: u16) {
-    if elements.contains(&INT) {
+    if crate::element::simd::contains(elements, INT) {
         return;
     }
 
