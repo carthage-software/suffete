@@ -45,7 +45,7 @@ impl ObjectShapeFlags {
     const SEALED: u8 = 1 << 0;
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn sealed(self) -> bool {
         self.0 & Self::SEALED != 0
     }
@@ -96,8 +96,7 @@ impl ObjectShapeInfo {
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
         use crate::typed::Typed;
         let i = crate::interner::interner();
-        let entries =
-            self.known_properties.map_or(&[] as &[KnownPropertyEntry], |id| i.get_known_properties(id));
+        let entries = self.known_properties.map_or(&[] as &[KnownPropertyEntry], |id| i.get_known_properties(id));
         if entries.is_empty() {
             return if self.flags.sealed() { String::from("object{}") } else { String::from("object{...}") };
         }

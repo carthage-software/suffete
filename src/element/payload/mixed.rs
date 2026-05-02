@@ -28,7 +28,7 @@ impl MixedInfo {
     ///
     /// Both bits set simultaneously is invalid; constructors reject it.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn truthiness(self) -> Truthiness {
         match (self.0 & Self::IS_TRUTHY != 0, self.0 & Self::IS_FALSY != 0) {
             (false, false) => Truthiness::Undetermined,
@@ -39,19 +39,19 @@ impl MixedInfo {
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_non_null(self) -> bool {
         self.0 & Self::IS_NON_NULL != 0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.0 & Self::IS_EMPTY != 0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_isset_from_loop(self) -> bool {
         self.0 & Self::IS_ISSET_FROM_LOOP != 0
     }

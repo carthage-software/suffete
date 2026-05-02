@@ -63,7 +63,7 @@ use crate::world::World;
 /// Container is `object` (`ObjectAny`): accept anything in the object
 /// family.
 #[inline]
-#[must_use] 
+#[must_use]
 pub const fn refines_object_any(input: ElementId, _container: ElementId) -> bool {
     is_object_family_kind(input.kind())
 }
@@ -267,13 +267,11 @@ fn refines_has_property<W: World>(input: ElementId, property: Atom, world: &W) -
         }
         ElementKind::ObjectShape => {
             let shape = *i.get_object_shape(input);
-            shape
-                .known_properties
-                .is_some_and(|id| {
-                    i.get_known_properties(id)
-                        .iter()
-                        .any(|entry: &KnownPropertyEntry| entry.name == property && !entry.optional)
-                })
+            shape.known_properties.is_some_and(|id| {
+                i.get_known_properties(id)
+                    .iter()
+                    .any(|entry: &KnownPropertyEntry| entry.name == property && !entry.optional)
+            })
         }
         _ => false,
     }
@@ -365,10 +363,8 @@ fn shape_refines_shape<W: World>(
     report: &mut LatticeReport,
 ) -> bool {
     let i = interner();
-    let in_props: &[KnownPropertyEntry] =
-        input.known_properties.map_or(&[], |id| i.get_known_properties(id));
-    let out_props: &[KnownPropertyEntry] =
-        container.known_properties.map_or(&[], |id| i.get_known_properties(id));
+    let in_props: &[KnownPropertyEntry] = input.known_properties.map_or(&[], |id| i.get_known_properties(id));
+    let out_props: &[KnownPropertyEntry] = container.known_properties.map_or(&[], |id| i.get_known_properties(id));
 
     if container.flags.sealed() && !input.flags.sealed() {
         return false;
@@ -416,8 +412,7 @@ fn named_refines_shape<W: World>(
     report: &mut LatticeReport,
 ) -> bool {
     let i = interner();
-    let out_props: &[KnownPropertyEntry] =
-        container.known_properties.map_or(&[], |id| i.get_known_properties(id));
+    let out_props: &[KnownPropertyEntry] = container.known_properties.map_or(&[], |id| i.get_known_properties(id));
 
     for out in out_props {
         match world.class_property_type(class, out.name) {

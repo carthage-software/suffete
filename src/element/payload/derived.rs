@@ -59,7 +59,7 @@ const _: () = assert!(size_of::<Visibility>() == 1, "size budget exceeded");
 
 impl Visibility {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Visibility::Public => "public",

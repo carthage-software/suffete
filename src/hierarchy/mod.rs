@@ -45,7 +45,7 @@ pub struct HierarchyBuilder {
 
 impl HierarchyBuilder {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -159,7 +159,7 @@ impl Hierarchy {
     /// Single positional argument; convenience for [`Hierarchy::args`]
     /// followed by `[position]`.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn arg(&self, child: Atom, ancestor: Atom, position: usize) -> Option<TypeId> {
         self.args(child, ancestor).and_then(|args| args.get(position).copied())
     }

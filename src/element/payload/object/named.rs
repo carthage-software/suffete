@@ -32,19 +32,19 @@ impl ObjectFlags {
     const REMAPPED_PARAMETERS: u8 = 1 << 2;
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_static(self) -> bool {
         self.0 & Self::IS_STATIC != 0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_this(self) -> bool {
         self.0 & Self::IS_THIS != 0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn remapped_parameters(self) -> bool {
         self.0 & Self::REMAPPED_PARAMETERS != 0
     }

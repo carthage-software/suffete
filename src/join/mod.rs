@@ -84,7 +84,7 @@ use crate::world::NullWorld;
 ///
 /// [`Type`]: crate::Type
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn compute(elements: &[ElementId]) -> Vec<ElementId> {
     compute_with(elements, &JoinOptions::default())
 }
@@ -96,7 +96,7 @@ pub fn compute(elements: &[ElementId]) -> Vec<ElementId> {
 /// gated on its own option, so the analyzer can pick the simplification
 /// aggressiveness per call site.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn compute_with(elements: &[ElementId], options: &JoinOptions) -> Vec<ElementId> {
     if elements.is_empty() {
         return vec![NEVER];
@@ -251,7 +251,7 @@ impl JoinOptions {
     /// `void | null → null`, `true | false → bool`). Useful for testing
     /// a single rule in isolation.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn structural() -> Self {
         Self {
             merge_int_ranges: false,

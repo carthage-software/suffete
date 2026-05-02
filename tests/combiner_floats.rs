@@ -8,7 +8,7 @@
     clippy::missing_assert_message,
     clippy::std_instead_of_alloc,
     clippy::std_instead_of_core,
-    clippy::approx_constant,
+    clippy::approx_constant
 )]
 
 mod combiner_common;

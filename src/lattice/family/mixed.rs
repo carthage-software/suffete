@@ -19,7 +19,7 @@ use crate::element::payload::scalar::StringLiteral;
 use crate::interner::interner;
 
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn refines(input: ElementId, container: ElementId) -> bool {
     if container.kind() != ElementKind::Mixed {
         return false;

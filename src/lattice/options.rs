@@ -36,7 +36,7 @@ impl LatticeOptions {
     /// `ignore_false` mirrors `flags.ignore_falsable_issues()`.
     /// `inside_assertion` stays `false`.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn of_type(ty: TypeId) -> Self {
         let f = ty.flags();
         Self {
@@ -48,7 +48,7 @@ impl LatticeOptions {
 
     /// Same as [`of_type`](Self::of_type), but with `inside_assertion` set.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn assertion_of_type(ty: TypeId) -> Self {
         Self::of_type(ty).inside_assertion()
     }

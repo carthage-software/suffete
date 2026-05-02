@@ -8,7 +8,7 @@
     clippy::missing_assert_message,
     clippy::std_instead_of_alloc,
     clippy::std_instead_of_core,
-    clippy::vec_init_then_push,
+    clippy::vec_init_then_push
 )]
 
 mod combiner_common;

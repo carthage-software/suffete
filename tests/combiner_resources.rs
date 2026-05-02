@@ -8,7 +8,7 @@
     clippy::missing_assert_message,
     clippy::std_instead_of_alloc,
     clippy::std_instead_of_core,
-    clippy::integer_division_remainder_used,
+    clippy::integer_division_remainder_used
 )]
 
 mod combiner_common;

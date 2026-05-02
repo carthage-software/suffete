@@ -106,7 +106,7 @@ impl Interner {
     /// this constructor; that responsibility belongs to the boot routine
     /// (added in a later layer).
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             mixed: Arena::new(),

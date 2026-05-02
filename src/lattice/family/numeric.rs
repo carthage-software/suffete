@@ -9,7 +9,7 @@ use crate::interner::interner;
 use crate::lattice::family::string;
 
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn refines(input: ElementId, _container: ElementId) -> bool {
     match input.kind() {
         ElementKind::Int | ElementKind::Float => true,

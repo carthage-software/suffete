@@ -45,7 +45,7 @@ pub(in crate::subtract) fn object_descendant_minus<W: World>(
     } else {
         b
     };
-    
+
     let exclude_ty = i.intern_type(&[exclude_atom], FlowFlags::EMPTY);
     let new_negated = ElementId::negated(exclude_ty);
 
@@ -63,11 +63,11 @@ pub(in crate::subtract) fn object_descendant_minus<W: World>(
                     }
                 }
             }
-            
+
             conjuncts.push(existing);
         }
     }
-    
+
     if !conjuncts.contains(&new_negated) {
         conjuncts.push(new_negated);
     }

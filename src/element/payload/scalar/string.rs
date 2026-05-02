@@ -46,25 +46,25 @@ impl StringRefinementFlags {
     const IS_CALLABLE: u8 = 1 << 3;
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_numeric(self) -> bool {
         self.0 & Self::IS_NUMERIC != 0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_truthy(self) -> bool {
         self.0 & Self::IS_TRUTHY != 0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_non_empty(self) -> bool {
         self.0 & Self::IS_NON_EMPTY != 0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_callable(self) -> bool {
         self.0 & Self::IS_CALLABLE != 0
     }

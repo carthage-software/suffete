@@ -31,28 +31,28 @@ use crate::prelude::TYPE_NEVER;
 
 /// `true` iff `ty` is the bottom type (no values).
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn is_never(ty: TypeId) -> bool {
     ty == TYPE_NEVER
 }
 
 /// `true` iff `ty` is the unconstrained top (`mixed` with no axes).
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn is_mixed(ty: TypeId) -> bool {
     ty == TYPE_MIXED
 }
 
 /// `true` iff `ty` is a single-element union.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn is_singleton(ty: TypeId) -> bool {
     ty.as_ref().elements.len() == 1
 }
 
 /// `true` iff `ty` is a multi-element union.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn is_union(ty: TypeId) -> bool {
     ty.as_ref().elements.len() > 1
 }
@@ -139,7 +139,7 @@ contains_kind!(contains_mixed, ElementKind::Mixed);
 /// `true` iff every element of `ty` is guaranteed truthy at runtime.
 /// Vacuously `false` for the empty type (`never`).
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn is_truthy(ty: TypeId) -> bool {
     let elems = ty.as_ref().elements;
     !elems.is_empty() && elems.iter().all(|&e| element::is_truthy(e))
@@ -148,7 +148,7 @@ pub fn is_truthy(ty: TypeId) -> bool {
 /// `true` iff every element of `ty` is guaranteed falsy at runtime.
 /// Vacuously `false` for the empty type (`never`).
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn is_falsy(ty: TypeId) -> bool {
     let elems = ty.as_ref().elements;
     !elems.is_empty() && elems.iter().all(|&e| element::is_falsy(e))
@@ -158,7 +158,7 @@ pub fn is_falsy(ty: TypeId) -> bool {
 /// runtime. `never` and `void` cannot be truthy; everything else that
 /// isn't *guaranteed* falsy could be.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn could_be_truthy(ty: TypeId) -> bool {
     ty.as_ref().elements.iter().any(|&e| element::could_be_truthy(e))
 }
@@ -167,7 +167,7 @@ pub fn could_be_truthy(ty: TypeId) -> bool {
 /// `never` cannot be anything; `void` is treated as falsy per PHP
 /// semantics.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn could_be_falsy(ty: TypeId) -> bool {
     ty.as_ref().elements.iter().any(|&e| element::could_be_falsy(e))
 }
@@ -176,7 +176,7 @@ pub fn could_be_falsy(ty: TypeId) -> bool {
 /// (specific int / float / string literal, `true`, `false`, `null`,
 /// `void`).
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn is_literal(ty: TypeId) -> bool {
     let elems = ty.as_ref().elements;
     !elems.is_empty() && elems.iter().all(|&e| element::is_literal(e))
@@ -186,7 +186,7 @@ pub fn is_literal(ty: TypeId) -> bool {
 /// `is_literal(ty) && is_singleton(ty)`. The most useful "can I
 /// constant-fold this?" check.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn is_constant_foldable(ty: TypeId) -> bool {
     is_singleton(ty) && is_literal(ty)
 }
@@ -194,7 +194,7 @@ pub fn is_constant_foldable(ty: TypeId) -> bool {
 /// `true` iff any element anywhere in `ty`'s tree is a `mixed`
 /// (the family-level top, including narrowed mixed variants).
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn contains_mixed_anywhere(ty: TypeId) -> bool {
     inspect::any(ty, |e| e.kind() == ElementKind::Mixed)
 }
@@ -202,7 +202,7 @@ pub fn contains_mixed_anywhere(ty: TypeId) -> bool {
 /// `true` iff any element anywhere in `ty`'s tree is a free template
 /// parameter.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn contains_template_anywhere(ty: TypeId) -> bool {
     inspect::any(ty, |e| e.kind() == ElementKind::GenericParameter)
 }
@@ -210,7 +210,7 @@ pub fn contains_template_anywhere(ty: TypeId) -> bool {
 /// `true` iff any element anywhere in `ty`'s tree is a placeholder
 /// (the inference-time hole `?`).
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn contains_placeholder_anywhere(ty: TypeId) -> bool {
     inspect::any(ty, |e| e.kind() == ElementKind::Placeholder)
 }
@@ -222,7 +222,7 @@ pub fn contains_placeholder_anywhere(ty: TypeId) -> bool {
 /// typically needs to call `expand` on such a type before doing
 /// further reasoning.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn contains_unresolved_anywhere(ty: TypeId) -> bool {
     inspect::any(ty, |e| {
         matches!(
@@ -241,7 +241,7 @@ pub fn contains_unresolved_anywhere(ty: TypeId) -> bool {
 /// `Reference`, `MemberReference`, `GlobalReference`, `Conditional`,
 /// or `Derived` at any depth).
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn is_fully_resolved(ty: TypeId) -> bool {
     !contains_unresolved_anywhere(ty)
 }

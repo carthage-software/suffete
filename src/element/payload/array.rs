@@ -67,7 +67,7 @@ pub struct KeyedArrayInfo {
 impl KeyedArrayInfo {
     /// `true` iff this shape admits no entries beyond its known items.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_sealed(&self) -> bool {
         self.key_param.is_none() && self.value_param.is_none()
     }
@@ -80,7 +80,7 @@ impl KeyedArrayFlags {
     const NON_EMPTY: u8 = 1 << 0;
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn non_empty(self) -> bool {
         self.0 & Self::NON_EMPTY != 0
     }
@@ -108,7 +108,7 @@ impl ListFlags {
     const NON_EMPTY: u8 = 1 << 0;
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn non_empty(self) -> bool {
         self.0 & Self::NON_EMPTY != 0
     }

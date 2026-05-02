@@ -76,7 +76,7 @@ impl MeetOutcome {
     /// Extract the resulting [`TypeId`], mapping `Impossible` to
     /// [`prelude::TYPE_NEVER`].
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn into_type(self) -> TypeId {
         match self {
             Self::Impossible => TYPE_NEVER,

@@ -29,7 +29,7 @@ use crate::ElementId;
 use crate::ElementKind;
 
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn refines(input: ElementId, container: ElementId) -> bool {
     if !is_indirection_kind(container.kind()) {
         return false;

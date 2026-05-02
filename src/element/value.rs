@@ -80,7 +80,7 @@ pub enum Element {
 
 impl Element {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn kind(&self) -> ElementKind {
         match self {
             Element::Null => ElementKind::Null,

@@ -24,7 +24,7 @@ impl<T: Eq + Hash + Clone + Send + Sync + 'static> Arena<T> {
     /// A fresh, empty arena. Slot indices start at 1 (slot `0` is reserved as
     /// the niche so handle types can be `NonZeroU32`).
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self { storage: boxcar::Vec::new(), dedup: DashMap::new() }
     }
@@ -101,7 +101,7 @@ pub struct SliceArena<T: Eq + Hash + Clone + Send + Sync + 'static> {
 
 impl<T: Eq + Hash + Clone + Send + Sync + 'static> SliceArena<T> {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self { storage: boxcar::Vec::new(), dedup: DashMap::new() }
     }

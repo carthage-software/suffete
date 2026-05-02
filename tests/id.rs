@@ -7,7 +7,7 @@
     clippy::tests_outside_test_module,
     clippy::missing_assert_message,
     clippy::std_instead_of_alloc,
-    clippy::std_instead_of_core,
+    clippy::std_instead_of_core
 )]
 
 use core::mem::size_of;

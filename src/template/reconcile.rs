@@ -45,7 +45,7 @@ use super::standin::TemplateState;
 /// `bounds` is taken as a slice; ordering doesn't matter; this
 /// function sorts internally.
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn reconcile(bounds: &[Bound]) -> Option<TypeId> {
     if bounds.is_empty() {
         return None;
@@ -92,7 +92,7 @@ impl TemplateState {
     /// `fallback` (typically the parameter's constraint or `mixed`)
     /// when no bound was recorded.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn witness(&self, key: TemplateKey, fallback: TypeId) -> TypeId {
         reconcile(self.bounds_for(key)).unwrap_or(fallback)
     }

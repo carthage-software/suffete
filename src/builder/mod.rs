@@ -54,7 +54,7 @@ impl TypeBuilder {
     /// to [`prelude::TYPE_NEVER`](crate::prelude::TYPE_NEVER) (matching
     /// the existing `TypeId::union(&[])` convention).
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self { elements: Vec::new(), flags: FlowFlags::EMPTY, origin: None, dirty: false }
     }
@@ -63,7 +63,7 @@ impl TypeBuilder {
     /// origin handle is remembered so an unmodified `build()` returns
     /// the same `TypeId` without re-interning.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn from_type(ty: TypeId) -> Self {
         let view = ty.as_ref();
         Self { elements: view.elements.to_vec(), flags: ty.flags(), origin: Some(ty), dirty: false }
@@ -72,21 +72,21 @@ impl TypeBuilder {
     /// Current element buffer, in mutation order (not yet sorted /
     /// deduplicated / canonicalised). Cheap.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn elements(&self) -> &[ElementId] {
         &self.elements
     }
 
     /// Current flow flags.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn flags(&self) -> FlowFlags {
         self.flags
     }
 
     /// `true` iff the buffer contains no elements yet.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.elements.is_empty()
     }
@@ -95,14 +95,14 @@ impl TypeBuilder {
     /// `element`. O(n) on the buffer length; intended for predicate
     /// dispatch in the same loop that mutates.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn contains(&self, element: ElementId) -> bool {
         self.elements.contains(&element)
     }
 
     /// Number of elements currently in the buffer.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.elements.len()
     }
@@ -271,7 +271,7 @@ impl TypeBuilder {
     /// [`prelude::TYPE_NEVER`](crate::prelude::TYPE_NEVER), matching the
     /// interner's empty-input convention.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn build(self) -> TypeId {
         if !self.dirty
             && let Some(origin) = self.origin
@@ -288,7 +288,7 @@ impl TypeBuilder {
     /// subtype-driven absorption. Use [`build`](Self::build) when the
     /// caller does not want these collapses applied.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn build_canonical(self) -> TypeId {
         let canon = crate::join::compute(&self.elements);
         crate::interner::interner().intern_type(&canon, self.flags)

@@ -117,8 +117,7 @@ fn refines_keyed<W: World>(
             // accepts `int` keys and the container's value parameter
             // accepts the list's element type. Sealed-keyed containers
             // require fixed entries the list cannot guarantee, so reject.
-            let (Some(key_param), Some(value_param)) = (container_info.key_param, container_info.value_param)
-            else {
+            let (Some(key_param), Some(value_param)) = (container_info.key_param, container_info.value_param) else {
                 return false;
             };
             let int_t = single_type(INT);

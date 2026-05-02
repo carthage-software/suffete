@@ -198,7 +198,7 @@ pub struct TemplateState {
 
 impl TemplateState {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -228,7 +228,7 @@ impl TemplateState {
     /// Declaration recorded for `key`, or `None` when the template has
     /// never been declared (or auto-declared by a walk).
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn declaration(&self, key: TemplateKey) -> Option<&GenericTemplate> {
         self.template_types.get(&key)
     }
@@ -237,7 +237,7 @@ impl TemplateState {
     /// this to distinguish "no bound was inferred for an in-scope
     /// template" from "this template doesn't exist in this scope".
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn is_declared(&self, key: TemplateKey) -> bool {
         self.template_types.contains_key(&key)
     }
@@ -332,7 +332,7 @@ impl TemplateState {
     /// substitution starts they take a [`TemplateResult`] and the type
     /// system rules out any further accumulation.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn freeze(self) -> TemplateResult {
         TemplateResult { template_types: self.template_types, bounds: self.bounds, anti_bounds: self.anti_bounds }
     }
@@ -367,13 +367,13 @@ impl TemplateResult {
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn declaration(&self, key: TemplateKey) -> Option<&GenericTemplate> {
         self.template_types.get(&key)
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn is_declared(&self, key: TemplateKey) -> bool {
         self.template_types.contains_key(&key)
     }
@@ -888,8 +888,7 @@ fn walk_callable<W: World>(
 
     let new_param_list = p_sig.parameters.map(|pid| {
         let p_params = i.get_param_list(pid);
-        let a_params: &[crate::element::payload::ParamInfo] =
-            a_sig.parameters.map_or(&[], |aid| i.get_param_list(aid));
+        let a_params: &[crate::element::payload::ParamInfo] = a_sig.parameters.map_or(&[], |aid| i.get_param_list(aid));
         let mut new_params: Vec<crate::element::payload::ParamInfo> = Vec::with_capacity(p_params.len());
         let mut changed_inner = false;
         for (idx, p_param) in p_params.iter().enumerate() {

@@ -22,13 +22,13 @@ pub struct LiteralFloat(pub OrderedFloat<f64>);
 
 impl LiteralFloat {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn new(value: f64) -> Self {
         Self(OrderedFloat(value))
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn value(self) -> f64 {
         self.0.0
     }

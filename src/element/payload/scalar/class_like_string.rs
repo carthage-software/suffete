@@ -48,7 +48,7 @@ const _: () = assert!(size_of::<ClassLikeKind>() == 1, "size budget exceeded");
 
 impl ClassLikeKind {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             ClassLikeKind::Class => "class-string",

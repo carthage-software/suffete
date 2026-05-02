@@ -81,7 +81,7 @@ impl TypeId {
 
     /// Flow flags carried on the handle.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn flags(self) -> FlowFlags {
         FlowFlags::from_bits(((self.0.get() & FLAGS_MASK) >> FLAGS_SHIFT) as u16)
     }
@@ -90,7 +90,7 @@ impl TypeId {
     /// field; the value is whatever the consumer last wrote with
     /// [`TypeId::with_meta`] (default `0`).
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn meta(self) -> u8 {
         ((self.0.get() & META_MASK) >> META_SHIFT) as u8
     }
@@ -113,7 +113,7 @@ impl TypeId {
     /// `true` iff `self` and `other` refer to the same content slot,
     /// regardless of flags or meta.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn content_eq(self, other: Self) -> bool {
         self.slot() == other.slot()
     }
@@ -128,14 +128,14 @@ impl TypeId {
     /// handle was forged or constructed before the boot routine ran.
     #[allow(clippy::should_implement_trait)]
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn as_ref(self) -> &'static Type {
         crate::interner::interner().get_type(self)
     }
 
     /// Build a singleton union from one element, with empty flow flags.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn singleton(element: ElementId) -> Self {
         Self::union(&[element])
     }
@@ -151,14 +151,14 @@ impl TypeId {
     ///
     /// Empty input collapses to `[never]`.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn union(elements: &[ElementId]) -> Self {
         crate::interner::interner().intern_type(elements, FlowFlags::EMPTY)
     }
 
     /// Singleton type wrapping a literal integer.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn int_literal(value: i64) -> Self {
         Self::singleton(ElementId::int_literal(value))
     }
@@ -166,21 +166,21 @@ impl TypeId {
     /// Singleton type wrapping an integer range. Either bound may be `None`
     /// for open (`-∞` / `+∞`).
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn int_range(lower: Option<i64>, upper: Option<i64>) -> Self {
         Self::singleton(ElementId::int_range(lower, upper))
     }
 
     /// Singleton type wrapping a literal float.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn float_literal(value: f64) -> Self {
         Self::singleton(ElementId::float_literal(value))
     }
 
     /// Singleton type wrapping a literal string.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn string_literal(value: &str) -> Self {
         Self::singleton(ElementId::string_literal(value))
     }

@@ -430,7 +430,7 @@ impl TypeId {
     /// persistence. See the [`crate::serialize`] module docs for the
     /// identity contract.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn to_serializable(self) -> SerializableType {
         let view = self.as_ref();
         SerializableType {
@@ -459,7 +459,7 @@ impl ElementId {
     /// preserving structural content (handle bits are not preserved
     /// across processes; see [`crate::serialize`] module docs).
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn to_serializable(self) -> SerializableElement {
         encode_element(self)
     }
@@ -470,7 +470,7 @@ impl SerializableElement {
     /// and return a fresh [`ElementId`]. Equivalent (structurally) to
     /// the original element that produced this `SerializableElement`.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn intern(&self) -> ElementId {
         decode_element(self)
     }

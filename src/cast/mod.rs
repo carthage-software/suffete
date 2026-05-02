@@ -64,19 +64,19 @@ pub struct CastResult {
 
 impl CastResult {
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn lossless(ty: TypeId) -> Self {
         Self { ty, flags: CastFlags::NONE }
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn lossy(ty: TypeId) -> Self {
         Self { ty, flags: CastFlags::LOSSY }
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn may_throw(ty: TypeId) -> Self {
         Self { ty, flags: CastFlags::MAY_THROW }
     }
@@ -96,25 +96,25 @@ impl CastFlags {
     pub const MAY_THROW: Self = Self(1 << 1);
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn lossy(self) -> bool {
         self.contains(Self::LOSSY)
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn may_throw(self) -> bool {
         self.contains(Self::MAY_THROW)
     }

@@ -8,7 +8,7 @@ use crate::ElementId;
 use crate::ElementKind;
 
 #[inline]
-#[must_use] 
+#[must_use]
 pub const fn refines(input: ElementId, _container: ElementId) -> bool {
     matches!(
         input.kind(),

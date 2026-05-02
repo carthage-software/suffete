@@ -26,13 +26,13 @@ impl FlowFlags {
     const REFERENCE_FREE: u16 = 1 << 9;
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn bits(self) -> u16 {
         self.0
     }
 
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn from_bits(bits: u16) -> Self {
         Self(bits)
     }

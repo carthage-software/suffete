@@ -7,9 +7,8 @@
     clippy::tests_outside_test_module,
     clippy::missing_assert_message,
     clippy::std_instead_of_alloc,
-    clippy::std_instead_of_core,
+    clippy::std_instead_of_core
 )]
-
 #![allow(clippy::approx_constant)]
 
 mod comparator_common;

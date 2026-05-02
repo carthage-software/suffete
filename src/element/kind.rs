@@ -53,7 +53,7 @@ impl ElementKind {
     /// needed and no payload to look up. Trivial elements have a single
     /// canonical instance.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_trivial(self) -> bool {
         matches!(
             self,

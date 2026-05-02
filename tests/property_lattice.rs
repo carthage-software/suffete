@@ -8,7 +8,7 @@
     clippy::missing_assert_message,
     clippy::std_instead_of_alloc,
     clippy::std_instead_of_core,
-    clippy::arithmetic_side_effects,
+    clippy::arithmetic_side_effects
 )]
 
 mod comparator_common;
@@ -94,8 +94,7 @@ fn arb_world() -> impl Strategy<Value = WorldHandle> {
                 for j in (i + 1)..CLASSES.len() {
                     if edges[edge_idx] {
                         let parent_arity = templates[j].len();
-                        let parent_args: Vec<TypeId> =
-                            std::iter::repeat_n(prelude::TYPE_MIXED, parent_arity).collect();
+                        let parent_args: Vec<TypeId> = std::iter::repeat_n(prelude::TYPE_MIXED, parent_arity).collect();
                         w.with_extended(child, CLASSES[j], parent_args);
                     }
 

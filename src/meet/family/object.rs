@@ -486,8 +486,7 @@ fn merge_args<W: World>(
 
             let mut merged: Vec<TypeId> = Vec::with_capacity(arity);
             for (idx, (&a_arg, &b_arg)) in a_args.iter().zip(b_args.iter()).enumerate() {
-                let variance =
-                    world.template_parameter_at(a.name, idx).map_or(Variance::Invariant, |t| t.variance);
+                let variance = world.template_parameter_at(a.name, idx).map_or(Variance::Invariant, |t| t.variance);
                 let arg = match variance {
                     Variance::Covariant => crate::meet::compute(a_arg, b_arg, world, options, report),
                     Variance::Invariant => {

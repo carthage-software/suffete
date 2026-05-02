@@ -44,7 +44,7 @@ pub struct LatticeReport {
 impl LatticeReport {
     /// A fresh report with no causes, no replacements, and no bounds.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -75,7 +75,7 @@ impl LatticeReport {
 
     /// `true` iff at least one coercion cause was recorded.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn coerced(&self) -> bool {
         self.causes.any()
     }
@@ -135,21 +135,21 @@ impl CoercionCauses {
 
     /// `true` iff no causes are set.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     /// `true` iff at least one cause is set.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn any(self) -> bool {
         self.0 != 0
     }
 
     /// `true` iff every bit in `other` is set in `self`.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
@@ -168,7 +168,7 @@ impl CoercionCauses {
 
     /// Convenience: the input contained a nested `mixed`.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn nested_mixed(self) -> bool {
         self.contains(Self::NESTED_MIXED)
     }
@@ -176,42 +176,42 @@ impl CoercionCauses {
     /// Convenience: the input was a generic parameter constrained to
     /// `mixed`.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn from_as_mixed(self) -> bool {
         self.contains(Self::FROM_AS_MIXED)
     }
 
     /// Convenience: a true-union kind was narrowed.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn true_union_narrow(self) -> bool {
         self.contains(Self::TRUE_UNION_NARROW)
     }
 
     /// Convenience: PHP would coerce the input at runtime.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn php_runtime_coerce(self) -> bool {
         self.contains(Self::PHP_RUNTIME_COERCE)
     }
 
     /// Convenience: a literal was promoted to its general form.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn literal_promoted(self) -> bool {
         self.contains(Self::LITERAL_PROMOTED)
     }
 
     /// Convenience: a generic position was default-filled.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn template_default(self) -> bool {
         self.contains(Self::TEMPLATE_DEFAULT)
     }
 
     /// Convenience: `object` was accepted in a concrete-class slot.
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub const fn object_any_down(self) -> bool {
         self.contains(Self::OBJECT_ANY_DOWN)
     }

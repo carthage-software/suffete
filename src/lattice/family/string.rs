@@ -36,7 +36,7 @@ use crate::element::payload::scalar::StringRefinementFlags;
 use crate::interner::interner;
 
 #[inline]
-#[must_use] 
+#[must_use]
 pub fn refines(input: ElementId, container: ElementId) -> bool {
     let i = interner();
     let container_info = *i.get_string(container);
