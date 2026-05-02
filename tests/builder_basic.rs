@@ -1,6 +1,14 @@
-//! TypeBuilder tests: constructors, mutations, flow-flag toggles,
-//! origin short-circuit, and the canonical "build collapses to TYPE_NEVER
-//! on empty buffer" contract.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -165,7 +173,7 @@ fn unmodified_from_type_short_circuits_to_origin_handle() {
 fn mutated_then_reverted_buffer_still_rebuilds_via_no_diff_check() {
     // The dirty flag stays set after push+remove; the short-circuit
     // does not detect "shape returned to origin", so we go through join
-    // and intern again. Documented as intentional — diff tracking
+    // and intern again. Documented as intentional ; diff tracking
     // would defeat the build-then-finalise point.
     let ty = prelude::TYPE_INT;
     let mut b = TypeBuilder::from_type(ty);

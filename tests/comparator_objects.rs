@@ -1,10 +1,19 @@
-//! Object hierarchy. Mago tests use `world_from_php(php_source)`; we
-//! substitute hand-built [`MockWorld`] hierarchies declared inline.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
 use comparator_common::*;
-use suffete::world::World;
+use suffete::world::World as _;
 
 fn animal_hierarchy() -> MockWorld {
     let mut cb = MockWorld::from_edges(&[

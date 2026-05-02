@@ -72,7 +72,7 @@ pub struct MockWorld {
     final_classes: HashSet<Atom>,
     /// `(class, alias_name) -> alias body type` for declared `@type`
     /// aliases. Body may itself contain other aliases, references, or
-    /// derived types — expansion is recursive.
+    /// derived types ; expansion is recursive.
     aliases: HashMap<(Atom, Atom), TypeId>,
     /// `(class, constant_name) -> constant type` for class-level constants.
     class_constants: HashMap<(Atom, Atom), TypeId>,
@@ -101,11 +101,11 @@ impl MockWorld {
     /// Add a single `child extends/implements parent` edge and recompute
     /// the transitive closure.
     pub fn add_edge(&mut self, child: &str, parent: &str) -> &mut Self {
-        let child = atom(child);
-        let parent = atom(parent);
-        self.ancestors.entry(child).or_default().insert(child);
-        self.ancestors.entry(parent).or_default().insert(parent);
-        self.ancestors.get_mut(&child).unwrap().insert(parent);
+        let child_atom = atom(child);
+        let parent_atom = atom(parent);
+        self.ancestors.entry(child_atom).or_default().insert(child_atom);
+        self.ancestors.entry(parent_atom).or_default().insert(parent_atom);
+        self.ancestors.get_mut(&child_atom).unwrap().insert(parent_atom);
         self.recompute_closure();
         self
     }
@@ -348,15 +348,17 @@ impl World for MockWorld {
     }
 
     fn template_parameter_arity(&self, class: Atom) -> usize {
-        self.templates.get(&class).map(Vec::len).unwrap_or(0)
+        self.templates.get(&class).map_or(0, Vec::len)
     }
 
     fn template_parameter_at(&self, class: Atom, position: usize) -> Option<TemplateParameter> {
-        self.templates.get(&class).and_then(|params| params.get(position).cloned())
+        let params = self.templates.get(&class)?;
+        params.get(position).cloned()
     }
 
     fn template_parameter_index(&self, class: Atom, name: Atom) -> Option<usize> {
-        self.templates.get(&class).and_then(|params| params.iter().position(|p| p.name == name))
+        let params = self.templates.get(&class)?;
+        params.iter().position(|p| p.name == name)
     }
 
     fn inherited_template_argument(&self, child: Atom, ancestor: Atom, position: usize) -> Option<TypeId> {
@@ -373,7 +375,7 @@ impl World for MockWorld {
         // recurse, returning the parent's args at `position` (each
         // edge in `arb_world` already supplies `mixed` defaults, so
         // chain composition collapses to `mixed`).
-        for ((parent_child, parent_ancestor), _args) in self.extended.iter() {
+        for (parent_child, parent_ancestor) in self.extended.keys() {
             if *parent_child != child {
                 continue;
             }
@@ -431,7 +433,7 @@ impl World for MockWorld {
     }
 
     fn is_final(&self, name: Atom) -> bool {
-        // Enums are implicitly final in PHP — they cannot be
+        // Enums are implicitly final in PHP ; they cannot be
         // subclassed. Explicit `with_final` declarations are tracked
         // in `final_classes`.
         self.enums.contains_key(&name) || self.final_classes.contains(&name)
@@ -452,7 +454,7 @@ impl World for MockWorld {
 }
 
 /// An empty world: nothing knows about anything.
-pub fn empty_world() -> NullWorld {
+pub const fn empty_world() -> NullWorld {
     NullWorld
 }
 
@@ -471,8 +473,7 @@ pub fn is_contained_capturing<W: World>(input: TypeId, container: TypeId, world:
 }
 
 /// `is_contained` with the `ignore_null` / `ignore_false` / `inside_assertion`
-/// option flags. Mirrors mago's
-/// `is_contained_by(..., ignore_null, ignore_false, inside_assertion, _)`.
+/// option flags.
 pub fn is_contained_with<W: World>(
     input: TypeId,
     container: TypeId,
@@ -519,155 +520,189 @@ pub fn atomic_is_contained_capturing<W: World>(
 }
 
 #[track_caller]
-pub fn assert_subtype(input: &TypeId, container: &TypeId) {
+pub fn assert_subtype(input: TypeId, container: TypeId) {
     let cb = empty_world();
-    assert!(is_contained(*input, *container, &cb), "expected {input:?} <: {container:?} but it is not");
+    assert!(is_contained(input, container, &cb), "expected {input:?} <: {container:?} but it is not");
 }
 
 #[track_caller]
-pub fn assert_not_subtype(input: &TypeId, container: &TypeId) {
+pub fn assert_not_subtype(input: TypeId, container: TypeId) {
     let cb = empty_world();
-    assert!(!is_contained(*input, *container, &cb), "expected NOT ({input:?} <: {container:?}) but it is");
+    assert!(!is_contained(input, container, &cb), "expected NOT ({input:?} <: {container:?}) but it is");
 }
 
 #[track_caller]
-pub fn assert_atomic_subtype(input: &ElementId, container: &ElementId) {
+pub fn assert_atomic_subtype(input: ElementId, container: ElementId) {
     let cb = empty_world();
-    assert!(atomic_is_contained(*input, *container, &cb), "expected atomic {input:?} <: {container:?}");
+    assert!(atomic_is_contained(input, container, &cb), "expected atomic {input:?} <: {container:?}");
 }
 
 #[track_caller]
-pub fn assert_atomic_not_subtype(input: &ElementId, container: &ElementId) {
+pub fn assert_atomic_not_subtype(input: ElementId, container: ElementId) {
     let cb = empty_world();
-    assert!(!atomic_is_contained(*input, *container, &cb), "expected NOT (atomic {input:?} <: {container:?})");
+    assert!(!atomic_is_contained(input, container, &cb), "expected NOT (atomic {input:?} <: {container:?})");
 }
 
-pub fn never() -> ElementId {
+pub const fn never() -> ElementId {
     prelude::NEVER
 }
-pub fn null() -> ElementId {
+
+pub const fn null() -> ElementId {
     prelude::NULL
 }
-pub fn void() -> ElementId {
+
+pub const fn void() -> ElementId {
     prelude::VOID
 }
-pub fn placeholder() -> ElementId {
+
+pub const fn placeholder() -> ElementId {
     prelude::PLACEHOLDER
 }
-pub fn mixed() -> ElementId {
+
+pub const fn mixed() -> ElementId {
     prelude::MIXED
 }
-pub fn mixed_truthy() -> ElementId {
+
+pub const fn mixed_truthy() -> ElementId {
     prelude::TRUTHY_MIXED
 }
-pub fn mixed_falsy() -> ElementId {
+
+pub const fn mixed_falsy() -> ElementId {
     prelude::FALSY_MIXED
 }
-pub fn mixed_nonnull() -> ElementId {
+
+pub const fn mixed_nonnull() -> ElementId {
     prelude::NON_NULL_MIXED
 }
 
-pub fn t_true() -> ElementId {
+pub const fn t_true() -> ElementId {
     prelude::TRUE
 }
-pub fn t_false() -> ElementId {
+
+pub const fn t_false() -> ElementId {
     prelude::FALSE
 }
-pub fn t_bool() -> ElementId {
+
+pub const fn t_bool() -> ElementId {
     prelude::BOOL
 }
 
-pub fn t_int() -> ElementId {
+pub const fn t_int() -> ElementId {
     prelude::INT
 }
+
 pub fn t_lit_int(v: i64) -> ElementId {
     ElementId::int_literal(v)
 }
+
 pub fn t_int_from(from: i64) -> ElementId {
     ElementId::int_range(Some(from), None)
 }
+
 pub fn t_int_to(to: i64) -> ElementId {
     ElementId::int_range(None, Some(to))
 }
+
 pub fn t_int_range(lo: i64, hi: i64) -> ElementId {
     ElementId::int_range(Some(lo), Some(hi))
 }
-pub fn t_int_unspec_lit() -> ElementId {
+
+pub const fn t_int_unspec_lit() -> ElementId {
     prelude::LITERAL_INT
 }
-pub fn t_positive_int() -> ElementId {
+
+pub const fn t_positive_int() -> ElementId {
     prelude::POSITIVE_INT
 }
-pub fn t_negative_int() -> ElementId {
+
+pub const fn t_negative_int() -> ElementId {
     prelude::NEGATIVE_INT
 }
-pub fn t_non_negative_int() -> ElementId {
+
+pub const fn t_non_negative_int() -> ElementId {
     prelude::NON_NEGATIVE_INT
 }
-pub fn t_non_positive_int() -> ElementId {
+
+pub const fn t_non_positive_int() -> ElementId {
     prelude::NON_POSITIVE_INT
 }
 
-pub fn t_float() -> ElementId {
+pub const fn t_float() -> ElementId {
     prelude::FLOAT
 }
+
 pub fn t_lit_float(v: f64) -> ElementId {
     ElementId::float_literal(v)
 }
-pub fn t_unspec_lit_float() -> ElementId {
+
+pub const fn t_unspec_lit_float() -> ElementId {
     prelude::LITERAL_FLOAT
 }
 
-pub fn t_string() -> ElementId {
+pub const fn t_string() -> ElementId {
     prelude::STRING
 }
+
 pub fn t_lit_string(s: &str) -> ElementId {
     ElementId::string_literal(s)
 }
-pub fn t_non_empty_string() -> ElementId {
+
+pub const fn t_non_empty_string() -> ElementId {
     prelude::NON_EMPTY_STRING
 }
-pub fn t_numeric_string() -> ElementId {
+
+pub const fn t_numeric_string() -> ElementId {
     prelude::NUMERIC_STRING
 }
-pub fn t_lower_string() -> ElementId {
+
+pub const fn t_lower_string() -> ElementId {
     prelude::LOWERCASE_STRING
 }
-pub fn t_upper_string() -> ElementId {
+
+pub const fn t_upper_string() -> ElementId {
     prelude::UPPERCASE_STRING
 }
-pub fn t_truthy_string() -> ElementId {
+
+pub const fn t_truthy_string() -> ElementId {
     prelude::TRUTHY_STRING
 }
-pub fn t_unspec_lit_string(non_empty: bool) -> ElementId {
+
+pub const fn t_unspec_lit_string(non_empty: bool) -> ElementId {
     if non_empty { prelude::NON_EMPTY_LITERAL_STRING } else { prelude::LITERAL_STRING }
 }
-pub fn t_callable_string() -> ElementId {
+
+pub const fn t_callable_string() -> ElementId {
     prelude::CALLABLE_STRING
 }
 
-pub fn t_array_key() -> ElementId {
+pub const fn t_array_key() -> ElementId {
     prelude::ARRAY_KEY
 }
-pub fn t_numeric() -> ElementId {
+
+pub const fn t_numeric() -> ElementId {
     prelude::NUMERIC
 }
-pub fn t_scalar() -> ElementId {
+
+pub const fn t_scalar() -> ElementId {
     prelude::SCALAR
 }
 
-pub fn t_class_string() -> ElementId {
+pub const fn t_class_string() -> ElementId {
     prelude::CLASS_STRING
 }
-pub fn t_interface_string() -> ElementId {
+
+pub const fn t_interface_string() -> ElementId {
     prelude::INTERFACE_STRING
 }
-pub fn t_enum_string() -> ElementId {
+
+pub const fn t_enum_string() -> ElementId {
     prelude::ENUM_STRING
 }
-pub fn t_trait_string() -> ElementId {
+
+pub const fn t_trait_string() -> ElementId {
     prelude::TRAIT_STRING
 }
+
 pub fn t_lit_class_string(name: &str) -> ElementId {
     ElementId::class_string_literal(name)
 }
@@ -692,25 +727,30 @@ pub fn t_interface_string_of(constraint: TypeId) -> ElementId {
     })
 }
 
-pub fn t_resource() -> ElementId {
+pub const fn t_resource() -> ElementId {
     prelude::RESOURCE
 }
-pub fn t_open_resource() -> ElementId {
+
+pub const fn t_open_resource() -> ElementId {
     prelude::OPEN_RESOURCE
 }
-pub fn t_closed_resource() -> ElementId {
+
+pub const fn t_closed_resource() -> ElementId {
     prelude::CLOSED_RESOURCE
 }
 
-pub fn t_object_any() -> ElementId {
+pub const fn t_object_any() -> ElementId {
     prelude::OBJECT
 }
+
 pub fn t_named(name: &str) -> ElementId {
     ElementId::object_named(name)
 }
+
 pub fn t_enum(name: &str) -> ElementId {
     ElementId::enum_any(name)
 }
+
 pub fn t_enum_case(name: &str, case: &str) -> ElementId {
     ElementId::enum_case(name, case)
 }
@@ -811,7 +851,7 @@ pub fn t_template_of(class_name: &str, template_name: &str, constraint: TypeId) 
     ElementId::generic_parameter(template_name, DefiningEntity::ClassLike(atom(class_name)), constraint)
 }
 
-pub fn t_empty_array() -> ElementId {
+pub const fn t_empty_array() -> ElementId {
     prelude::EMPTY_ARRAY
 }
 
@@ -882,7 +922,7 @@ pub fn t_callable(params: &[TypeId], return_type: TypeId) -> ElementId {
     t_callable_sig(&p, return_type, false)
 }
 
-pub fn ak_int(n: i64) -> ArrayKey {
+pub const fn ak_int(n: i64) -> ArrayKey {
     ArrayKey::Int(n)
 }
 

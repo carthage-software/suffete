@@ -6,9 +6,9 @@
 //! type they're for, **not** here. This module owns only the trait
 //! contract and the two dispatch enums.
 
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
+use core::fmt::Display;
+use core::fmt::Formatter;
+use core::fmt::Result as FmtResult;
 
 use crate::Element;
 use crate::ElementId;
@@ -29,9 +29,7 @@ pub trait Typed: Display {
     fn pretty_with_indent(&self, indent: usize) -> String;
 
     /// Convenience: pretty rendering at indent zero.
-    fn pretty(&self) -> String {
-        self.pretty_with_indent(0)
-    }
+    fn pretty(&self) -> String;
 
     /// `&` conjuncts this thing intersects with. Empty slice when none.
     fn intersection_types(&self) -> &'static [ElementId];
@@ -52,9 +50,9 @@ pub trait Typed: Display {
 /// the interner.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-pub enum View<'a> {
-    Type(&'a Type),
-    Element(&'a Element),
+pub enum View<'view> {
+    Type(&'view Type),
+    Element(&'view Element),
 }
 
 /// Owned handle: either a [`TypeId`] or an [`ElementId`]. Both are
@@ -66,31 +64,36 @@ pub enum Handle {
     Element(ElementId),
 }
 
-impl<'a> From<&'a Type> for View<'a> {
-    fn from(t: &'a Type) -> Self {
+impl<'view> From<&'view Type> for View<'view> {
+    #[inline]
+    fn from(t: &'view Type) -> Self {
         View::Type(t)
     }
 }
 
-impl<'a> From<&'a Element> for View<'a> {
-    fn from(e: &'a Element) -> Self {
+impl<'view> From<&'view Element> for View<'view> {
+    #[inline]
+    fn from(e: &'view Element) -> Self {
         View::Element(e)
     }
 }
 
 impl From<TypeId> for Handle {
+    #[inline]
     fn from(id: TypeId) -> Self {
         Handle::Type(id)
     }
 }
 
 impl From<ElementId> for Handle {
+    #[inline]
     fn from(id: ElementId) -> Self {
         Handle::Element(id)
     }
 }
 
 impl Display for View<'_> {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             View::Type(t) => Display::fmt(t, f),
@@ -100,6 +103,7 @@ impl Display for View<'_> {
 }
 
 impl Display for Handle {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Handle::Type(t) => Display::fmt(t, f),
@@ -109,6 +113,15 @@ impl Display for Handle {
 }
 
 impl Typed for View<'_> {
+    #[inline]
+    fn pretty(&self) -> String {
+        match self {
+            View::Type(t) => Typed::pretty(*t),
+            View::Element(e) => Typed::pretty(*e),
+        }
+    }
+
+    #[inline]
     fn pretty_with_indent(&self, indent: usize) -> String {
         match self {
             View::Type(t) => Typed::pretty_with_indent(*t, indent),
@@ -116,6 +129,7 @@ impl Typed for View<'_> {
         }
     }
 
+    #[inline]
     fn intersection_types(&self) -> &'static [ElementId] {
         match self {
             View::Type(t) => Typed::intersection_types(*t),
@@ -123,6 +137,7 @@ impl Typed for View<'_> {
         }
     }
 
+    #[inline]
     fn has_intersection_types(&self) -> bool {
         match self {
             View::Type(t) => Typed::has_intersection_types(*t),
@@ -130,6 +145,7 @@ impl Typed for View<'_> {
         }
     }
 
+    #[inline]
     fn can_be_intersected(&self) -> bool {
         match self {
             View::Type(t) => Typed::can_be_intersected(*t),
@@ -137,6 +153,7 @@ impl Typed for View<'_> {
         }
     }
 
+    #[inline]
     fn is_complex(&self) -> bool {
         match self {
             View::Type(t) => Typed::is_complex(*t),
@@ -146,6 +163,15 @@ impl Typed for View<'_> {
 }
 
 impl Typed for Handle {
+    #[inline]
+    fn pretty(&self) -> String {
+        match self {
+            Handle::Type(t) => Typed::pretty(t),
+            Handle::Element(e) => Typed::pretty(e),
+        }
+    }
+
+    #[inline]
     fn pretty_with_indent(&self, indent: usize) -> String {
         match self {
             Handle::Type(t) => Typed::pretty_with_indent(t, indent),
@@ -153,6 +179,7 @@ impl Typed for Handle {
         }
     }
 
+    #[inline]
     fn intersection_types(&self) -> &'static [ElementId] {
         match self {
             Handle::Type(t) => Typed::intersection_types(t),
@@ -160,6 +187,7 @@ impl Typed for Handle {
         }
     }
 
+    #[inline]
     fn has_intersection_types(&self) -> bool {
         match self {
             Handle::Type(t) => Typed::has_intersection_types(t),
@@ -167,6 +195,7 @@ impl Typed for Handle {
         }
     }
 
+    #[inline]
     fn can_be_intersected(&self) -> bool {
         match self {
             Handle::Type(t) => Typed::can_be_intersected(t),
@@ -174,6 +203,7 @@ impl Typed for Handle {
         }
     }
 
+    #[inline]
     fn is_complex(&self) -> bool {
         match self {
             Handle::Type(t) => Typed::is_complex(t),

@@ -1,4 +1,14 @@
-//! `suffete::predicates` — single-call structural questions on a type.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -6,8 +16,6 @@ use comparator_common::*;
 
 use suffete::predicates as p;
 use suffete::prelude;
-
-// ---- Cardinality ----
 
 #[test]
 fn is_never_true_only_for_type_never() {
@@ -31,8 +39,6 @@ fn is_singleton_and_is_union() {
     assert!(!p::is_singleton(u2));
     assert!(p::is_union(u2));
 }
-
-// ---- is_X family ----
 
 #[test]
 fn is_int_true_for_int_family() {
@@ -107,8 +113,6 @@ fn is_numeric_includes_int_and_float() {
     assert!(!p::is_numeric(prelude::TYPE_STRING));
 }
 
-// ---- contains_X family ----
-
 #[test]
 fn contains_string_in_union() {
     let u = u_many(vec![t_int(), t_string()]);
@@ -136,8 +140,6 @@ fn contains_mixed_top_level_only() {
     assert!(!p::contains_mixed(nested));
     assert!(p::contains_mixed_anywhere(nested));
 }
-
-// ---- Truthiness ----
 
 #[test]
 fn true_is_truthy_false_is_falsy() {
@@ -248,8 +250,6 @@ fn nullable_int_could_be_both() {
     assert!(p::could_be_falsy(nullable));
 }
 
-// ---- Literal / constant-foldable ----
-
 #[test]
 fn is_literal_true_for_known_values() {
     assert!(p::is_literal(u(t_lit_int(42))));
@@ -276,8 +276,6 @@ fn is_constant_foldable_requires_singleton() {
     assert!(p::is_literal(union_lits));
     assert!(!p::is_constant_foldable(union_lits));
 }
-
-// ---- _anywhere recursive predicates ----
 
 #[test]
 fn contains_template_anywhere_finds_nested() {

@@ -1,0 +1,12 @@
+//! Per-family subtract rules. Each submodule owns the difference
+//! algebra for one element kind (or one cross-kind pair). The entry
+//! `family_atom_minus` in the parent dispatches on the input kinds
+//! and delegates here.
+
+pub(super) mod array;
+pub(super) mod dominator;
+pub(super) mod generic;
+pub(super) mod int;
+pub(super) mod list;
+pub(super) mod object;
+pub(super) mod string;

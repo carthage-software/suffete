@@ -50,7 +50,7 @@ pub struct TemplateParameter {
 /// ```
 ///
 /// With [`Invariant`](Variance::Invariant) as the default, `Cell<int>`
-/// is NOT a subtype of `Cell<scalar>` — the unsoundness is rejected at
+/// is NOT a subtype of `Cell<scalar>` ; the unsoundness is rejected at
 /// the call site. A library author who has audited their class for
 /// covariant-only or contravariant-only usage opts in explicitly.
 ///

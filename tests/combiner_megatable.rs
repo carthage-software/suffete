@@ -1,5 +1,14 @@
-//! Mega-table combiner cases. Each `expect(label, input, expected)` is one
-//! row.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod combiner_common;
 
@@ -166,8 +175,8 @@ fn cross_family_megatable() {
     expect("null|array{}", vec![null(), t_empty_array()], &[t_empty_array(), null()]);
     expect("null|resource", vec![null(), t_resource()], &[null(), t_resource()]);
     expect("Foo|resource", vec![t_named("Foo"), t_resource()], &[t_named("Foo"), t_resource()]);
-    // mago expects `[Foo, enum(E)]` (no enum-vs-named collapse) — suffete's
-    // structural object-family rule keeps both since OBJECT isn't present.
+    // No enum-vs-named collapse: the structural object-family rule
+    // keeps both atoms since OBJECT isn't present.
     expect("Foo|E", vec![t_named("Foo"), t_enum("E")], &[t_named("Foo"), t_enum("E")]);
     expect("E|resource", vec![t_enum("E"), t_resource()], &[t_enum("E"), t_resource()]);
     expect("array{}|object", vec![t_empty_array(), t_object_any()], &[t_empty_array(), t_object_any()]);

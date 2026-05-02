@@ -1,6 +1,10 @@
+#![allow(clippy::pub_use, clippy::absolute_paths, clippy::missing_docs_in_private_items)]
+
 //! Suffete: a standalone PHP type system.
 //!
 //! See `README.md` for what this crate is, what it is not, and its (highly unstable) status.
+
+extern crate alloc;
 
 pub mod builder;
 pub mod cast;

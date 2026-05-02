@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use crate::TypeId;
 
@@ -23,10 +23,11 @@ pub struct NegatedInfo {
     pub inner: TypeId,
 }
 
-const _: () = assert!(size_of::<NegatedInfo>() <= 8);
+const _: () = assert!(size_of::<NegatedInfo>() <= 8, "size budget exceeded");
 
-impl std::fmt::Display for NegatedInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for NegatedInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let elements = self.inner.as_ref().elements;
         if elements.len() == 1 && !elements[0].has_intersection_types() {
             write!(f, "!{}", elements[0])

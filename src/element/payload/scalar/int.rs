@@ -1,7 +1,7 @@
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::mem::size_of;
+use core::fmt::Display;
+use core::fmt::Formatter;
+use core::fmt::Result as FmtResult;
+use core::mem::size_of;
 
 use crate::handle::define_handle;
 use crate::interner::interner;
@@ -30,9 +30,11 @@ pub enum IntInfo {
     Range(IntRangeId),
 }
 
-/// A bounded integer range. Either bound may be open (±∞), recorded in
-/// [`BoundFlags`]. When a bound is open, its accompanying value field is
-/// canonically zeroed by the constructor so structural equality stays sound.
+/// A bounded integer range.
+///
+/// Either bound may be open (±∞), recorded in [`BoundFlags`]. When a bound
+/// is open, its accompanying value field is canonically zeroed by the
+/// constructor so structural equality stays sound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IntRange {
     lower_value: i64,
@@ -45,6 +47,7 @@ impl IntRange {
     /// value field is canonicalized to `0` so two ranges with the same
     /// effective bounds always compare equal.
     #[inline]
+    #[must_use] 
     pub const fn new(lower: Option<i64>, upper: Option<i64>) -> Self {
         let mut bounds = BoundFlags::EMPTY;
         let lower_value = match lower {
@@ -66,17 +69,20 @@ impl IntRange {
 
     /// `Some(v)` if the range has a lower bound, `None` if open.
     #[inline]
+    #[must_use] 
     pub const fn lower(self) -> Option<i64> {
         if self.bounds.has_lower() { Some(self.lower_value) } else { None }
     }
 
     /// `Some(v)` if the range has an upper bound, `None` if open.
     #[inline]
+    #[must_use] 
     pub const fn upper(self) -> Option<i64> {
         if self.bounds.has_upper() { Some(self.upper_value) } else { None }
     }
 
     #[inline]
+    #[must_use] 
     pub const fn bounds(self) -> BoundFlags {
         self.bounds
     }
@@ -92,11 +98,13 @@ impl BoundFlags {
     const HAS_UPPER: u8 = 1 << 1;
 
     #[inline]
+    #[must_use] 
     pub const fn has_lower(self) -> bool {
         self.0 & Self::HAS_LOWER != 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn has_upper(self) -> bool {
         self.0 & Self::HAS_UPPER != 0
     }
@@ -114,10 +122,11 @@ impl BoundFlags {
     }
 }
 
-const _: () = assert!(size_of::<IntInfo>() <= 16);
-const _: () = assert!(size_of::<IntRange>() <= 24);
+const _: () = assert!(size_of::<IntInfo>() <= 16, "size budget exceeded");
+const _: () = assert!(size_of::<IntRange>() <= 24, "size budget exceeded");
 
 impl Display for IntInfo {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             IntInfo::Unspecified => f.write_str("int"),
@@ -129,6 +138,7 @@ impl Display for IntInfo {
 }
 
 impl Display for IntRange {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match (self.lower(), self.upper()) {
             (Some(1), None) => f.write_str("positive-int"),

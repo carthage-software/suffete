@@ -1,8 +1,8 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
-/// A binding-scope template variable (`${T}` in PHPDoc) used during template
+/// A binding-scope template variable (`${T}` in `PHPDoc`) used during template
 /// inference.
 ///
 /// `Variable` elements are local to a single inference call and do not
@@ -13,10 +13,11 @@ pub struct VariableInfo {
     pub name: Atom,
 }
 
-const _: () = assert!(size_of::<VariableInfo>() == 8);
+const _: () = assert!(size_of::<VariableInfo>() == 8, "size budget exceeded");
 
-impl std::fmt::Display for VariableInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for VariableInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.name.as_str())
     }
 }

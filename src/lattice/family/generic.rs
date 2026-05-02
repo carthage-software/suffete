@@ -1,7 +1,7 @@
 //! Generic-parameter family. Comparison rules for the case where the
 //! *container* is a `T` (a `@template` reference).
 //!
-//! Rules from comparison.md §1.9:
+//! Rules :
 //!
 //! - **Same-T**: `T_a <: T_b` when both sides name the same parameter
 //!   declared by the same defining entity AND `a`'s constraint refines
@@ -10,7 +10,7 @@
 //!   narrower side refines the wider but not vice versa.
 //! - **Inherited-T**: `T_C <: T_D` when `C` extends `D` and the parameter
 //!   is transferred along the extension. Not yet supported by the world
-//!   surface — recorded as a TODO when a relevant query lands.
+//!   surface ; recorded as a TODO when a relevant query lands.
 //!
 //! The dual rule (input is `T`, container is non-generic, refined through
 //! `T`'s constraint) lives in [`crate::lattice::refines::element_refines`]
@@ -23,6 +23,7 @@ use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::world::World;
 
+#[inline]
 pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,

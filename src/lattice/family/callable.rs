@@ -16,7 +16,7 @@
 //! - `\Closure` named-object refinement is decided by the object family,
 //!   not here.
 //!
-//! Signature comparison (comparison.md §1.7) is contravariant on
+//! Signature comparison is contravariant on
 //! parameters and covariant on return: `Sig(P̄_in, R_in)` refines
 //! `Sig(P̄_out, R_out)` iff every container parameter at position `i`
 //! refines the corresponding input parameter (`P̄_out[i] <: P̄_in[i]`),
@@ -35,6 +35,7 @@ use crate::lattice::LatticeReport;
 use crate::lattice::refines::refines as type_refines;
 use crate::world::World;
 
+#[inline]
 pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,
@@ -72,6 +73,7 @@ pub fn refines<W: World>(
     }
 }
 
+#[inline]
 fn signature_refines<W: World>(
     in_id: SignatureId,
     out_id: SignatureId,
@@ -106,6 +108,7 @@ fn signature_refines<W: World>(
 /// within the container's set. `None` on the container means no
 /// constraint; `None` on the input means "throws anything", which is too
 /// loose for any constrained container.
+#[inline]
 fn throws_refines<W: World>(
     input: Option<crate::TypeId>,
     container: Option<crate::TypeId>,
@@ -120,6 +123,7 @@ fn throws_refines<W: World>(
     }
 }
 
+#[inline]
 fn parameters_refine<W: World>(
     s_in: Signature,
     s_out: Signature,
@@ -129,13 +133,12 @@ fn parameters_refine<W: World>(
 ) -> bool {
     let i = interner();
 
-    if s_out.parameters.is_none() {
+    let Some(out_id) = s_out.parameters else {
         return true;
-    }
+    };
     let Some(in_id) = s_in.parameters else {
         return false;
     };
-    let out_id = s_out.parameters.unwrap();
 
     let in_params = i.get_param_list(in_id);
     let out_params = i.get_param_list(out_id);
@@ -172,6 +175,7 @@ fn parameters_refine<W: World>(
     true
 }
 
+#[inline]
 fn required_count(params: &[crate::element::payload::ParamInfo]) -> usize {
     params.iter().take_while(|p| !p.flags.has_default() && !p.flags.variadic()).count()
 }

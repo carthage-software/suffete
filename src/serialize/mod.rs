@@ -1,10 +1,12 @@
+#![allow(clippy::pub_use)]
+
 //! Structural serialization for [`TypeId`].
 //!
 //! `TypeId` is a handle into a process-global interner; its bit pattern
 //! depends on the order in which types were interned. Serializing the
 //! handle directly is therefore meaningless across processes (and even
 //! across runs of the same process). This module instead produces a
-//! [`SerializableType`] — a self-contained structural representation
+//! [`SerializableType`] ; a self-contained structural representation
 //! that can round-trip through any byte format.
 //!
 //! # Use it manually
@@ -29,7 +31,7 @@
 //!
 //! - `id.content_eq(id2) == true` always.
 //! - `id == id2` iff the local interner ended up assigning the same
-//!   slot — true within the same process, not guaranteed across.
+//!   slot ; true within the same process, not guaranteed across.
 //!
 //! Consumers caching across runs should store [`SerializableType`], not
 //! [`TypeId`], and call [`SerializableType::intern`] after deserialising.
@@ -427,6 +429,8 @@ impl TypeId {
     /// Build a self-contained structural mirror of `self` suitable for
     /// persistence. See the [`crate::serialize`] module docs for the
     /// identity contract.
+    #[inline]
+    #[must_use] 
     pub fn to_serializable(self) -> SerializableType {
         let view = self.as_ref();
         SerializableType {
@@ -441,6 +445,7 @@ impl SerializableType {
     /// Re-intern this structural form into the process-global interner
     /// and return a fresh [`TypeId`]. The result `.content_eq()` the
     /// original handle that produced this `SerializableType`.
+    #[inline]
     pub fn intern(&self) -> TypeId {
         let elements: Vec<ElementId> = self.elements.iter().map(decode_element).collect();
         let id = interner().intern_type(&elements, FlowFlags::from_bits(self.flags));
@@ -453,6 +458,8 @@ impl ElementId {
     /// persistence. Round-trips through [`SerializableElement::intern`]
     /// preserving structural content (handle bits are not preserved
     /// across processes; see [`crate::serialize`] module docs).
+    #[inline]
+    #[must_use] 
     pub fn to_serializable(self) -> SerializableElement {
         encode_element(self)
     }
@@ -462,15 +469,19 @@ impl SerializableElement {
     /// Re-intern this structural form into the process-global interner
     /// and return a fresh [`ElementId`]. Equivalent (structurally) to
     /// the original element that produced this `SerializableElement`.
+    #[inline]
+    #[must_use] 
     pub fn intern(&self) -> ElementId {
         decode_element(self)
     }
 }
 
+#[inline]
 fn encode_type(ty: TypeId) -> SerializableType {
     ty.to_serializable()
 }
 
+#[inline]
 fn encode_element(elem: ElementId) -> SerializableElement {
     let i = interner();
     match elem.kind() {
@@ -596,7 +607,7 @@ fn encode_element(elem: ElementId) -> SerializableElement {
             SerializableElement::List {
                 element_type: Box::new(encode_type(info.element_type)),
                 known_elements,
-                known_count: info.known_count.map(std::num::NonZeroU32::get),
+                known_count: info.known_count.map(core::num::NonZeroU32::get),
                 non_empty: info.flags.non_empty(),
             }
         }
@@ -664,10 +675,12 @@ fn encode_element(elem: ElementId) -> SerializableElement {
     }
 }
 
+#[inline]
 fn encode_intersections(intersections: Option<crate::ElementListId>) -> Option<Vec<SerializableElement>> {
     intersections.map(|id| interner().get_element_list(id).iter().map(|&e| encode_element(e)).collect())
 }
 
+#[inline]
 fn decode_intersections(intersections: Option<&[SerializableElement]>) -> Option<crate::ElementListId> {
     intersections.map(|conjuncts| {
         let elements: Vec<ElementId> = conjuncts.iter().map(decode_element).collect();
@@ -675,7 +688,8 @@ fn decode_intersections(intersections: Option<&[SerializableElement]>) -> Option
     })
 }
 
-fn encode_truthiness(t: Truthiness) -> SerializableTruthiness {
+#[inline]
+const fn encode_truthiness(t: Truthiness) -> SerializableTruthiness {
     match t {
         Truthiness::Undetermined => SerializableTruthiness::Undetermined,
         Truthiness::Truthy => SerializableTruthiness::Truthy,
@@ -683,6 +697,7 @@ fn encode_truthiness(t: Truthiness) -> SerializableTruthiness {
     }
 }
 
+#[inline]
 fn encode_int(info: IntInfo) -> SerializableInt {
     match info {
         IntInfo::Unspecified => SerializableInt::Unspecified,
@@ -695,7 +710,8 @@ fn encode_int(info: IntInfo) -> SerializableInt {
     }
 }
 
-fn encode_float(info: FloatInfo) -> SerializableFloat {
+#[inline]
+const fn encode_float(info: FloatInfo) -> SerializableFloat {
     match info {
         FloatInfo::Unspecified => SerializableFloat::Unspecified,
         FloatInfo::UnspecifiedLiteral => SerializableFloat::UnspecifiedLiteral,
@@ -703,7 +719,8 @@ fn encode_float(info: FloatInfo) -> SerializableFloat {
     }
 }
 
-fn encode_string(info: &StringInfo) -> SerializableString {
+#[inline]
+const fn encode_string(info: &StringInfo) -> SerializableString {
     SerializableString {
         literal: match info.literal {
             StringLiteral::None => SerializableStringLiteral::None,
@@ -722,7 +739,8 @@ fn encode_string(info: &StringInfo) -> SerializableString {
     }
 }
 
-fn encode_class_like_kind(k: ClassLikeKind) -> SerializableClassLikeKind {
+#[inline]
+const fn encode_class_like_kind(k: ClassLikeKind) -> SerializableClassLikeKind {
     match k {
         ClassLikeKind::Class => SerializableClassLikeKind::Class,
         ClassLikeKind::Interface => SerializableClassLikeKind::Interface,
@@ -731,6 +749,7 @@ fn encode_class_like_kind(k: ClassLikeKind) -> SerializableClassLikeKind {
     }
 }
 
+#[inline]
 fn encode_class_like_specifier(s: ClassLikeStringSpecifier) -> SerializableClassLikeSpecifier {
     match s {
         ClassLikeStringSpecifier::Any => SerializableClassLikeSpecifier::Any,
@@ -744,7 +763,8 @@ fn encode_class_like_specifier(s: ClassLikeStringSpecifier) -> SerializableClass
     }
 }
 
-fn encode_array_key(k: ArrayKey) -> SerializableArrayKey {
+#[inline]
+const fn encode_array_key(k: ArrayKey) -> SerializableArrayKey {
     match k {
         ArrayKey::Int(n) => SerializableArrayKey::Int(n),
         ArrayKey::String(a) => SerializableArrayKey::String(a),
@@ -752,6 +772,7 @@ fn encode_array_key(k: ArrayKey) -> SerializableArrayKey {
     }
 }
 
+#[inline]
 fn encode_callable(info: CallableInfo) -> SerializableCallable {
     let i = interner();
     match info {
@@ -762,6 +783,7 @@ fn encode_callable(info: CallableInfo) -> SerializableCallable {
     }
 }
 
+#[inline]
 fn encode_signature(sig: Signature) -> SerializableSignature {
     let i = interner();
     let parameters: Vec<SerializableParam> = sig
@@ -788,7 +810,8 @@ fn encode_signature(sig: Signature) -> SerializableSignature {
     }
 }
 
-fn encode_callable_alias(alias: CallableAlias) -> SerializableCallableAlias {
+#[inline]
+const fn encode_callable_alias(alias: CallableAlias) -> SerializableCallableAlias {
     match alias {
         CallableAlias::Function(name) => SerializableCallableAlias::Function(name),
         CallableAlias::Method { class, method } => SerializableCallableAlias::Method { class, method },
@@ -796,7 +819,8 @@ fn encode_callable_alias(alias: CallableAlias) -> SerializableCallableAlias {
     }
 }
 
-fn encode_resource(info: ResourceInfo) -> SerializableResource {
+#[inline]
+const fn encode_resource(info: ResourceInfo) -> SerializableResource {
     match info {
         ResourceInfo::Any => SerializableResource::Any,
         ResourceInfo::Open => SerializableResource::Open,
@@ -804,7 +828,8 @@ fn encode_resource(info: ResourceInfo) -> SerializableResource {
     }
 }
 
-fn encode_defining_entity(e: DefiningEntity) -> SerializableDefiningEntity {
+#[inline]
+const fn encode_defining_entity(e: DefiningEntity) -> SerializableDefiningEntity {
     match e {
         DefiningEntity::ClassLike(name) => SerializableDefiningEntity::ClassLike(name),
         DefiningEntity::Method { class, method } => SerializableDefiningEntity::Method { class, method },
@@ -812,7 +837,8 @@ fn encode_defining_entity(e: DefiningEntity) -> SerializableDefiningEntity {
     }
 }
 
-fn encode_name_selector(s: NameSelector) -> SerializableNameSelector {
+#[inline]
+const fn encode_name_selector(s: NameSelector) -> SerializableNameSelector {
     match s {
         NameSelector::Identifier(a) => SerializableNameSelector::Identifier(a),
         NameSelector::StartsWith(a) => SerializableNameSelector::StartsWith(a),
@@ -822,6 +848,7 @@ fn encode_name_selector(s: NameSelector) -> SerializableNameSelector {
     }
 }
 
+#[inline]
 fn encode_derived(info: DerivedInfo) -> SerializableDerived {
     let i = interner();
     match info {
@@ -848,7 +875,8 @@ fn encode_derived(info: DerivedInfo) -> SerializableDerived {
     }
 }
 
-fn encode_visibility(v: Visibility) -> SerializableVisibility {
+#[inline]
+const fn encode_visibility(v: Visibility) -> SerializableVisibility {
     match v {
         Visibility::Public => SerializableVisibility::Public,
         Visibility::Protected => SerializableVisibility::Protected,
@@ -856,10 +884,12 @@ fn encode_visibility(v: Visibility) -> SerializableVisibility {
     }
 }
 
+#[inline]
 fn decode_type(t: &SerializableType) -> TypeId {
     t.intern()
 }
 
+#[inline]
 fn decode_element(elem: &SerializableElement) -> ElementId {
     let i = interner();
     match elem {
@@ -959,7 +989,7 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
             i.intern_list(ListInfo {
                 element_type: decode_type(element_type),
                 known_elements: known_id,
-                known_count: known_count.and_then(std::num::NonZeroU32::new),
+                known_count: known_count.and_then(core::num::NonZeroU32::new),
                 flags: ListFlags::default().with_non_empty(*non_empty),
             })
         }
@@ -1023,7 +1053,8 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
     }
 }
 
-fn decode_truthiness(t: SerializableTruthiness) -> Truthiness {
+#[inline]
+const fn decode_truthiness(t: SerializableTruthiness) -> Truthiness {
     match t {
         SerializableTruthiness::Undetermined => Truthiness::Undetermined,
         SerializableTruthiness::Truthy => Truthiness::Truthy,
@@ -1031,6 +1062,7 @@ fn decode_truthiness(t: SerializableTruthiness) -> Truthiness {
     }
 }
 
+#[inline]
 fn decode_int(s: SerializableInt) -> IntInfo {
     match s {
         SerializableInt::Unspecified => IntInfo::Unspecified,
@@ -1043,7 +1075,8 @@ fn decode_int(s: SerializableInt) -> IntInfo {
     }
 }
 
-fn decode_float(s: SerializableFloat) -> FloatInfo {
+#[inline]
+const fn decode_float(s: SerializableFloat) -> FloatInfo {
     match s {
         SerializableFloat::Unspecified => FloatInfo::Unspecified,
         SerializableFloat::UnspecifiedLiteral => FloatInfo::UnspecifiedLiteral,
@@ -1051,7 +1084,8 @@ fn decode_float(s: SerializableFloat) -> FloatInfo {
     }
 }
 
-fn decode_string(s: &SerializableString) -> StringInfo {
+#[inline]
+const fn decode_string(s: &SerializableString) -> StringInfo {
     use crate::element::payload::scalar::StringRefinementFlags;
     let literal = match s.literal {
         SerializableStringLiteral::None => StringLiteral::None,
@@ -1071,7 +1105,8 @@ fn decode_string(s: &SerializableString) -> StringInfo {
     StringInfo { literal, casing, flags }
 }
 
-fn decode_class_like_kind(k: SerializableClassLikeKind) -> ClassLikeKind {
+#[inline]
+const fn decode_class_like_kind(k: SerializableClassLikeKind) -> ClassLikeKind {
     match k {
         SerializableClassLikeKind::Class => ClassLikeKind::Class,
         SerializableClassLikeKind::Interface => ClassLikeKind::Interface,
@@ -1080,6 +1115,7 @@ fn decode_class_like_kind(k: SerializableClassLikeKind) -> ClassLikeKind {
     }
 }
 
+#[inline]
 fn decode_class_like_specifier(s: &SerializableClassLikeSpecifier) -> ClassLikeStringSpecifier {
     match s {
         SerializableClassLikeSpecifier::Any => ClassLikeStringSpecifier::Any,
@@ -1093,7 +1129,8 @@ fn decode_class_like_specifier(s: &SerializableClassLikeSpecifier) -> ClassLikeS
     }
 }
 
-fn decode_array_key(k: SerializableArrayKey) -> ArrayKey {
+#[inline]
+const fn decode_array_key(k: SerializableArrayKey) -> ArrayKey {
     match k {
         SerializableArrayKey::Int(n) => ArrayKey::Int(n),
         SerializableArrayKey::String(a) => ArrayKey::String(a),
@@ -1101,6 +1138,7 @@ fn decode_array_key(k: SerializableArrayKey) -> ArrayKey {
     }
 }
 
+#[inline]
 fn decode_callable(c: &SerializableCallable) -> CallableInfo {
     let i = interner();
     match c {
@@ -1111,6 +1149,7 @@ fn decode_callable(c: &SerializableCallable) -> CallableInfo {
     }
 }
 
+#[inline]
 fn decode_signature(s: &SerializableSignature) -> Signature {
     let i = interner();
     let parameters = if s.parameters.is_empty() {
@@ -1138,7 +1177,8 @@ fn decode_signature(s: &SerializableSignature) -> Signature {
     }
 }
 
-fn decode_callable_alias(a: SerializableCallableAlias) -> CallableAlias {
+#[inline]
+const fn decode_callable_alias(a: SerializableCallableAlias) -> CallableAlias {
     match a {
         SerializableCallableAlias::Function(name) => CallableAlias::Function(name),
         SerializableCallableAlias::Method { class, method } => CallableAlias::Method { class, method },
@@ -1146,7 +1186,8 @@ fn decode_callable_alias(a: SerializableCallableAlias) -> CallableAlias {
     }
 }
 
-fn decode_resource(r: SerializableResource) -> ResourceInfo {
+#[inline]
+const fn decode_resource(r: SerializableResource) -> ResourceInfo {
     match r {
         SerializableResource::Any => ResourceInfo::Any,
         SerializableResource::Open => ResourceInfo::Open,
@@ -1154,7 +1195,8 @@ fn decode_resource(r: SerializableResource) -> ResourceInfo {
     }
 }
 
-fn decode_defining_entity(e: SerializableDefiningEntity) -> DefiningEntity {
+#[inline]
+const fn decode_defining_entity(e: SerializableDefiningEntity) -> DefiningEntity {
     match e {
         SerializableDefiningEntity::ClassLike(name) => DefiningEntity::ClassLike(name),
         SerializableDefiningEntity::Method { class, method } => DefiningEntity::Method { class, method },
@@ -1162,7 +1204,8 @@ fn decode_defining_entity(e: SerializableDefiningEntity) -> DefiningEntity {
     }
 }
 
-fn decode_name_selector(s: &SerializableNameSelector) -> NameSelector {
+#[inline]
+const fn decode_name_selector(s: &SerializableNameSelector) -> NameSelector {
     match s {
         SerializableNameSelector::Identifier(a) => NameSelector::Identifier(*a),
         SerializableNameSelector::StartsWith(a) => NameSelector::StartsWith(*a),
@@ -1172,6 +1215,7 @@ fn decode_name_selector(s: &SerializableNameSelector) -> NameSelector {
     }
 }
 
+#[inline]
 fn decode_derived(d: &SerializableDerived) -> DerivedInfo {
     let i = interner();
     match d {
@@ -1197,7 +1241,8 @@ fn decode_derived(d: &SerializableDerived) -> DerivedInfo {
     }
 }
 
-fn decode_visibility(v: SerializableVisibility) -> Visibility {
+#[inline]
+const fn decode_visibility(v: SerializableVisibility) -> Visibility {
     match v {
         SerializableVisibility::Public => Visibility::Public,
         SerializableVisibility::Protected => Visibility::Protected,
@@ -1207,31 +1252,38 @@ fn decode_visibility(v: SerializableVisibility) -> Visibility {
 
 #[cfg(feature = "serde")]
 mod serde_impl {
-    use super::*;
+    use super::ElementId;
+    use super::SerializableElement;
+    use super::SerializableType;
+    use super::TypeId;
     use serde::Deserialize;
     use serde::Deserializer;
     use serde::Serialize;
     use serde::Serializer;
 
     impl Serialize for TypeId {
+        #[inline]
         fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
             self.to_serializable().serialize(s)
         }
     }
 
     impl<'de> Deserialize<'de> for TypeId {
+        #[inline]
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
             Ok(SerializableType::deserialize(d)?.intern())
         }
     }
 
     impl Serialize for ElementId {
+        #[inline]
         fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
             self.to_serializable().serialize(s)
         }
     }
 
     impl<'de> Deserialize<'de> for ElementId {
+        #[inline]
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
             Ok(SerializableElement::deserialize(d)?.intern())
         }

@@ -25,7 +25,7 @@ macro_rules! define_handle {
     ($(#[$attr:meta])* $name:ident) => {
         $(#[$attr])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-        pub struct $name(::std::num::NonZeroU32);
+        pub struct $name(::core::num::NonZeroU32);
 
         impl $name {
             /// Construct from a 1-based arena slot. Reserved for use by the
@@ -34,7 +34,7 @@ macro_rules! define_handle {
             pub(crate) const fn from_slot(slot: u32) -> Self {
                 // SAFETY: caller guarantees `slot != 0`. The interner only
                 // assigns slots starting at 1.
-                Self(unsafe { ::std::num::NonZeroU32::new_unchecked(slot) })
+                Self(unsafe { ::core::num::NonZeroU32::new_unchecked(slot) })
             }
 
             /// The 1-based arena slot this handle refers to. Used by the
@@ -45,8 +45,8 @@ macro_rules! define_handle {
             }
         }
 
-        const _: () = assert!(::std::mem::size_of::<$name>() == 4);
-        const _: () = assert!(::std::mem::size_of::<Option<$name>>() == 4);
+        const _: () = assert!(::core::mem::size_of::<$name>() == 4);
+        const _: () = assert!(::core::mem::size_of::<Option<$name>>() == 4);
     };
 }
 

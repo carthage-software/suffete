@@ -7,7 +7,9 @@
 use crate::ElementId;
 use crate::ElementKind;
 
-pub fn refines(input: ElementId, _container: ElementId) -> bool {
+#[inline]
+#[must_use] 
+pub const fn refines(input: ElementId, _container: ElementId) -> bool {
     matches!(
         input.kind(),
         ElementKind::Bool

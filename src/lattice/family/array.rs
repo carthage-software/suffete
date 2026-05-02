@@ -46,6 +46,7 @@ use crate::prelude::EMPTY_ARRAY;
 use crate::prelude::INT;
 use crate::world::World;
 
+#[inline]
 pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,
@@ -60,6 +61,7 @@ pub fn refines<W: World>(
     }
 }
 
+#[inline]
 fn refines_list<W: World>(
     input: ElementId,
     container: ElementId,
@@ -87,6 +89,7 @@ fn refines_list<W: World>(
     }
 }
 
+#[inline]
 fn refines_keyed<W: World>(
     input: ElementId,
     container: ElementId,
@@ -114,9 +117,9 @@ fn refines_keyed<W: World>(
             // accepts `int` keys and the container's value parameter
             // accepts the list's element type. Sealed-keyed containers
             // require fixed entries the list cannot guarantee, so reject.
-            let (key_param, value_param) = match (container_info.key_param, container_info.value_param) {
-                (Some(k), Some(v)) => (k, v),
-                _ => return false,
+            let (Some(key_param), Some(value_param)) = (container_info.key_param, container_info.value_param)
+            else {
+                return false;
             };
             let int_t = single_type(INT);
             // Empty list (`flags.non_empty=false`, no known elements) does
@@ -131,6 +134,7 @@ fn refines_keyed<W: World>(
     }
 }
 
+#[inline]
 fn list_refines_list<W: World>(
     input: ListInfo,
     container: ListInfo,
@@ -147,6 +151,7 @@ fn list_refines_list<W: World>(
     type_refines(input.element_type, container.element_type, world, options, report)
 }
 
+#[inline]
 fn keyed_refines_keyed<W: World>(
     input: KeyedArrayInfo,
     container: KeyedArrayInfo,
@@ -162,9 +167,8 @@ fn keyed_refines_keyed<W: World>(
         return sealed_refines_sealed(input, container, world, options, report);
     }
 
-    let (container_key, container_value) = match (container.key_param, container.value_param) {
-        (Some(k), Some(v)) => (k, v),
-        _ => return false,
+    let (Some(container_key), Some(container_value)) = (container.key_param, container.value_param) else {
+        return false;
     };
 
     if let Some(items_id) = input.known_items {
@@ -192,6 +196,7 @@ fn keyed_refines_keyed<W: World>(
     true
 }
 
+#[inline]
 fn sealed_refines_sealed<W: World>(
     input: KeyedArrayInfo,
     container: KeyedArrayInfo,
@@ -250,6 +255,7 @@ fn sealed_refines_sealed<W: World>(
     true
 }
 
+#[inline]
 fn has_required_known_item(info: KeyedArrayInfo) -> bool {
     match info.known_items {
         Some(id) => interner().get_known_items(id).iter().any(|item| !item.optional),
@@ -257,6 +263,7 @@ fn has_required_known_item(info: KeyedArrayInfo) -> bool {
     }
 }
 
+#[inline]
 fn key_to_type(key: ArrayKey) -> TypeId {
     match key {
         ArrayKey::Int(n) => single_type(ElementId::int_literal(n)),
@@ -265,6 +272,7 @@ fn key_to_type(key: ArrayKey) -> TypeId {
     }
 }
 
+#[inline]
 fn single_type(element: ElementId) -> TypeId {
     interner().intern_type(&[element], FlowFlags::EMPTY)
 }

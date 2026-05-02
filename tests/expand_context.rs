@@ -1,6 +1,14 @@
-//! Stage 4 expander tests: contextual keyword substitution
-//! (`self`, `static`, `parent`, `$this`) and `Conditional` evaluation
-//! under `ExpansionContext::eval_conditional`.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 

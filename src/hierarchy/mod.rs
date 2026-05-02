@@ -1,7 +1,7 @@
 //! Cross-hierarchy template-argument propagation.
 //!
 //! When a class extends or implements a parameterised parent, it passes
-//! type-arguments to the parent — and those arguments may mention the
+//! type-arguments to the parent ; and those arguments may mention the
 //! child's templates. The analyzer needs an O(1) answer to "what does
 //! `child` ultimately pass to `ancestor`'s `position`-th type parameter"
 //! for any direct or transitive ancestor.
@@ -25,8 +25,8 @@
 //! intermediate parent's templates with the child's actual arguments to
 //! that parent. The substitution algorithm is [`crate::template::substitute`].
 
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
+use alloc::collections::BTreeMap;
+use alloc::collections::BTreeSet;
 
 use mago_atom::Atom;
 
@@ -44,6 +44,8 @@ pub struct HierarchyBuilder {
 }
 
 impl HierarchyBuilder {
+    #[inline]
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -51,6 +53,7 @@ impl HierarchyBuilder {
     /// Register `child extends/implements parent<args>` where `args` is
     /// expressed in `child`'s template namespace. Idempotent on
     /// `(child, parent)`; the latest call wins.
+    #[inline]
     pub fn add_edge(&mut self, child: Atom, parent: Atom, args: Vec<TypeId>) {
         self.edges.insert((child, parent), args);
     }
@@ -58,6 +61,7 @@ impl HierarchyBuilder {
     /// Compute the transitive closure of inherited template arguments.
     /// `world` supplies template-name-to-position lookups for each
     /// intermediate class via [`World::template_parameter_index`].
+    #[inline]
     pub fn build<W: World>(self, world: &W) -> Hierarchy {
         let mut parents_of: BTreeMap<Atom, Vec<Atom>> = BTreeMap::new();
         for &(child, parent) in self.edges.keys() {
@@ -76,6 +80,7 @@ impl HierarchyBuilder {
     }
 }
 
+#[inline]
 fn walk<W: World>(
     child: Atom,
     edges: &BTreeMap<(Atom, Atom), Vec<TypeId>>,
@@ -146,12 +151,15 @@ impl Hierarchy {
     /// `ancestor`'s declaration order, expressed in `child`'s template
     /// namespace. `None` when `child` does not descend from `ancestor`
     /// or no edges were registered along the path.
+    #[inline]
     pub fn args(&self, child: Atom, ancestor: Atom) -> Option<&[TypeId]> {
         self.composed.get(&(child, ancestor)).map(Vec::as_slice)
     }
 
     /// Single positional argument; convenience for [`Hierarchy::args`]
     /// followed by `[position]`.
+    #[inline]
+    #[must_use] 
     pub fn arg(&self, child: Atom, ancestor: Atom, position: usize) -> Option<TypeId> {
         self.args(child, ancestor).and_then(|args| args.get(position).copied())
     }
@@ -159,6 +167,7 @@ impl Hierarchy {
     /// Iterate every `((child, ancestor), args)` triple recorded in the
     /// closure. Useful for building reverse indexes or for a wrapper
     /// [`World`] that delegates [`World::descends_from`].
+    #[inline]
     pub fn iter(&self) -> impl Iterator<Item = ((Atom, Atom), &[TypeId])> {
         self.composed.iter().map(|(&k, v)| (k, v.as_slice()))
     }

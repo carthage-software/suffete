@@ -1,3 +1,16 @@
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+    clippy::integer_division_remainder_used,
+)]
+
 mod combiner_common;
 
 use combiner_common::*;
@@ -58,7 +71,7 @@ fn general_absorbs_closed() {
 #[test]
 fn open_or_int_kept_separate() {
     let result = combine_default(vec![t_open_resource(), t_int()]);
-    let mut sorted = result.clone();
+    let mut sorted = result;
     sorted.sort();
     let mut expected = vec![t_open_resource(), t_int()];
     expected.sort();
@@ -68,7 +81,7 @@ fn open_or_int_kept_separate() {
 #[test]
 fn closed_or_string_kept_separate() {
     let result = combine_default(vec![t_closed_resource(), t_string()]);
-    let mut sorted = result.clone();
+    let mut sorted = result;
     sorted.sort();
     let mut expected = vec![t_closed_resource(), t_string()];
     expected.sort();
@@ -78,7 +91,7 @@ fn closed_or_string_kept_separate() {
 #[test]
 fn resource_or_null_kept_separate() {
     let result = combine_default(vec![t_resource(), null()]);
-    let mut sorted = result.clone();
+    let mut sorted = result;
     sorted.sort();
     let mut expected = vec![t_resource(), null()];
     expected.sort();

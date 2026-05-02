@@ -1,3 +1,5 @@
+#![allow(clippy::pub_use)]
+
 //! Callable payloads: any-callable, closure (PHP `\Closure` instance),
 //! anonymous signature, and known-function/method/closure aliases.
 

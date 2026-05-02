@@ -1,3 +1,15 @@
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
+
 mod comparator_common;
 
 use comparator_common::*;
@@ -5,129 +17,129 @@ use std::collections::BTreeMap;
 
 #[test]
 fn empty_in_empty() {
-    assert_atomic_subtype(&t_empty_array(), &t_empty_array());
+    assert_atomic_subtype(t_empty_array(), t_empty_array());
 }
 
 #[test]
 fn empty_in_list() {
-    assert_atomic_subtype(&t_empty_array(), &t_list(u(t_int()), false));
-    assert_atomic_subtype(&t_empty_array(), &t_list(u(t_string()), false));
-    assert_atomic_subtype(&t_empty_array(), &t_list(u(mixed()), false));
+    assert_atomic_subtype(t_empty_array(), t_list(u(t_int()), false));
+    assert_atomic_subtype(t_empty_array(), t_list(u(t_string()), false));
+    assert_atomic_subtype(t_empty_array(), t_list(u(mixed()), false));
 }
 
 #[test]
 fn empty_not_in_non_empty_list() {
-    assert_atomic_not_subtype(&t_empty_array(), &t_list(u(t_int()), true));
-    assert_atomic_not_subtype(&t_empty_array(), &t_list(u(t_string()), true));
+    assert_atomic_not_subtype(t_empty_array(), t_list(u(t_int()), true));
+    assert_atomic_not_subtype(t_empty_array(), t_list(u(t_string()), true));
 }
 
 #[test]
 fn list_not_in_empty() {
-    assert_atomic_not_subtype(&t_list(u(t_int()), false), &t_empty_array());
-    assert_atomic_not_subtype(&t_list(u(t_int()), true), &t_empty_array());
+    assert_atomic_not_subtype(t_list(u(t_int()), false), t_empty_array());
+    assert_atomic_not_subtype(t_list(u(t_int()), true), t_empty_array());
 }
 
 #[test]
 fn list_reflexive() {
     for elem in [t_int(), t_string(), t_float(), t_bool(), mixed()] {
-        assert_atomic_subtype(&t_list(u(elem), false), &t_list(u(elem), false));
-        assert_atomic_subtype(&t_list(u(elem), true), &t_list(u(elem), true));
+        assert_atomic_subtype(t_list(u(elem), false), t_list(u(elem), false));
+        assert_atomic_subtype(t_list(u(elem), true), t_list(u(elem), true));
     }
 }
 
 #[test]
 fn ne_list_in_list() {
-    assert_atomic_subtype(&t_list(u(t_int()), true), &t_list(u(t_int()), false));
-    assert_atomic_subtype(&t_list(u(t_string()), true), &t_list(u(t_string()), false));
+    assert_atomic_subtype(t_list(u(t_int()), true), t_list(u(t_int()), false));
+    assert_atomic_subtype(t_list(u(t_string()), true), t_list(u(t_string()), false));
 }
 
 #[test]
 fn list_not_in_ne_list() {
-    assert_atomic_not_subtype(&t_list(u(t_int()), false), &t_list(u(t_int()), true));
+    assert_atomic_not_subtype(t_list(u(t_int()), false), t_list(u(t_int()), true));
 }
 
 #[test]
 fn list_covariance_in_element() {
-    assert_atomic_subtype(&t_list(u(t_int()), false), &t_list(u(t_scalar()), false));
-    assert_atomic_subtype(&t_list(u(t_int()), false), &t_list(u(mixed()), false));
-    assert_atomic_subtype(&t_list(u(t_string()), false), &t_list(u(t_scalar()), false));
-    assert_atomic_subtype(&t_list(u(t_lit_int(5)), false), &t_list(u(t_int()), false));
-    assert_atomic_subtype(&t_list(u(t_lit_string("a")), false), &t_list(u(t_string()), false));
+    assert_atomic_subtype(t_list(u(t_int()), false), t_list(u(t_scalar()), false));
+    assert_atomic_subtype(t_list(u(t_int()), false), t_list(u(mixed()), false));
+    assert_atomic_subtype(t_list(u(t_string()), false), t_list(u(t_scalar()), false));
+    assert_atomic_subtype(t_list(u(t_lit_int(5)), false), t_list(u(t_int()), false));
+    assert_atomic_subtype(t_list(u(t_lit_string("a")), false), t_list(u(t_string()), false));
 }
 
 #[test]
 fn list_not_covariance_when_disjoint_elements() {
-    assert_atomic_not_subtype(&t_list(u(t_int()), false), &t_list(u(t_string()), false));
-    assert_atomic_not_subtype(&t_list(u(t_string()), false), &t_list(u(t_int()), false));
-    assert_atomic_not_subtype(&t_list(u(t_bool()), false), &t_list(u(t_string()), false));
+    assert_atomic_not_subtype(t_list(u(t_int()), false), t_list(u(t_string()), false));
+    assert_atomic_not_subtype(t_list(u(t_string()), false), t_list(u(t_int()), false));
+    assert_atomic_not_subtype(t_list(u(t_bool()), false), t_list(u(t_string()), false));
 }
 
 #[test]
 fn list_not_in_narrower_element() {
-    assert_atomic_not_subtype(&t_list(u(t_scalar()), false), &t_list(u(t_int()), false));
-    assert_atomic_not_subtype(&t_list(u(t_int()), false), &t_list(u(t_lit_int(5)), false));
-    assert_atomic_not_subtype(&t_list(u(t_string()), false), &t_list(u(t_lit_string("a")), false));
+    assert_atomic_not_subtype(t_list(u(t_scalar()), false), t_list(u(t_int()), false));
+    assert_atomic_not_subtype(t_list(u(t_int()), false), t_list(u(t_lit_int(5)), false));
+    assert_atomic_not_subtype(t_list(u(t_string()), false), t_list(u(t_lit_string("a")), false));
 }
 
 #[test]
 fn keyed_reflexive() {
     let a = t_keyed_unsealed(u(t_string()), u(t_int()), false);
-    assert_atomic_subtype(&a, &a);
+    assert_atomic_subtype(a, a);
 }
 
 #[test]
 fn keyed_value_covariance() {
     assert_atomic_subtype(
-        &t_keyed_unsealed(u(t_string()), u(t_int()), false),
-        &t_keyed_unsealed(u(t_string()), u(t_scalar()), false),
+        t_keyed_unsealed(u(t_string()), u(t_int()), false),
+        t_keyed_unsealed(u(t_string()), u(t_scalar()), false),
     );
     assert_atomic_subtype(
-        &t_keyed_unsealed(u(t_string()), u(t_lit_int(5)), false),
-        &t_keyed_unsealed(u(t_string()), u(t_int()), false),
+        t_keyed_unsealed(u(t_string()), u(t_lit_int(5)), false),
+        t_keyed_unsealed(u(t_string()), u(t_int()), false),
     );
 }
 
 #[test]
 fn keyed_key_covariance_to_array_key() {
     assert_atomic_subtype(
-        &t_keyed_unsealed(u(t_string()), u(t_int()), false),
-        &t_keyed_unsealed(u(t_array_key()), u(t_int()), false),
+        t_keyed_unsealed(u(t_string()), u(t_int()), false),
+        t_keyed_unsealed(u(t_array_key()), u(t_int()), false),
     );
     assert_atomic_subtype(
-        &t_keyed_unsealed(u(t_int()), u(t_int()), false),
-        &t_keyed_unsealed(u(t_array_key()), u(t_int()), false),
+        t_keyed_unsealed(u(t_int()), u(t_int()), false),
+        t_keyed_unsealed(u(t_array_key()), u(t_int()), false),
     );
 }
 
 #[test]
 fn keyed_disjoint_keys() {
     assert_atomic_not_subtype(
-        &t_keyed_unsealed(u(t_int()), u(t_string()), false),
-        &t_keyed_unsealed(u(t_string()), u(t_string()), false),
+        t_keyed_unsealed(u(t_int()), u(t_string()), false),
+        t_keyed_unsealed(u(t_string()), u(t_string()), false),
     );
 }
 
 #[test]
 fn keyed_disjoint_values() {
     assert_atomic_not_subtype(
-        &t_keyed_unsealed(u(t_string()), u(t_int()), false),
-        &t_keyed_unsealed(u(t_string()), u(t_string()), false),
+        t_keyed_unsealed(u(t_string()), u(t_int()), false),
+        t_keyed_unsealed(u(t_string()), u(t_string()), false),
     );
 }
 
 #[test]
 fn list_in_array_with_int_keys() {
-    assert_atomic_subtype(&t_list(u(t_int()), false), &t_keyed_unsealed(u(t_int()), u(t_int()), false));
+    assert_atomic_subtype(t_list(u(t_int()), false), t_keyed_unsealed(u(t_int()), u(t_int()), false));
 }
 
 #[test]
 fn list_in_array_with_array_key() {
-    assert_atomic_subtype(&t_list(u(t_int()), false), &t_keyed_unsealed(u(t_array_key()), u(t_int()), false));
+    assert_atomic_subtype(t_list(u(t_int()), false), t_keyed_unsealed(u(t_array_key()), u(t_int()), false));
 }
 
 #[test]
 fn array_with_int_keys_not_in_list() {
-    assert_atomic_not_subtype(&t_keyed_unsealed(u(t_int()), u(t_int()), false), &t_list(u(t_int()), false));
+    assert_atomic_not_subtype(t_keyed_unsealed(u(t_int()), u(t_int()), false), t_list(u(t_int()), false));
 }
 
 #[test]
@@ -148,73 +160,73 @@ fn unsealed_list_not_in_sealed_list() {}
 #[test]
 fn keyed_sealed_reflexive() {
     let a = t_keyed_sealed(BTreeMap::from([(ak_str("a"), (false, ui(1))), (ak_str("b"), (false, us("hi")))]), false);
-    assert_atomic_subtype(&a, &a);
+    assert_atomic_subtype(a, a);
 }
 
 #[test]
 fn keyed_sealed_distinct_keys_disjoint() {
     let a = t_keyed_sealed(BTreeMap::from([(ak_str("a"), (false, ui(1)))]), false);
     let b = t_keyed_sealed(BTreeMap::from([(ak_str("b"), (false, ui(2)))]), false);
-    assert_atomic_not_subtype(&a, &b);
-    assert_atomic_not_subtype(&b, &a);
+    assert_atomic_not_subtype(a, b);
+    assert_atomic_not_subtype(b, a);
 }
 
 #[test]
 fn keyed_sealed_value_covariance() {
     let lit = t_keyed_sealed(BTreeMap::from([(ak_str("a"), (false, ui(1)))]), false);
     let int = t_keyed_sealed(BTreeMap::from([(ak_str("a"), (false, u(t_int())))]), false);
-    assert_atomic_subtype(&lit, &int);
-    assert_atomic_not_subtype(&int, &lit);
+    assert_atomic_subtype(lit, int);
+    assert_atomic_not_subtype(int, lit);
 }
 
 #[test]
 fn keyed_sealed_required_in_optional() {
     let req = t_keyed_sealed(BTreeMap::from([(ak_str("a"), (false, ui(1)))]), false);
     let opt = t_keyed_sealed(BTreeMap::from([(ak_str("a"), (true, ui(1)))]), false);
-    assert_atomic_subtype(&req, &opt);
+    assert_atomic_subtype(req, opt);
 }
 
 #[test]
 fn keyed_sealed_optional_not_in_required() {
     let req = t_keyed_sealed(BTreeMap::from([(ak_str("a"), (false, ui(1)))]), false);
     let opt = t_keyed_sealed(BTreeMap::from([(ak_str("a"), (true, ui(1)))]), false);
-    assert_atomic_not_subtype(&opt, &req);
+    assert_atomic_not_subtype(opt, req);
 }
 
 #[test]
 fn keyed_sealed_in_unsealed_keyed() {
     let s = t_keyed_sealed(BTreeMap::from([(ak_str("a"), (false, ui(1)))]), false);
-    assert_atomic_subtype(&s, &t_keyed_unsealed(u(t_string()), u(t_int()), false));
-    assert_atomic_subtype(&s, &t_keyed_unsealed(u(t_array_key()), u(t_int()), false));
+    assert_atomic_subtype(s, t_keyed_unsealed(u(t_string()), u(t_int()), false));
+    assert_atomic_subtype(s, t_keyed_unsealed(u(t_array_key()), u(t_int()), false));
 }
 
 #[test]
 fn iterable_reflexive() {
     let it = t_iterable(u(t_int()), u(t_int()));
-    assert_atomic_subtype(&it, &it);
+    assert_atomic_subtype(it, it);
 }
 
 #[test]
 fn list_in_iterable() {
-    assert_atomic_subtype(&t_list(u(t_int()), false), &t_iterable(u(t_int()), u(t_int())));
+    assert_atomic_subtype(t_list(u(t_int()), false), t_iterable(u(t_int()), u(t_int())));
 }
 
 #[test]
 fn keyed_in_iterable() {
-    assert_atomic_subtype(&t_keyed_unsealed(u(t_string()), u(t_int()), false), &t_iterable(u(t_string()), u(t_int())));
-    assert_atomic_subtype(&t_keyed_unsealed(u(t_int()), u(t_string()), false), &t_iterable(u(t_int()), u(t_string())));
+    assert_atomic_subtype(t_keyed_unsealed(u(t_string()), u(t_int()), false), t_iterable(u(t_string()), u(t_int())));
+    assert_atomic_subtype(t_keyed_unsealed(u(t_int()), u(t_string()), false), t_iterable(u(t_int()), u(t_string())));
 }
 
 #[test]
 fn iterable_not_in_list() {
-    assert_atomic_not_subtype(&t_iterable(u(t_int()), u(t_int())), &t_list(u(t_int()), false));
+    assert_atomic_not_subtype(t_iterable(u(t_int()), u(t_int())), t_list(u(t_int()), false));
 }
 
 #[test]
 fn iterable_not_in_keyed() {
     assert_atomic_not_subtype(
-        &t_iterable(u(t_string()), u(t_int())),
-        &t_keyed_unsealed(u(t_string()), u(t_int()), false),
+        t_iterable(u(t_string()), u(t_int())),
+        t_keyed_unsealed(u(t_string()), u(t_int()), false),
     );
 }
 
@@ -222,13 +234,13 @@ fn iterable_not_in_keyed() {
 fn deep_list_of_lists() {
     let inner = u(t_list(u(t_int()), false));
     let outer = t_list(inner, false);
-    assert_atomic_subtype(&outer, &outer);
+    assert_atomic_subtype(outer, outer);
 
     let lit_inner = u(t_list(u(t_lit_int(5)), false));
     let lit_outer = t_list(lit_inner, false);
     let int_outer = t_list(u(t_list(u(t_int()), false)), false);
-    assert_atomic_subtype(&lit_outer, &int_outer);
-    assert_atomic_not_subtype(&int_outer, &lit_outer);
+    assert_atomic_subtype(lit_outer, int_outer);
+    assert_atomic_not_subtype(int_outer, lit_outer);
 }
 
 #[test]
@@ -237,47 +249,47 @@ fn deep_keyed_of_lists() {
     let inner_string_list = u(t_list(u(t_string()), false));
     let a = t_keyed_unsealed(u(t_string()), inner_int_list, false);
     let b = t_keyed_unsealed(u(t_string()), inner_string_list, false);
-    assert_atomic_subtype(&a, &a);
-    assert_atomic_not_subtype(&a, &b);
+    assert_atomic_subtype(a, a);
+    assert_atomic_not_subtype(a, b);
 }
 
 #[test]
 fn deep_list_of_keyed() {
     let inner = u(t_keyed_unsealed(u(t_string()), u(t_int()), false));
     let outer = t_list(inner, false);
-    assert_atomic_subtype(&outer, &outer);
+    assert_atomic_subtype(outer, outer);
 }
 
 #[test]
 fn array_not_in_int() {
-    assert_atomic_not_subtype(&t_empty_array(), &t_int());
-    assert_atomic_not_subtype(&t_list(u(t_int()), false), &t_int());
+    assert_atomic_not_subtype(t_empty_array(), t_int());
+    assert_atomic_not_subtype(t_list(u(t_int()), false), t_int());
 }
 
 #[test]
 fn array_not_in_object() {
-    assert_atomic_not_subtype(&t_empty_array(), &t_object_any());
-    assert_atomic_not_subtype(&t_list(u(t_int()), false), &t_object_any());
+    assert_atomic_not_subtype(t_empty_array(), t_object_any());
+    assert_atomic_not_subtype(t_list(u(t_int()), false), t_object_any());
 }
 
 #[test]
 fn array_in_mixed() {
-    assert_atomic_subtype(&t_empty_array(), &mixed());
-    assert_atomic_subtype(&t_list(u(t_int()), false), &mixed());
-    assert_atomic_subtype(&t_keyed_unsealed(u(t_string()), u(t_int()), false), &mixed());
+    assert_atomic_subtype(t_empty_array(), mixed());
+    assert_atomic_subtype(t_list(u(t_int()), false), mixed());
+    assert_atomic_subtype(t_keyed_unsealed(u(t_string()), u(t_int()), false), mixed());
 }
 
 #[test]
 fn list_string_in_list_array_key() {
-    assert_atomic_subtype(&t_list(u(t_string()), false), &t_list(u(t_array_key()), false));
+    assert_atomic_subtype(t_list(u(t_string()), false), t_list(u(t_array_key()), false));
 }
 
 #[test]
 fn deep_list_three_levels() {
     let lit = t_list(u(t_list(u(t_list(u(t_lit_int(1)), false)), false)), false);
     let int = t_list(u(t_list(u(t_list(u(t_int()), false)), false)), false);
-    assert_atomic_subtype(&lit, &int);
-    assert_atomic_not_subtype(&int, &lit);
+    assert_atomic_subtype(lit, int);
+    assert_atomic_not_subtype(int, lit);
 }
 
 #[test]
@@ -290,8 +302,8 @@ fn deep_keyed_with_optional_property() {
         BTreeMap::from([(ak_str("name"), (false, u(t_string()))), (ak_str("age"), (true, u(t_int())))]),
         false,
     );
-    assert_atomic_subtype(&a, &b);
-    assert_atomic_not_subtype(&b, &a);
+    assert_atomic_subtype(a, b);
+    assert_atomic_not_subtype(b, a);
 }
 
 #[test]
@@ -301,7 +313,7 @@ fn deep_keyed_extra_keys_not_subtype() {
         BTreeMap::from([(ak_str("a"), (false, u(t_int()))), (ak_str("b"), (false, u(t_string())))]),
         false,
     );
-    assert_atomic_not_subtype(&small, &big);
+    assert_atomic_not_subtype(small, big);
 }
 
 #[test]
@@ -311,7 +323,7 @@ fn deep_keyed_subset_with_optional() {
         BTreeMap::from([(ak_str("a"), (false, u(t_int()))), (ak_str("b"), (true, u(t_string())))]),
         false,
     );
-    assert_atomic_subtype(&small, &big_opt);
+    assert_atomic_subtype(small, big_opt);
 }
 
 #[test]
@@ -329,30 +341,30 @@ fn many_distinct_lists_disjoint() {
         (t_bool(), t_float()),
     ];
     for (a, b) in pairs {
-        assert_atomic_not_subtype(&t_list(u(a), false), &t_list(u(b), false));
+        assert_atomic_not_subtype(t_list(u(a), false), t_list(u(b), false));
     }
 }
 
 #[test]
 fn list_int_not_in_list_float() {
-    // `int` and `float` are disjoint value sets — the implicit
+    // `int` and `float` are disjoint value sets ; the implicit
     // int→float coercion is a callsite convenience, not a subtype
     // relation. `list<int>` therefore does not refine `list<float>`.
-    assert_atomic_not_subtype(&t_list(u(t_int()), false), &t_list(u(t_float()), false));
-    assert_atomic_not_subtype(&t_list(u(t_lit_int(5)), false), &t_list(u(t_float()), false));
+    assert_atomic_not_subtype(t_list(u(t_int()), false), t_list(u(t_float()), false));
+    assert_atomic_not_subtype(t_list(u(t_lit_int(5)), false), t_list(u(t_float()), false));
 }
 
 #[test]
 fn list_int_lits_in_list_int() {
-    for v in [-100_i64, 0, 1, 100] {
-        assert_atomic_subtype(&t_list(u(t_lit_int(v)), false), &t_list(u(t_int()), false));
+    for v in [-100i64, 0, 1, 100] {
+        assert_atomic_subtype(t_list(u(t_lit_int(v)), false), t_list(u(t_int()), false));
     }
 }
 
 #[test]
 fn list_string_lits_in_list_string() {
     for s in ["", "hi", "abc"] {
-        assert_atomic_subtype(&t_list(u(t_lit_string(s)), false), &t_list(u(t_string()), false));
+        assert_atomic_subtype(t_list(u(t_lit_string(s)), false), t_list(u(t_string()), false));
     }
 }
 
@@ -366,7 +378,7 @@ fn keyed_with_value_subtypes_for_many_combos() {
             let cb = empty_world();
             let r = atomic_is_contained(inner_keyed, outer_uniform, &cb);
             let expected = atomic_is_contained(inner_v, outer_v, &cb);
-            assert_eq!(r, expected, "keyed<string,{:?}> <: keyed<string,{:?}>", inner_v, outer_v);
+            assert_eq!(r, expected, "keyed<string,{inner_v:?}> <: keyed<string,{outer_v:?}>");
         }
     }
 }

@@ -3,7 +3,7 @@
 //!
 //! `T of X ∧ Y` is a fresh `T` whose constraint is `X ∩ Y` (computed
 //! recursively via the lattice meet). When the narrowed constraint is
-//! empty, the result is `None` (impossible — no value of T can satisfy
+//! empty, the result is `None` (impossible ; no value of T can satisfy
 //! both the original bound and the assertion). When `T of X` already
 //! refines `Y`, the subsumption rule in [`crate::meet`] short-circuits
 //! before we get here, so this rule fires only for genuine narrowings.

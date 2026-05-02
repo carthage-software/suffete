@@ -1,3 +1,5 @@
+#![allow(clippy::arithmetic_side_effects)]
+
 //! Overlap relation: `overlaps(a, b)` is `true` iff there exists a
 //! runtime value `v` such that `v ∈ a ∩ b`.
 //!
@@ -11,14 +13,14 @@
 //! pair fall through these rules in order:
 //!
 //! 1. Reflexivity / Top / Bot axioms.
-//! 2. Generic-parameter projection — `T` overlaps `X` iff `T`'s constraint
+//! 2. Generic-parameter projection: `T` overlaps `X` iff `T`'s constraint
 //!    overlaps `X`.
-//! 3. Subsumption — `a <: b` or `b <: a` implies overlap.
+//! 3. Subsumption: `a <: b` or `b <: a` implies overlap.
 //! 4. Family-specific positive overlap rules (e.g. range overlap, the
 //!    string/class-like-string crossing, narrowed-mixed conservatism).
 //!
 //! When none of those fire we report disjoint. The rule set is incomplete
-//! by design — adding a positive rule never weakens correctness, since the
+//! by design: adding a positive rule never weakens correctness, since the
 //! relation is monotone in true outcomes; missing rules only cost
 //! precision (a downstream narrowing returns `never` instead of a real
 //! overlap).
@@ -41,6 +43,7 @@ use crate::prelude::PLACEHOLDER;
 use crate::world::Variance;
 use crate::world::World;
 
+#[inline]
 pub fn overlaps<W: World>(
     a: TypeId,
     b: TypeId,
@@ -54,6 +57,7 @@ pub fn overlaps<W: World>(
     a_type.elements.iter().any(|x| b_type.elements.iter().any(|y| element_overlaps(*x, *y, world, options, report)))
 }
 
+#[inline]
 fn element_overlaps<W: World>(
     a: ElementId,
     b: ElementId,
@@ -198,6 +202,7 @@ fn element_overlaps<W: World>(
     family_overlap(a, b)
 }
 
+#[inline]
 fn object_structural_overlap<W: World>(object: ElementId, structural: ElementId, world: &W) -> bool {
     let i = interner();
     let info = *i.get_object(object);
@@ -213,6 +218,7 @@ fn object_structural_overlap<W: World>(object: ElementId, structural: ElementId,
     !classes.iter().any(|&class| world.is_final(class) && !class_satisfies_structural(class, structural, world))
 }
 
+#[inline]
 fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: ElementId, world: &W) -> bool {
     let i = interner();
     let mut conjuncts: Vec<ElementId> = vec![structural];
@@ -245,6 +251,7 @@ fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: Elem
 /// classes cannot share a runtime instance, so we return `false`. This
 /// is conservative: a future world surface for shared interfaces /
 /// traits can lift the answer to `true`.
+#[inline]
 fn object_overlap<W: World>(
     a: ElementId,
     b: ElementId,
@@ -263,13 +270,8 @@ fn object_overlap<W: World>(
         return false;
     }
 
-    // A `Negated` conjunct on either side that subsumes the other
-    // side's whole value-set rules out the overlap: every value of
-    // the other side falls inside the negation, leaving nothing
-    // shared. This is the value-equality form of the
-    // `negation_excludes_class` check used in `meet`, generalized
-    // to arbitrary inner shapes (template-arg mismatches under
-    // contravariance, structural conjuncts, etc.).
+    // A `Negated` whose inner accepts the other side's value-set
+    // rules out the overlap.
     if negation_covers_other(a_info, b, world, options, report)
         || negation_covers_other(b_info, a, world, options, report)
     {
@@ -279,12 +281,10 @@ fn object_overlap<W: World>(
     if a_info.name == b_info.name
         && let (Some(a_args_id), Some(b_args_id)) = (a_info.type_args, b_info.type_args)
     {
-        // Arity normalization mirrors `refines_named_named`:
-        // arity-0 classes ignore any explicit args; arity > 0
-        // classes truncate over-supply and default-fill under-supply
-        // before per-position checks. When either side omits
-        // `type_args` entirely it denotes "any T" and the
-        // per-position check is skipped (handled at the outer let).
+        // Normalize args: arity-0 ignores any explicit args, arity > 0
+        // truncates over-supply and default-fills under-supply. When
+        // either side has no `type_args` it denotes "any T" and the
+        // per-position check is skipped (handled at the outer `let`).
         let arity = world.template_parameter_arity(a_info.name);
         if arity > 0 {
             let a_supplied = i.get_type_list(a_args_id);
@@ -299,7 +299,7 @@ fn object_overlap<W: World>(
                 let a_arg = a_supplied.get(idx).copied().unwrap_or_else(|| fill(idx));
                 let b_arg = b_supplied.get(idx).copied().unwrap_or_else(|| fill(idx));
                 let variance =
-                    world.template_parameter_at(a_info.name, idx).map(|t| t.variance).unwrap_or(Variance::Invariant);
+                    world.template_parameter_at(a_info.name, idx).map_or(Variance::Invariant, |t| t.variance);
                 match variance {
                     Variance::Invariant => {
                         let a_refines_b = crate::lattice::refines(a_arg, b_arg, world, options, report);
@@ -343,7 +343,6 @@ fn object_overlap<W: World>(
         // uninhabited: the ancestor's value-set rules out every
         // class in the descendant's subtree.
         if let Some(id) = ancestor.intersections {
-            let i = interner();
             for &conjunct in i.get_element_list(id) {
                 if conjunct.kind() != ElementKind::Negated {
                     continue;
@@ -374,6 +373,7 @@ fn object_overlap<W: World>(
 /// covers the entire value-set of `other`: every runtime value of
 /// `other` would land inside the negation, so an `info ∩ other`
 /// instance cannot exist.
+#[inline]
 fn negation_covers_other<W: World>(
     info: crate::element::payload::ObjectInfo,
     other: ElementId,
@@ -396,6 +396,7 @@ fn negation_covers_other<W: World>(
     false
 }
 
+#[inline]
 fn descendant_args_satisfy_ancestor<W: World>(
     descendant: crate::element::payload::ObjectInfo,
     ancestor: crate::element::payload::ObjectInfo,
@@ -455,15 +456,12 @@ fn descendant_args_satisfy_ancestor<W: World>(
 }
 
 /// `true` iff `Foo & Bar & …` is provably uninhabited via the
-/// world's finality surface. A `final` class `F` admits no new
-/// subclasses, so for `F & O` to be inhabited the value must
-/// satisfy both `F` and `O` simultaneously — which is only
-/// possible when `F` and `O` are ancestor-related in *some*
-/// direction (`F` descends `O`, or `O` descends `F`). When `F` is
-/// final and there exists an unrelated `O` in the intersection,
-/// no runtime value can satisfy both and the type is bottom.
-/// Without a final witness we stay open-world-conservative
+/// world's finality surface. A `final` class admits no subclass,
+/// so for `F & O` to be inhabited `F` and `O` must be ancestor-
+/// related; an unrelated `O` alongside a final `F` collapses the
+/// intersection. Without a final witness we stay open-world
 /// (return `false`).
+#[inline]
 fn intersection_uninhabited_under_finality<W: World>(classes: &[mago_atom::Atom], world: &W) -> bool {
     classes.iter().any(|&final_candidate| {
         if !world.is_final(final_candidate) {
@@ -481,6 +479,7 @@ fn intersection_uninhabited_under_finality<W: World>(classes: &[mago_atom::Atom]
 /// Collects the head + every object-kind conjunct's class name. Used
 /// by `object_overlap` to enforce single-inheritance consistency
 /// across the whole intersection (matching the rule in compose).
+#[inline]
 fn collect_class_names(elem: ElementId, info: crate::element::payload::ObjectInfo) -> Vec<mago_atom::Atom> {
     let i = interner();
     let mut names = vec![info.name];
@@ -501,6 +500,7 @@ fn collect_class_names(elem: ElementId, info: crate::element::payload::ObjectInf
 /// nested over a value-never type (e.g. `non-empty-list<B<never>>`).
 /// The lattice can construct these but no runtime value inhabits
 /// them, so `overlap` treats them as bottom.
+#[inline]
 pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
     let i = interner();
     match elem.kind() {
@@ -536,13 +536,8 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                     return true;
                 }
 
-                // A `Negated` conjunct that subsumes any positive
-                // class in the intersection makes it uninhabited:
-                // every positive instance falls inside the negation.
-                // Mirrors the value-set rule used by `compose_object_intersection`'s
-                // `negation_excludes_class`, but without bespoke
-                // descent-only logic — we ask the lattice whether the
-                // bare nominal class refines the negation's inner.
+                // A `Negated` whose inner accepts any positive class in
+                // the intersection makes it uninhabited.
                 for &neg in &negations {
                     let neg_inner = i.get_negated(neg).inner;
                     for &class in &classes {
@@ -593,7 +588,7 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                 }
 
                 let variance =
-                    world.template_parameter_at(info.name, idx).map(|p| p.variance).unwrap_or(Variance::Contravariant);
+                    world.template_parameter_at(info.name, idx).map_or(Variance::Contravariant, |p| p.variance);
                 !matches!(variance, Variance::Contravariant)
             })
         }
@@ -604,6 +599,7 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
 /// `true` when every atom in `t` is uninhabited or `t` is the
 /// canonical `never`. Used by [`is_uninhabited`] to recurse into
 /// container element types.
+#[inline]
 pub(crate) fn type_is_value_never<W: World>(t: TypeId, world: &W) -> bool {
     if t == crate::prelude::TYPE_NEVER {
         return true;
@@ -620,6 +616,7 @@ pub(crate) fn type_is_value_never<W: World>(t: TypeId, world: &W) -> bool {
 /// counts cannot share any value. Same-arity (or one side `Any`)
 /// callables share at least the always-throwing function (`return
 /// never`), which trivially satisfies any return type.
+#[inline]
 fn callable_overlap(a: ElementId, b: ElementId) -> bool {
     let i = interner();
     use crate::element::payload::CallableInfo;
@@ -630,8 +627,8 @@ fn callable_overlap(a: ElementId, b: ElementId) -> bool {
     };
     let a_sig = *i.get_signature(a_id);
     let b_sig = *i.get_signature(b_id);
-    let a_arity = a_sig.parameters.map(|p| i.get_param_list(p).len()).unwrap_or(0);
-    let b_arity = b_sig.parameters.map(|p| i.get_param_list(p).len()).unwrap_or(0);
+    let a_arity = a_sig.parameters.map_or(0, |p| i.get_param_list(p).len());
+    let b_arity = b_sig.parameters.map_or(0, |p| i.get_param_list(p).len());
     a_arity == b_arity
 }
 
@@ -639,6 +636,7 @@ fn callable_overlap(a: ElementId, b: ElementId) -> bool {
 /// string axes (`numeric-string`, `lowercase-string`, etc.) admit a
 /// non-empty intersection unless their literal/casing/flags are
 /// jointly unsatisfiable, which `string_meet` already decides.
+#[inline]
 fn string_overlap<W: World>(
     a: ElementId,
     b: ElementId,
@@ -654,6 +652,7 @@ fn string_overlap<W: World>(
 /// side requires non-empty. When at least one side requires non-empty,
 /// the element types must overlap for any concrete value to inhabit
 /// both sets.
+#[inline]
 fn list_overlap<W: World>(
     a: ElementId,
     b: ElementId,
@@ -678,6 +677,7 @@ fn list_overlap<W: World>(
 /// `iterable<K,V> ∩ array<K',V'>` shares the empty array unless the
 /// array is non-empty; otherwise the iterable's K must admit some
 /// of the array's keys and V must admit some of the array's values.
+#[inline]
 fn iterable_array_overlap<W: World>(
     a: ElementId,
     b: ElementId,
@@ -706,6 +706,7 @@ fn iterable_array_overlap<W: World>(
 /// that refines both sides simultaneously when `int <: K` fails,
 /// so this rule mirrors the meet rule's precision rather than the
 /// pure value-set semantics.
+#[inline]
 fn iterable_list_overlap<W: World>(
     a: ElementId,
     b: ElementId,
@@ -727,6 +728,7 @@ fn iterable_list_overlap<W: World>(
     overlaps(it_info.value_type, list_info.element_type, world, options, report)
 }
 
+#[inline]
 fn list_array_overlap<W: World>(
     a: ElementId,
     b: ElementId,
@@ -753,6 +755,7 @@ fn list_array_overlap<W: World>(
 
 /// `array<K,V> ∩ array<K',V'>` mirrors `list_overlap`: the empty
 /// array `[]` is shared only when neither side demands non-empty.
+#[inline]
 fn array_overlap<W: World>(
     a: ElementId,
     b: ElementId,
@@ -775,6 +778,7 @@ fn array_overlap<W: World>(
     }
 }
 
+#[inline]
 fn family_overlap(a: ElementId, b: ElementId) -> bool {
     if a.kind() == ElementKind::Int && b.kind() == ElementKind::Int {
         return int_overlap(a, b);
@@ -794,23 +798,13 @@ fn family_overlap(a: ElementId, b: ElementId) -> bool {
 
     // Numeric strings inhabit both `numeric` and `string`. A specific
     // string literal that isn't itself numeric (e.g. `'foo'`) rules
-    // the overlap out — its value is not in `numeric`.
+    // the overlap out: its value is not in `numeric`.
     if matches!(pair, (ElementKind::Numeric, ElementKind::String) | (ElementKind::String, ElementKind::Numeric)) {
         return numeric_string_overlap(a, b);
     }
 
-    // True-union dominator cross-axis overlap. Each of `scalar`,
-    // `numeric`, `array-key` is a disjoint-union of primitive
-    // members; whenever two dominators share at least one member
-    // family, runtime values inhabit both. Concretely:
-    //   scalar = bool | int | float | string
-    //   numeric = int | float | numeric-string ⊂ string
-    //   array-key = int | string
-    // so every pairwise combination shares at least `int`. Without
-    // this rule subtract's `array-key \ numeric` couldn't fan out
-    // (`!overlaps` short-circuited it to identity), and downstream
-    // anti-monotonicity broke against the precise `int \ numeric`
-    // narrowing on a sibling atom.
+    // True-union dominator pairs (`scalar`, `numeric`, `array-key`)
+    // share at least `int`, so every cross-pair overlaps.
     if matches!(
         pair,
         (ElementKind::Scalar, ElementKind::Numeric)
@@ -826,6 +820,7 @@ fn family_overlap(a: ElementId, b: ElementId) -> bool {
     false
 }
 
+#[inline]
 fn numeric_string_overlap(a: ElementId, b: ElementId) -> bool {
     use crate::element::payload::scalar::StringLiteral;
     let i = interner();
@@ -846,6 +841,7 @@ fn numeric_string_overlap(a: ElementId, b: ElementId) -> bool {
 /// literal string side rules out the overlap if its value isn't a
 /// valid class name; a literal class-string side rules it out if its
 /// fixed name conflicts with the string's literal/casing constraints.
+#[inline]
 fn string_class_like_string_overlap(a: ElementId, b: ElementId) -> bool {
     let i = interner();
     let (string_atom, class_atom) = if a.kind() == ElementKind::String { (a, b) } else { (b, a) };
@@ -862,6 +858,7 @@ fn string_class_like_string_overlap(a: ElementId, b: ElementId) -> bool {
     matches!(s.casing, crate::element::payload::scalar::StringCasing::Unspecified)
 }
 
+#[inline]
 fn is_valid_class_name(s: &str) -> bool {
     let bytes = s.as_bytes();
     let len = bytes.len();
@@ -875,6 +872,7 @@ fn is_valid_class_name(s: &str) -> bool {
     let mut part_start = true;
     while i < len {
         let b = bytes[i];
+        #[allow(clippy::else_if_without_else)]
         if b == b'\\' {
             if part_start {
                 return false;
@@ -897,6 +895,7 @@ fn is_valid_class_name(s: &str) -> bool {
 /// satisfiable by some runtime value the other side admits. Vanilla
 /// `mixed` is already absorbed by the Top axiom, so at least one side
 /// here carries a non-trivial axis.
+#[inline]
 fn mixed_overlap(a: ElementId, b: ElementId) -> bool {
     let (mixed, other) = if a.kind() == ElementKind::Mixed { (a, b) } else { (b, a) };
     if !mixed_axes_compatible(*interner().get_mixed(mixed), other) {
@@ -908,6 +907,7 @@ fn mixed_overlap(a: ElementId, b: ElementId) -> bool {
     true
 }
 
+#[inline]
 fn mixed_axes_compatible(info: MixedInfo, other: ElementId) -> bool {
     if info.is_non_null() && !mixed_family::is_non_null(other) {
         return false;
@@ -927,6 +927,7 @@ fn mixed_axes_compatible(info: MixedInfo, other: ElementId) -> bool {
 /// Intervals (with absorption: `INT` and `LITERAL_INT` are unbounded) on
 /// either side overlap iff `max(lo_a, lo_b) ≤ min(hi_a, hi_b)`. An open
 /// bound on either side is treated as `±∞`.
+#[inline]
 fn int_overlap(a: ElementId, b: ElementId) -> bool {
     let i = interner();
     let (al, au) = int_bounds(*i.get_int(a));
@@ -949,6 +950,7 @@ fn int_overlap(a: ElementId, b: ElementId) -> bool {
     }
 }
 
+#[inline]
 fn int_bounds(info: IntInfo) -> (Option<i64>, Option<i64>) {
     match info {
         IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),

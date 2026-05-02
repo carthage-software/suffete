@@ -1,3 +1,5 @@
+#![allow(clippy::pub_use)]
+
 //! Payloads for the object family: nominal, shape, enum, has-method, has-property.
 //!
 //! Five separate [`ElementKind`](crate::ElementKind)s, one file each. Despite
@@ -23,10 +25,11 @@ pub use self::shape::ObjectShapeInfo;
 /// Append the `&conjunct` chain for an object-family element's
 /// intersection list to a formatter. Conjuncts that themselves carry
 /// intersections are wrapped in `()`.
+#[inline]
 pub(crate) fn render_intersection_chain(
     intersections: Option<crate::ElementListId>,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
+    f: &mut core::fmt::Formatter<'_>,
+) -> core::fmt::Result {
     let Some(id) = intersections else { return Ok(()) };
     for &conjunct in crate::interner::interner().get_element_list(id) {
         let s = conjunct.to_string();

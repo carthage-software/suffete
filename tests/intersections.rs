@@ -1,6 +1,14 @@
-//! Generic intersection accessors on `ElementId` and round-trip of the
-//! new intersection-bearing payloads (`HasMethodInfo`, `HasPropertyInfo`,
-//! `ObjectShapeInfo`).
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 

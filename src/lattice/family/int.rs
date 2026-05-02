@@ -8,7 +8,7 @@
 //! - `Range(R)` accepts `Literal(N)` if `N ∈ R`, and `Range(R')` if `R' ⊆ R`.
 //!
 //! "Non-zero int" and similar open complements are expressed as
-//! `int & !int(0)` via the universal `Negated` machinery — no
+//! `int & !int(0)` via the universal `Negated` machinery ; no
 //! dedicated variant lives in this family.
 
 use crate::ElementId;
@@ -17,6 +17,8 @@ use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::IntRange;
 use crate::interner::interner;
 
+#[inline]
+#[must_use] 
 pub fn refines(input: ElementId, container: ElementId) -> bool {
     if input.kind() != ElementKind::Int {
         return false;
@@ -42,7 +44,8 @@ pub fn refines(input: ElementId, container: ElementId) -> bool {
     }
 }
 
-fn range_contains_value(range: IntRange, n: i64) -> bool {
+#[inline]
+const fn range_contains_value(range: IntRange, n: i64) -> bool {
     let lower_ok = match range.lower() {
         Some(lo) => lo <= n,
         None => true,
@@ -54,7 +57,8 @@ fn range_contains_value(range: IntRange, n: i64) -> bool {
     lower_ok && upper_ok
 }
 
-fn range_contains_range(outer: IntRange, inner: IntRange) -> bool {
+#[inline]
+const fn range_contains_range(outer: IntRange, inner: IntRange) -> bool {
     let lower_ok = match (outer.lower(), inner.lower()) {
         (None, _) => true,
         (Some(_), None) => false,

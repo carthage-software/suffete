@@ -1,12 +1,14 @@
+#![allow(clippy::pub_use)]
+
 //! The type lattice and its three relations.
 //!
 //! Suffete's type system forms a partially-ordered lattice. This module
 //! exposes three operations on it:
 //!
-//! - [`refines`] — `a <: b` (every value of `a` is a value of `b`).
-//! - [`generalizes`] — `a :> b` (every value of `b` is a value of `a`),
+//! - [`refines`] ; `a <: b` (every value of `a` is a value of `b`).
+//! - [`generalizes`] ; `a :> b` (every value of `b` is a value of `a`),
 //!   the reverse of [`refines`].
-//! - [`overlaps`] — `a ∩ b ≠ ∅` (there exists a value in both `a` and
+//! - [`overlaps`] ; `a ∩ b ≠ ∅` (there exists a value in both `a` and
 //!   `b`). The boolean overlap question; the type-returning meet
 //!   (greatest lower bound) lives in [`crate::meet`].
 //!

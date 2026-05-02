@@ -19,6 +19,7 @@ pub(super) fn any<F: FnMut(ElementId) -> bool>(ty: TypeId, predicate: &mut F) ->
     false
 }
 
+#[inline]
 fn visit<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     if predicate(elem) {
         return true;
@@ -27,6 +28,7 @@ fn visit<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> boo
     descend(elem, predicate)
 }
 
+#[inline]
 fn descend<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     match elem.kind() {
         ElementKind::Object => descend_object(elem, predicate),
@@ -46,6 +48,7 @@ fn descend<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> b
     }
 }
 
+#[inline]
 fn descend_object<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_object(elem);
@@ -68,6 +71,7 @@ fn descend_object<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut 
     false
 }
 
+#[inline]
 fn descend_list<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_list(elem);
@@ -86,6 +90,7 @@ fn descend_list<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F)
     false
 }
 
+#[inline]
 fn descend_keyed_array<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_array(elem);
@@ -112,6 +117,7 @@ fn descend_keyed_array<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: 
     false
 }
 
+#[inline]
 fn descend_iterable<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_iterable(elem);
@@ -121,6 +127,7 @@ fn descend_iterable<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mu
     descend_intersections(info.intersections, predicate)
 }
 
+#[inline]
 fn descend_object_shape<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_object_shape(elem);
@@ -134,14 +141,17 @@ fn descend_object_shape<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate:
     descend_intersections(info.intersections, predicate)
 }
 
+#[inline]
 fn descend_has_method<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     descend_intersections(interner().get_has_method(elem).intersections, predicate)
 }
 
+#[inline]
 fn descend_has_property<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     descend_intersections(interner().get_has_property(elem).intersections, predicate)
 }
 
+#[inline]
 fn descend_intersections<F: FnMut(ElementId) -> bool>(
     intersections: Option<crate::ElementListId>,
     predicate: &mut F,
@@ -155,6 +165,7 @@ fn descend_intersections<F: FnMut(ElementId) -> bool>(
     false
 }
 
+#[inline]
 fn descend_class_like_string<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_class_like_string(elem);
@@ -166,11 +177,13 @@ fn descend_class_like_string<F: FnMut(ElementId) -> bool>(elem: ElementId, predi
     }
 }
 
+#[inline]
 fn descend_generic_parameter<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let info = interner().get_generic_parameter(elem);
     any(info.constraint, predicate)
 }
 
+#[inline]
 fn descend_reference<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_reference(elem);
@@ -193,6 +206,7 @@ fn descend_reference<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &m
     false
 }
 
+#[inline]
 fn descend_conditional<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let info = *interner().get_conditional(elem);
     any(info.subject, predicate)
@@ -201,6 +215,7 @@ fn descend_conditional<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: 
         || any(info.otherwise, predicate)
 }
 
+#[inline]
 fn descend_derived<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     use crate::element::payload::DerivedInfo;
     let i = interner();
@@ -218,13 +233,13 @@ fn descend_derived<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut
     }
 }
 
+#[inline]
 fn descend_callable<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     use crate::element::payload::CallableInfo;
     let i = interner();
     let info = *i.get_callable(elem);
-    let sig_id = match info {
-        CallableInfo::Signature(s) | CallableInfo::Closure(s) => s,
-        _ => return false,
+    let (CallableInfo::Signature(sig_id) | CallableInfo::Closure(sig_id)) = info else {
+        return false;
     };
 
     let sig = *i.get_signature(sig_id);

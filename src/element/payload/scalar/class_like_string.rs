@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
@@ -42,11 +42,13 @@ pub enum ClassLikeStringSpecifier {
     Generic { constraint: TypeId },
 }
 
-const _: () = assert!(size_of::<ClassLikeStringSpecifier>() <= 16);
-const _: () = assert!(size_of::<ClassLikeStringInfo>() <= 24);
-const _: () = assert!(size_of::<ClassLikeKind>() == 1);
+const _: () = assert!(size_of::<ClassLikeStringSpecifier>() <= 16, "size budget exceeded");
+const _: () = assert!(size_of::<ClassLikeStringInfo>() <= 24, "size budget exceeded");
+const _: () = assert!(size_of::<ClassLikeKind>() == 1, "size budget exceeded");
 
 impl ClassLikeKind {
+    #[inline]
+    #[must_use] 
     pub const fn as_str(self) -> &'static str {
         match self {
             ClassLikeKind::Class => "class-string",
@@ -57,8 +59,9 @@ impl ClassLikeKind {
     }
 }
 
-impl std::fmt::Display for ClassLikeStringInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ClassLikeStringInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.specifier {
             ClassLikeStringSpecifier::Any => f.write_str(self.kind.as_str()),
             ClassLikeStringSpecifier::Literal { value } => write!(f, "class-string('{}')", value.as_str()),

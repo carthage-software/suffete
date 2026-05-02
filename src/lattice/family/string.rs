@@ -16,7 +16,7 @@
 //! non-empty and not `"0"`, so they satisfy `non-empty` and `truthy`. They
 //! do not satisfy casing or `is_callable` constraints by default.
 //!
-//! TODO(algorithmic gap, tests/algorithmic_gaps.rs::gap_refines_string_covered_by_lowercase_and_non_lowercase):
+//! TODO(algorithmic gap, `tests/algorithmic_gaps.rs::gap_refines_string_covered_by_lowercase_and_non_lowercase)`:
 //! the lattice currently has no complement form for casing /
 //! refinement axes (`non-lowercase-string`, `non-numeric-string`,
 //! etc.). Once those land, partition-style fan-outs in
@@ -35,6 +35,8 @@ use crate::element::payload::scalar::StringLiteral;
 use crate::element::payload::scalar::StringRefinementFlags;
 use crate::interner::interner;
 
+#[inline]
+#[must_use] 
 pub fn refines(input: ElementId, container: ElementId) -> bool {
     let i = interner();
     let container_info = *i.get_string(container);
@@ -51,6 +53,7 @@ pub fn refines(input: ElementId, container: ElementId) -> bool {
     string_satisfies(input_info, container_info)
 }
 
+#[inline]
 fn class_like_string_satisfies(_kind: ClassLikeKind, container: StringInfo) -> bool {
     if !literal_constraint_admits_class_like(container.literal) {
         return false;
@@ -67,16 +70,19 @@ fn class_like_string_satisfies(_kind: ClassLikeKind, container: StringInfo) -> b
     !container.flags.is_callable()
 }
 
-fn literal_constraint_admits_class_like(literal: StringLiteral) -> bool {
+#[inline]
+const fn literal_constraint_admits_class_like(literal: StringLiteral) -> bool {
     matches!(literal, StringLiteral::None)
 }
 
+#[inline]
 fn string_satisfies(input: StringInfo, container: StringInfo) -> bool {
     satisfies_literal(input.literal, container.literal)
         && satisfies_casing(input, container.casing)
         && satisfies_flags(input, container.flags)
 }
 
+#[inline]
 fn satisfies_literal(input: StringLiteral, container: StringLiteral) -> bool {
     match (input, container) {
         (_, StringLiteral::None) => true,
@@ -86,6 +92,7 @@ fn satisfies_literal(input: StringLiteral, container: StringLiteral) -> bool {
     }
 }
 
+#[inline]
 fn satisfies_casing(input: StringInfo, container_casing: StringCasing) -> bool {
     match container_casing {
         StringCasing::Unspecified => true,
@@ -106,6 +113,7 @@ fn satisfies_casing(input: StringInfo, container_casing: StringCasing) -> bool {
     }
 }
 
+#[inline]
 fn satisfies_flags(input: StringInfo, container_flags: StringRefinementFlags) -> bool {
     if container_flags.is_non_empty() && !input_is_non_empty(input) {
         return false;
@@ -139,6 +147,7 @@ pub(super) fn input_is_non_empty(input: StringInfo) -> bool {
     }
 }
 
+#[inline]
 fn input_is_truthy(input: StringInfo) -> bool {
     if input.flags.is_truthy() {
         return true;

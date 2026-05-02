@@ -1,3 +1,15 @@
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
+
 mod combiner_common;
 
 use combiner_common::*;
@@ -19,7 +31,7 @@ fn idempotent_unspec_literal() {
 
 #[test]
 fn idempotent_literal() {
-    for v in [-1_000_000_i64, -100, -1, 0, 1, 100, 1_000_000, i64::MIN + 1, i64::MAX - 1] {
+    for v in [-1_000_000i64, -100, -1, 0, 1, 100, 1_000_000, i64::MIN + 1, i64::MAX - 1] {
         for n in 1..=10 {
             assert_self_idempotent(t_lit_int(v), n);
         }
@@ -28,7 +40,7 @@ fn idempotent_literal() {
 
 #[test]
 fn idempotent_from() {
-    for v in [-100_i64, -1, 0, 1, 100, i64::MIN + 1] {
+    for v in [-100i64, -1, 0, 1, 100, i64::MIN + 1] {
         for n in 1..=5 {
             assert_self_idempotent(t_int_from(v), n);
         }
@@ -37,7 +49,7 @@ fn idempotent_from() {
 
 #[test]
 fn idempotent_to() {
-    for v in [-100_i64, -1, 0, 1, 100, i64::MAX - 1] {
+    for v in [-100i64, -1, 0, 1, 100, i64::MAX - 1] {
         for n in 1..=5 {
             assert_self_idempotent(t_int_to(v), n);
         }
@@ -46,7 +58,7 @@ fn idempotent_to() {
 
 #[test]
 fn idempotent_range() {
-    for (lo, hi) in [(-100_i64, 100), (-1, 1), (i64::MIN + 1, i64::MAX - 1)] {
+    for (lo, hi) in [(-100i64, 100), (-1, 1), (i64::MIN + 1, i64::MAX - 1)] {
         for n in 1..=5 {
             assert_self_idempotent(t_int_range(lo, hi), n);
         }
@@ -55,7 +67,7 @@ fn idempotent_range() {
 
 #[test]
 fn singleton_range_normalises_to_literal() {
-    for v in [-100_i64, -1, 0, 1, 42, 100] {
+    for v in [-100i64, -1, 0, 1, 42, 100] {
         let result = combine_default(vec![t_int_range(v, v), t_int_range(v, v)]);
         assert_eq!(result, vec![t_lit_int(v)]);
     }
@@ -72,7 +84,7 @@ fn idempotent_named_ranges() {
 
 #[test]
 fn unspecified_absorbs_literals() {
-    for v in [-100_i64, -1, 0, 1, 100, 12345] {
+    for v in [-100i64, -1, 0, 1, 100, 12345] {
         assert_combines_to(vec![t_int(), t_lit_int(v)], vec![t_int()]);
         assert_combines_to(vec![t_lit_int(v), t_int()], vec![t_int()]);
     }
@@ -80,7 +92,7 @@ fn unspecified_absorbs_literals() {
 
 #[test]
 fn unspecified_absorbs_ranges() {
-    for (lo, hi) in [(0_i64, 10), (-5, 5), (i64::MIN + 1, 0), (0, i64::MAX - 1)] {
+    for (lo, hi) in [(0i64, 10), (-5, 5), (i64::MIN + 1, 0), (0, i64::MAX - 1)] {
         assert_combines_to(vec![t_int(), t_int_range(lo, hi)], vec![t_int()]);
         assert_combines_to(vec![t_int_range(lo, hi), t_int()], vec![t_int()]);
     }
@@ -88,7 +100,7 @@ fn unspecified_absorbs_ranges() {
 
 #[test]
 fn unspecified_absorbs_from() {
-    for v in [-100_i64, -1, 0, 1, 100] {
+    for v in [-100i64, -1, 0, 1, 100] {
         assert_combines_to(vec![t_int(), t_int_from(v)], vec![t_int()]);
         assert_combines_to(vec![t_int_from(v), t_int()], vec![t_int()]);
     }
@@ -96,7 +108,7 @@ fn unspecified_absorbs_from() {
 
 #[test]
 fn unspecified_absorbs_to() {
-    for v in [-100_i64, -1, 0, 1, 100] {
+    for v in [-100i64, -1, 0, 1, 100] {
         assert_combines_to(vec![t_int(), t_int_to(v)], vec![t_int()]);
         assert_combines_to(vec![t_int_to(v), t_int()], vec![t_int()]);
     }
@@ -118,7 +130,7 @@ fn unspecified_absorbs_unspecified_literal() {
 
 #[test]
 fn two_distinct_non_adjacent_literals_kept() {
-    for (a, b) in [(-1_i64, 1), (-100, 100), (10, 20)] {
+    for (a, b) in [(-1i64, 1), (-100, 100), (10, 20)] {
         let result = combine_default(vec![t_lit_int(a), t_lit_int(b)]);
         assert_eq!(result.len(), 2, "{a} | {b}");
     }
@@ -146,7 +158,7 @@ fn n_non_adjacent_literals_kept() {
 
 #[test]
 fn literals_with_duplicates_collapse() {
-    for v in [0_i64, 1, -1, 42] {
+    for v in [0i64, 1, -1, 42] {
         assert_combines_to(vec![t_lit_int(v); 10], vec![t_lit_int(v)]);
     }
 }
@@ -178,7 +190,7 @@ fn disjoint_ranges_kept_apart() {
 
 #[test]
 fn equal_ranges_collapse() {
-    for (lo, hi) in [(0_i64, 10), (-5, 5), (-100, 100)] {
+    for (lo, hi) in [(0i64, 10), (-5, 5), (-100, 100)] {
         assert_combines_to(vec![t_int_range(lo, hi); 5], vec![t_int_range(lo, hi)]);
     }
 }
@@ -197,7 +209,7 @@ fn many_ranges_merge_chain() {
 
 #[test]
 fn range_absorbs_literal_inside() {
-    for v in 0..=10_i64 {
+    for v in 0..=10i64 {
         assert_combines_to(vec![t_int_range(0, 10), t_lit_int(v)], vec![t_int_range(0, 10)]);
         assert_combines_to(vec![t_lit_int(v), t_int_range(0, 10)], vec![t_int_range(0, 10)]);
     }
@@ -223,7 +235,7 @@ fn literal_extends_lower_with_adjacent_range() {
 
 #[test]
 fn from_absorbs_literal_above() {
-    for v in [0_i64, 1, 5, 10, 100, 1_000_000] {
+    for v in [0i64, 1, 5, 10, 100, 1_000_000] {
         assert_combines_to(vec![t_int_from(0), t_lit_int(v)], vec![t_int_from(0)]);
         assert_combines_to(vec![t_lit_int(v), t_int_from(0)], vec![t_int_from(0)]);
     }
@@ -231,7 +243,7 @@ fn from_absorbs_literal_above() {
 
 #[test]
 fn from_with_literal_one_below_extends() {
-    for n in [0_i64, 5, 100, -1] {
+    for n in [0i64, 5, 100, -1] {
         let result = combine_default(vec![t_int_from(n), t_lit_int(n - 1)]);
         assert_eq!(result, vec![t_int_from(n - 1)]);
     }
@@ -239,7 +251,7 @@ fn from_with_literal_one_below_extends() {
 
 #[test]
 fn from_keeps_literal_far_below() {
-    for v in [-2_i64, -5, -100, -1_000_000] {
+    for v in [-2i64, -5, -100, -1_000_000] {
         let result = combine_default(vec![t_int_from(0), t_lit_int(v)]);
         assert_eq!(result.len(), 2, "From(0) | Literal({v})");
     }
@@ -247,7 +259,7 @@ fn from_keeps_literal_far_below() {
 
 #[test]
 fn to_absorbs_literal_below() {
-    for v in [-100_i64, -1, 0] {
+    for v in [-100i64, -1, 0] {
         assert_combines_to(vec![t_int_to(0), t_lit_int(v)], vec![t_int_to(0)]);
         assert_combines_to(vec![t_lit_int(v), t_int_to(0)], vec![t_int_to(0)]);
     }
@@ -255,7 +267,7 @@ fn to_absorbs_literal_below() {
 
 #[test]
 fn to_with_literal_one_above_extends() {
-    for n in [0_i64, 5, -1, -100] {
+    for n in [0i64, 5, -1, -100] {
         let result = combine_default(vec![t_int_to(n), t_lit_int(n + 1)]);
         assert_eq!(result, vec![t_int_to(n + 1)]);
     }
@@ -263,7 +275,7 @@ fn to_with_literal_one_above_extends() {
 
 #[test]
 fn to_keeps_literal_far_above() {
-    for v in [2_i64, 5, 100, 1_000_000] {
+    for v in [2i64, 5, 100, 1_000_000] {
         let result = combine_default(vec![t_int_to(0), t_lit_int(v)]);
         assert_eq!(result.len(), 2, "To(0) | Literal({v})");
     }
@@ -337,7 +349,7 @@ fn non_negative_or_non_positive_become_unspecified() {
 
 #[test]
 fn positive_absorbs_positive_literal() {
-    for v in [1_i64, 5, 100, i64::MAX - 1] {
+    for v in [1i64, 5, 100, i64::MAX - 1] {
         assert_combines_to(vec![t_positive_int(), t_lit_int(v)], vec![t_positive_int()]);
         assert_combines_to(vec![t_lit_int(v), t_positive_int()], vec![t_positive_int()]);
     }
@@ -408,7 +420,7 @@ fn many_disjoint_literals_kept_apart() {
 
 #[test]
 fn consecutive_literals_merge_to_range() {
-    let inputs: Vec<ElementId> = (1..=5_i64).map(t_lit_int).collect();
+    let inputs: Vec<ElementId> = (1..=5i64).map(t_lit_int).collect();
     let result = combine_default(inputs);
     assert_eq!(result, vec![t_int_range(1, 5)]);
 }
@@ -452,7 +464,7 @@ fn literal_min_max() {
 
 #[test]
 fn many_distinct_literals_exceed_threshold_generalise() {
-    let n = 200_usize;
+    let n = 200usize;
     let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_int(i as i64)).collect();
     let result = combine_default(inputs);
     assert_eq!(result, vec![t_int()]);
@@ -460,7 +472,7 @@ fn many_distinct_literals_exceed_threshold_generalise() {
 
 #[test]
 fn non_adjacent_literals_kept_under_threshold() {
-    let n = 100_usize;
+    let n = 100usize;
     let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_int((i as i64) * 10)).collect();
     let result = combine_default(inputs);
     assert_eq!(result.len(), n);
@@ -468,7 +480,7 @@ fn non_adjacent_literals_kept_under_threshold() {
 
 #[test]
 fn custom_low_threshold_generalises_quickly() {
-    let n = 10_usize;
+    let n = 10usize;
     let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_int(i as i64)).collect();
     let result = combine_with_int_threshold(inputs, 5);
     assert_eq!(result, vec![t_int()]);

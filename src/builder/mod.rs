@@ -19,7 +19,7 @@
 //! When constructed with [`from_type`](TypeBuilder::from_type), the
 //! builder remembers the originating handle. If `build` is reached
 //! with the buffer in the same shape (same element sequence, same
-//! flags), it returns the original handle directly — no canonicalise,
+//! flags), it returns the original handle directly ; no canonicalise,
 //! no intern lookup. A buffer that diverges from the origin (any
 //! mutation, any flag flip) and then returns to the origin shape is
 //! still considered "changed" and rebuilt; tracking the actual diff
@@ -54,13 +54,16 @@ impl TypeBuilder {
     /// to [`prelude::TYPE_NEVER`](crate::prelude::TYPE_NEVER) (matching
     /// the existing `TypeId::union(&[])` convention).
     #[inline]
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self { elements: Vec::new(), flags: FlowFlags::EMPTY, origin: None, dirty: false }
     }
 
     /// Open a builder backed by `ty`'s elements and flags. The
     /// origin handle is remembered so an unmodified `build()` returns
     /// the same `TypeId` without re-interning.
+    #[inline]
+    #[must_use] 
     pub fn from_type(ty: TypeId) -> Self {
         let view = ty.as_ref();
         Self { elements: view.elements.to_vec(), flags: ty.flags(), origin: Some(ty), dirty: false }
@@ -69,19 +72,22 @@ impl TypeBuilder {
     /// Current element buffer, in mutation order (not yet sorted /
     /// deduplicated / canonicalised). Cheap.
     #[inline]
+    #[must_use] 
     pub fn elements(&self) -> &[ElementId] {
         &self.elements
     }
 
     /// Current flow flags.
     #[inline]
-    pub fn flags(&self) -> FlowFlags {
+    #[must_use] 
+    pub const fn flags(&self) -> FlowFlags {
         self.flags
     }
 
     /// `true` iff the buffer contains no elements yet.
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    #[must_use] 
+    pub const fn is_empty(&self) -> bool {
         self.elements.is_empty()
     }
 
@@ -89,18 +95,21 @@ impl TypeBuilder {
     /// `element`. O(n) on the buffer length; intended for predicate
     /// dispatch in the same loop that mutates.
     #[inline]
+    #[must_use] 
     pub fn contains(&self, element: ElementId) -> bool {
         self.elements.contains(&element)
     }
 
     /// Number of elements currently in the buffer.
     #[inline]
-    pub fn len(&self) -> usize {
+    #[must_use] 
+    pub const fn len(&self) -> usize {
         self.elements.len()
     }
 
     /// Append `element` to the buffer. Order is preserved during
     /// mutation; `build()` sorts before interning.
+    #[inline]
     pub fn push(&mut self, element: ElementId) -> &mut Self {
         self.elements.push(element);
         self.dirty = true;
@@ -108,6 +117,7 @@ impl TypeBuilder {
     }
 
     /// Append every element from `iter`.
+    #[inline]
     pub fn extend<I: IntoIterator<Item = ElementId>>(&mut self, iter: I) -> &mut Self {
         let before = self.elements.len();
         self.elements.extend(iter);
@@ -119,6 +129,7 @@ impl TypeBuilder {
     }
 
     /// Remove the first occurrence of `element`. No-op when absent.
+    #[inline]
     pub fn remove(&mut self, element: ElementId) -> &mut Self {
         if let Some(idx) = self.elements.iter().position(|e| *e == element) {
             self.elements.remove(idx);
@@ -128,6 +139,7 @@ impl TypeBuilder {
     }
 
     /// Remove every occurrence of `element`.
+    #[inline]
     pub fn remove_all(&mut self, element: ElementId) -> &mut Self {
         let before = self.elements.len();
         self.elements.retain(|e| *e != element);
@@ -139,6 +151,7 @@ impl TypeBuilder {
     }
 
     /// Keep only elements for which `predicate` returns `true`.
+    #[inline]
     pub fn retain<F: FnMut(&ElementId) -> bool>(&mut self, mut predicate: F) -> &mut Self {
         let before = self.elements.len();
         self.elements.retain(|e| predicate(e));
@@ -151,6 +164,7 @@ impl TypeBuilder {
 
     /// Replace the first occurrence of `old` with `new`. No-op when
     /// `old` is absent.
+    #[inline]
     pub fn replace(&mut self, old: ElementId, new: ElementId) -> &mut Self {
         if let Some(idx) = self.elements.iter().position(|e| *e == old)
             && self.elements[idx] != new
@@ -163,8 +177,9 @@ impl TypeBuilder {
     }
 
     /// Apply `f` to every element, replacing each in place.
+    #[inline]
     pub fn map<F: FnMut(ElementId) -> ElementId>(&mut self, mut f: F) -> &mut Self {
-        for slot in self.elements.iter_mut() {
+        for slot in &mut self.elements {
             let new = f(*slot);
             if new != *slot {
                 *slot = new;
@@ -178,12 +193,13 @@ impl TypeBuilder {
     /// Apply `f` to every element, expanding each to zero or more
     /// elements. Useful for narrowing patterns where one atom
     /// decomposes into a union (e.g. an integer range split).
+    #[inline]
     pub fn flat_map<I, F>(&mut self, mut f: F) -> &mut Self
     where
         I: IntoIterator<Item = ElementId>,
         F: FnMut(ElementId) -> I,
     {
-        let original = std::mem::take(&mut self.elements);
+        let original = core::mem::take(&mut self.elements);
         let mut rebuilt = Vec::with_capacity(original.len());
         let mut changed = false;
         for elem in original {
@@ -216,6 +232,7 @@ impl TypeBuilder {
     }
 
     /// Replace the entire flow-flag set.
+    #[inline]
     pub fn set_flags(&mut self, flags: FlowFlags) -> &mut Self {
         if flags != self.flags {
             self.flags = flags;
@@ -227,6 +244,7 @@ impl TypeBuilder {
 
     /// Apply `f` to the current flow flags, replacing them with the
     /// returned value.
+    #[inline]
     pub fn modify_flags<F: FnOnce(FlowFlags) -> FlowFlags>(&mut self, f: F) -> &mut Self {
         let new = f(self.flags);
         if new != self.flags {
@@ -252,6 +270,8 @@ impl TypeBuilder {
     /// Empty buffers collapse to
     /// [`prelude::TYPE_NEVER`](crate::prelude::TYPE_NEVER), matching the
     /// interner's empty-input convention.
+    #[inline]
+    #[must_use] 
     pub fn build(self) -> TypeId {
         if !self.dirty
             && let Some(origin) = self.origin
@@ -267,6 +287,8 @@ impl TypeBuilder {
     /// synthesis, list / keyed-array element-type union, and
     /// subtype-driven absorption. Use [`build`](Self::build) when the
     /// caller does not want these collapses applied.
+    #[inline]
+    #[must_use] 
     pub fn build_canonical(self) -> TypeId {
         let canon = crate::join::compute(&self.elements);
         crate::interner::interner().intern_type(&canon, self.flags)

@@ -66,7 +66,7 @@ pub(in crate::meet) fn keyed_array_meet<W: World>(
     let a_entries = i.get_known_items(a_known_id);
     let b_entries = i.get_known_items(b_known_id);
 
-    let mut merged: std::collections::BTreeMap<ArrayKey, KnownItemEntry> = Default::default();
+    let mut merged: alloc::collections::BTreeMap<ArrayKey, KnownItemEntry> = alloc::collections::BTreeMap::default();
     for entry in a_entries {
         merged.insert(entry.key, *entry);
     }
@@ -125,8 +125,7 @@ pub(in crate::meet) fn list_array_meet<W: World>(
 
     let key_compatible = array_info
         .key_param
-        .map(|kp| crate::lattice::refines(crate::prelude::TYPE_INT, kp, world, options, report))
-        .unwrap_or(true);
+        .is_none_or(|kp| crate::lattice::refines(crate::prelude::TYPE_INT, kp, world, options, report));
 
     if non_empty && !key_compatible {
         return None;
@@ -235,6 +234,7 @@ pub(in crate::meet) fn iterable_list_meet<W: World>(
     Some(i.intern_list(ListInfo { element_type, ..list_info }))
 }
 
+#[inline]
 fn unsealed_keyed_array_meet<W: World>(
     a_info: KeyedArrayInfo,
     b_info: KeyedArrayInfo,
@@ -267,8 +267,8 @@ fn unsealed_keyed_array_meet<W: World>(
     };
 
     if non_empty {
-        let key_empty = key_param.map(|t| t == crate::prelude::TYPE_NEVER).unwrap_or(false);
-        let value_empty = value_param.map(|t| t == crate::prelude::TYPE_NEVER).unwrap_or(false);
+        let key_empty = key_param.is_some_and(|t| t == crate::prelude::TYPE_NEVER);
+        let value_empty = value_param.is_some_and(|t| t == crate::prelude::TYPE_NEVER);
         if key_empty || value_empty {
             return None;
         }

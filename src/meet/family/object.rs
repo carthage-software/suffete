@@ -48,10 +48,10 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
         participants.extend_from_slice(i.get_element_list(id));
     }
 
-    let merged = merge_same_class_participants(participants, world, options, report)?;
-    let merged = reconcile_descendant_participants(merged, world, options, report)?;
+    let same_class_merged = merge_same_class_participants(participants, world, options, report)?;
+    let reconciled = reconcile_descendant_participants(same_class_merged, world, options, report)?;
 
-    finalize_object_composition(merged, world)
+    finalize_object_composition(reconciled, world)
 }
 
 /// Reconcile pairs of object participants where one nominally
@@ -59,8 +59,9 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
 /// `World::inherited_template_argument`) must be compatible with the
 /// ancestor's args under the ancestor's variance; if not, the
 /// intersection is uninhabited (`None`). When compatible, the
-/// ancestor is redundant — the descendant is strictly more
-/// specific — so we drop it from the merged list.
+/// ancestor is redundant (the descendant is strictly more specific)
+/// and we drop it from the merged list.
+#[inline]
 fn reconcile_descendant_participants<W: World>(
     mut merged: Vec<ElementId>,
     world: &W,
@@ -93,14 +94,10 @@ fn reconcile_descendant_participants<W: World>(
             if !descendant_args_satisfy_ancestor(descendant_info, ancestor_info, world, options, report) {
                 return None;
             }
-            // Any `Negated` conjuncts the ancestor was carrying
-            // (e.g. `B & !D`) need to flow into the descendant when
-            // the ancestor is dropped — otherwise the constraint
-            // "no value of class D" would silently disappear. If
-            // any of those negations covers the descendant's
-            // nominal class, the meet is uninhabited and we
-            // collapse to `None`. Otherwise we splice the
-            // negations into the descendant's intersection list.
+            // Splice the ancestor's `Negated` conjuncts into the
+            // descendant before dropping the ancestor. A negation
+            // that covers the descendant's class collapses the
+            // meet to `None`.
             if let Some(ancestor_intersections) = ancestor_info.intersections {
                 let mut new_conjuncts: Vec<ElementId> =
                     descendant_info.intersections.map(|id| i.get_element_list(id).to_vec()).unwrap_or_default();
@@ -133,6 +130,7 @@ fn reconcile_descendant_participants<W: World>(
 /// of a bare-named ancestor of `class_name`: every instance of
 /// `class_name` is also an instance of the ancestor, so the
 /// negation rules them all out.
+#[inline]
 fn negation_excludes_class<W: World>(negated_atom: ElementId, class_name: mago_atom::Atom, world: &W) -> bool {
     let i = interner();
     let neg_info = *i.get_negated(negated_atom);
@@ -153,6 +151,7 @@ fn negation_excludes_class<W: World>(negated_atom: ElementId, class_name: mago_a
 /// inherited-template-argument rule and substitute `descendant`'s
 /// actual args, then check each position against `ancestor`'s args
 /// under `ancestor`'s variance.
+#[inline]
 fn descendant_args_satisfy_ancestor<W: World>(
     descendant: ObjectInfo,
     ancestor: ObjectInfo,
@@ -210,18 +209,11 @@ fn descendant_args_satisfy_ancestor<W: World>(
     true
 }
 
-/// Compose a nominal object atom with a structural conjunct
-/// (`HasMethod`, `HasProperty`, `ObjectShape`). Open-world reasoning:
-/// an unknown class might gain the structural feature via a subclass,
-/// so we keep the intersection alive. A final class that doesn't
-/// already satisfy the structural feature collapses to `None`.
-/// `object{...} ∩ has-method<m>` (or `has-property<p>`): an
-/// object-shape literal records its known properties but never
-/// guarantees methods, and its known properties may be optional or
-/// the shape itself may be unsealed. Composing the shape with a
-/// structural conjunct narrows the value-set to "shape-matching
-/// values that also satisfy the structural" — represented by
-/// adding the structural to the shape's `intersections` list.
+/// `object{...} ∩ has-method<m>` (or `has-property<p>` /
+/// `ObjectShape`): the shape never guarantees the structural,
+/// and its known properties may be optional or the shape unsealed,
+/// so the intersection adds the structural to the shape's
+/// `intersections` list rather than dropping it.
 pub(in crate::meet) fn compose_shape_with_structural(shape: ElementId, structural: ElementId) -> Option<ElementId> {
     let i = interner();
     let shape_info = *i.get_object_shape(shape);
@@ -237,6 +229,13 @@ pub(in crate::meet) fn compose_shape_with_structural(shape: ElementId, structura
     Some(i.intern_object_shape(ObjectShapeInfo { intersections, ..shape_info }))
 }
 
+/// Compose a nominal object atom with a structural conjunct
+/// (`HasMethod`, `HasProperty`, `ObjectShape`). An unknown class
+/// might gain the structural feature via a subclass, so the
+/// intersection stays alive. A final class that doesn't satisfy
+/// the structural collapses to `None`. When the world already
+/// records that a positive class in the intersection has the
+/// method/property, the redundant conjunct is dropped.
 pub(in crate::meet) fn compose_object_with_structural<W: World>(
     object: ElementId,
     structural: ElementId,
@@ -280,6 +279,7 @@ pub(in crate::meet) fn compose_object_with_structural<W: World>(
 /// could add the member. The check fires only for nominal classes
 /// the world declares final; open-world classes always keep the
 /// structural intersection.
+#[inline]
 fn structural_uninhabited_under_finality<W: World>(
     classes: &[mago_atom::Atom],
     structural: ElementId,
@@ -288,6 +288,7 @@ fn structural_uninhabited_under_finality<W: World>(
     classes.iter().any(|&class| world.is_final(class) && !class_satisfies_structural(class, structural, world))
 }
 
+#[inline]
 fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: ElementId, world: &W) -> bool {
     let i = interner();
     let mut conjuncts: Vec<ElementId> = vec![structural];
@@ -308,6 +309,7 @@ fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: Elem
     })
 }
 
+#[inline]
 fn finalize_object_composition<W: World>(merged: Vec<ElementId>, world: &W) -> Option<ElementId> {
     let i = interner();
 
@@ -331,14 +333,8 @@ fn finalize_object_composition<W: World>(merged: Vec<ElementId>, world: &W) -> O
                 return None;
             }
         }
-        // A `Negated` whose inner accepts any other positive
-        // conjunct in the intersection is contradictory: the
-        // value-set has to satisfy that conjunct (positively) and
-        // simultaneously fall outside it (via the negation). Fires
-        // for `(X & !X)` shaped intersections where `X` is a
-        // structural conjunct (`HasMethod`, `HasProperty`,
-        // `ObjectShape`) or any other non-Object conjunct that
-        // already lives in `other_parts`.
+        // `(X & !X)` shape: a `Negated` whose inner accepts another
+        // conjunct in the same intersection is contradictory.
         let neg_inner = i.get_negated(neg).inner;
         for &positive in &other_parts {
             if positive == neg {
@@ -378,6 +374,7 @@ fn finalize_object_composition<W: World>(merged: Vec<ElementId>, world: &W) -> O
 /// compose collapses to `None`. Without a final witness we
 /// optimistically allow the composition (PHP's open world might
 /// supply a common subclass via interfaces / traits).
+#[inline]
 fn single_inheritance_consistent<W: World>(objects: &[ElementId], world: &W) -> bool {
     let i = interner();
     let names: Vec<mago_atom::Atom> = objects.iter().map(|o| i.get_object(*o).name).collect();
@@ -397,6 +394,7 @@ fn single_inheritance_consistent<W: World>(objects: &[ElementId], world: &W) -> 
     true
 }
 
+#[inline]
 fn merge_same_class_participants<W: World>(
     participants: Vec<ElementId>,
     world: &W,
@@ -414,7 +412,7 @@ fn merge_same_class_participants<W: World>(
 
         let info = *i.get_object(elem);
         let mut absorbed = false;
-        for slot in out.iter_mut() {
+        for slot in &mut out {
             if slot.kind() != ElementKind::Object {
                 continue;
             }
@@ -443,6 +441,7 @@ fn merge_same_class_participants<W: World>(
     Some(out)
 }
 
+#[inline]
 fn merge_args<W: World>(
     a: ObjectInfo,
     b: ObjectInfo,
@@ -471,11 +470,7 @@ fn merge_args<W: World>(
         }
         (Some(a_id), Some(b_id)) => {
             // Normalize both sides to exactly `arity` positions:
-            // truncate over-supplied trailing args, default-fill
-            // under-supplied tail with the template parameter's
-            // upper bound (or `mixed` if absent). Mirrors the
-            // normalization in `refines` / `overlaps` so the three
-            // operations agree on the per-position view of each atom.
+            // truncate over-supply, default-fill under-supply.
             let a_supplied: &[TypeId] = i.get_type_list(a_id);
             let b_supplied: &[TypeId] = i.get_type_list(b_id);
             let fill = |idx: usize| -> TypeId {
@@ -492,7 +487,7 @@ fn merge_args<W: World>(
             let mut merged: Vec<TypeId> = Vec::with_capacity(arity);
             for (idx, (&a_arg, &b_arg)) in a_args.iter().zip(b_args.iter()).enumerate() {
                 let variance =
-                    world.template_parameter_at(a.name, idx).map(|t| t.variance).unwrap_or(Variance::Invariant);
+                    world.template_parameter_at(a.name, idx).map_or(Variance::Invariant, |t| t.variance);
                 let arg = match variance {
                     Variance::Covariant => crate::meet::compute(a_arg, b_arg, world, options, report),
                     Variance::Invariant => {

@@ -14,12 +14,12 @@
 //!
 //! Concrete differences:
 //!
-//! - `Cell<int>` vs `Cell<string>` — statically disjoint under invariance,
+//! - `Cell<int>` vs `Cell<string>` ; statically disjoint under invariance,
 //!   runtime-compatible because PHP cannot tell two `Cell` instances
 //!   apart by their generic argument.
-//! - `Foo&Bar` vs `Foo` — runtime-compatible: an instance of `Foo&Bar`
+//! - `Foo&Bar` vs `Foo` ; runtime-compatible: an instance of `Foo&Bar`
 //!   is also an instance of `Foo` for `instanceof`.
-//! - `int` vs `string` — incompatible under both relations.
+//! - `int` vs `string` ; incompatible under both relations.
 //!
 //! Both functions write into a [`crate::lattice::LatticeReport`] for
 //! parity with the rest of the lattice surface, although the runtime
@@ -60,6 +60,7 @@ pub fn statically_compatible<W: World>(
 /// More permissive than [`statically_compatible`]: same-class objects
 /// with disjoint generic arguments are compatible, and intersection
 /// conjuncts beyond the head class are ignored.
+#[inline]
 pub fn runtime_compatible<W: World>(
     a: TypeId,
     b: TypeId,
@@ -75,6 +76,7 @@ pub fn runtime_compatible<W: World>(
         .any(|x| b_view.elements.iter().any(|y| element_runtime_compatible(*x, *y, world, options, report)))
 }
 
+#[inline]
 fn element_runtime_compatible<W: World>(
     a: ElementId,
     b: ElementId,
@@ -111,6 +113,7 @@ fn element_runtime_compatible<W: World>(
 /// of `descends_from`) to some nominal class on the other. An empty
 /// nominal set on a side means "any class", which is compatible with
 /// anything in the family.
+#[inline]
 fn objects_runtime_compatible<W: World>(a: ElementId, b: ElementId, world: &W) -> bool {
     let a_classes = nominal_classes(a);
     let b_classes = nominal_classes(b);
@@ -126,6 +129,7 @@ fn objects_runtime_compatible<W: World>(a: ElementId, b: ElementId, world: &W) -
 /// at runtime. Empty when the element is purely structural (`object`,
 /// `object{...}`, `has-method`, `has-property`) and therefore matches any
 /// class.
+#[inline]
 fn nominal_classes(elem: ElementId) -> Vec<Atom> {
     let i = interner();
     match elem.kind() {
@@ -144,7 +148,8 @@ fn nominal_classes(elem: ElementId) -> Vec<Atom> {
     }
 }
 
-fn is_object_family(kind: ElementKind) -> bool {
+#[inline]
+const fn is_object_family(kind: ElementKind) -> bool {
     matches!(
         kind,
         ElementKind::Object

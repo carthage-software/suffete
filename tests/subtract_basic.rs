@@ -1,7 +1,14 @@
-//! Subtract (`A \ B`) tests: universal axioms, subsumption-to-bottom,
-//! disjoint-as-identity, integer-range splitting, bool / mixed
-//! narrowings, and the upper-bound soundness invariant
-//! `subtract(A, B) <: A`.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -240,11 +247,6 @@ fn ancestor_minus_descendant_records_exclusion() {
     let cb = MockWorld::from_edges(&[("Dog", "Animal")]);
     let dog = u(t_named("Dog"));
     let animal = u(t_named("Animal"));
-    // `Animal \ Dog` records `Dog` in the result's `excluded`
-    // set: the surviving values are `Animal`-instances that are
-    // not also `Dog`-instances. The meet with `Dog` is therefore
-    // `never`, even though the structural display still names
-    // `Animal`.
     let diff = subtract_of(animal, dog, &cb);
     assert_ne!(diff, animal, "subtract should refine `Animal` rather than return identity");
     let meet = suffete::meet::compute(diff, dog, &cb, LatticeOptions::default(), &mut LatticeReport::new());

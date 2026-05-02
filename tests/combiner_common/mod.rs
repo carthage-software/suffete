@@ -1,18 +1,6 @@
 #![allow(dead_code)]
 
-//! Test helpers mirroring `mago/crates/codex/tests/combiner_common/mod.rs`,
-//! translated to suffete's API. Test files in `tests/combiner_*.rs` consume
-//! these helpers so the porting from mago is mechanical.
-//!
-//! Translation:
-//!
-//! | mago                         | suffete                                       |
-//! |------------------------------|-----------------------------------------------|
-//! | `combine(atomics, c, opts)`  | `suffete::join::compute(&[..])`               |
-//! | `Vec<TAtomic>`               | `Vec<ElementId>`                              |
-//! | `t_lit_int(n)`               | `ElementId::int_literal(n)`                   |
-//! | `t_int()`                    | `prelude::INT`                                |
-//! | `assert_combines_to(in, ex)` | sort-and-compare both sides as `&[ElementId]` |
+//! Test helpers for `tests/combiner_*.rs`.
 
 use mago_atom::atom;
 use suffete::ElementId;
@@ -89,71 +77,70 @@ pub fn name_atom(s: &str) -> mago_atom::Atom {
 /// Assert that combining `input` produces a multiset equal to `expected`.
 /// Order is implementation-defined (interning sorts by `ElementId` packed
 /// value), so we sort both sides before comparison.
-pub fn assert_combines_to(input: Vec<ElementId>, expected: Vec<ElementId>) {
+pub fn assert_combines_to(input: Vec<ElementId>, mut expected: Vec<ElementId>) {
     let mut actual = combine_default(input);
-    let mut expected = expected;
     actual.sort();
     expected.sort();
     assert_eq!(actual, expected, "\n  actual:   {actual:?}\n  expected: {expected:?}");
 }
 
-pub fn never() -> ElementId {
+pub const fn never() -> ElementId {
     prelude::NEVER
 }
 
-pub fn null() -> ElementId {
+pub const fn null() -> ElementId {
     prelude::NULL
 }
 
-pub fn void() -> ElementId {
+pub const fn void() -> ElementId {
     prelude::VOID
 }
 
-pub fn placeholder() -> ElementId {
+pub const fn placeholder() -> ElementId {
     prelude::PLACEHOLDER
 }
 
-pub fn mixed() -> ElementId {
+pub const fn mixed() -> ElementId {
     prelude::MIXED
 }
 
-pub fn mixed_truthy() -> ElementId {
+pub const fn mixed_truthy() -> ElementId {
     prelude::TRUTHY_MIXED
 }
 
-pub fn mixed_falsy() -> ElementId {
+pub const fn mixed_falsy() -> ElementId {
     prelude::FALSY_MIXED
 }
 
-pub fn mixed_nonnull() -> ElementId {
+pub const fn mixed_nonnull() -> ElementId {
     prelude::NON_NULL_MIXED
 }
 
-pub fn t_true() -> ElementId {
+pub const fn t_true() -> ElementId {
     prelude::TRUE
 }
 
-pub fn t_false() -> ElementId {
+pub const fn t_false() -> ElementId {
     prelude::FALSE
 }
 
-pub fn t_bool() -> ElementId {
+pub const fn t_bool() -> ElementId {
     prelude::BOOL
 }
 
-pub fn t_int() -> ElementId {
+pub const fn t_int() -> ElementId {
     prelude::INT
 }
 
-pub fn t_string() -> ElementId {
+pub const fn t_string() -> ElementId {
     prelude::STRING
 }
 
-pub fn t_empty_array() -> ElementId {
+pub const fn t_empty_array() -> ElementId {
     prelude::EMPTY_ARRAY
 }
 
-pub fn t_object_any() -> ElementId {
+pub const fn t_object_any() -> ElementId {
     prelude::OBJECT
 }
 
@@ -165,7 +152,7 @@ pub fn t_lit_int(value: i64) -> ElementId {
     ElementId::int_literal(value)
 }
 
-pub fn t_int_unspec_lit() -> ElementId {
+pub const fn t_int_unspec_lit() -> ElementId {
     prelude::LITERAL_INT
 }
 
@@ -173,11 +160,11 @@ pub fn t_lit_string(value: &str) -> ElementId {
     ElementId::string_literal(value)
 }
 
-pub fn t_unspec_lit_string(non_empty: bool) -> ElementId {
+pub const fn t_unspec_lit_string(non_empty: bool) -> ElementId {
     if non_empty { prelude::NON_EMPTY_LITERAL_STRING } else { prelude::LITERAL_STRING }
 }
 
-pub fn t_empty_string() -> ElementId {
+pub const fn t_empty_string() -> ElementId {
     prelude::EMPTY_STRING
 }
 
@@ -185,7 +172,7 @@ pub fn t_lit_float(value: f64) -> ElementId {
     ElementId::float_literal(value)
 }
 
-pub fn t_unspec_lit_float() -> ElementId {
+pub const fn t_unspec_lit_float() -> ElementId {
     prelude::LITERAL_FLOAT
 }
 
@@ -201,31 +188,31 @@ pub fn t_lit_class_string(name: &str) -> ElementId {
     ElementId::class_string_literal(name)
 }
 
-pub fn t_resource() -> ElementId {
+pub const fn t_resource() -> ElementId {
     prelude::RESOURCE
 }
 
-pub fn t_open_resource() -> ElementId {
+pub const fn t_open_resource() -> ElementId {
     prelude::OPEN_RESOURCE
 }
 
-pub fn t_closed_resource() -> ElementId {
+pub const fn t_closed_resource() -> ElementId {
     prelude::CLOSED_RESOURCE
 }
 
-pub fn t_positive_int() -> ElementId {
+pub const fn t_positive_int() -> ElementId {
     prelude::POSITIVE_INT
 }
 
-pub fn t_negative_int() -> ElementId {
+pub const fn t_negative_int() -> ElementId {
     prelude::NEGATIVE_INT
 }
 
-pub fn t_non_negative_int() -> ElementId {
+pub const fn t_non_negative_int() -> ElementId {
     prelude::NON_NEGATIVE_INT
 }
 
-pub fn t_non_positive_int() -> ElementId {
+pub const fn t_non_positive_int() -> ElementId {
     prelude::NON_POSITIVE_INT
 }
 
@@ -241,59 +228,59 @@ pub fn t_int_to(to: i64) -> ElementId {
     ElementId::int_range(None, Some(to))
 }
 
-pub fn t_float() -> ElementId {
+pub const fn t_float() -> ElementId {
     prelude::FLOAT
 }
 
-pub fn t_array_key() -> ElementId {
+pub const fn t_array_key() -> ElementId {
     prelude::ARRAY_KEY
 }
 
-pub fn t_numeric() -> ElementId {
+pub const fn t_numeric() -> ElementId {
     prelude::NUMERIC
 }
 
-pub fn t_scalar() -> ElementId {
+pub const fn t_scalar() -> ElementId {
     prelude::SCALAR
 }
 
-pub fn t_class_string() -> ElementId {
+pub const fn t_class_string() -> ElementId {
     prelude::CLASS_STRING
 }
 
-pub fn t_interface_string() -> ElementId {
+pub const fn t_interface_string() -> ElementId {
     prelude::INTERFACE_STRING
 }
 
-pub fn t_enum_string() -> ElementId {
+pub const fn t_enum_string() -> ElementId {
     prelude::ENUM_STRING
 }
 
-pub fn t_trait_string() -> ElementId {
+pub const fn t_trait_string() -> ElementId {
     prelude::TRAIT_STRING
 }
 
-pub fn t_non_empty_string() -> ElementId {
+pub const fn t_non_empty_string() -> ElementId {
     prelude::NON_EMPTY_STRING
 }
 
-pub fn t_numeric_string() -> ElementId {
+pub const fn t_numeric_string() -> ElementId {
     prelude::NUMERIC_STRING
 }
 
-pub fn t_lower_string() -> ElementId {
+pub const fn t_lower_string() -> ElementId {
     prelude::LOWERCASE_STRING
 }
 
-pub fn t_upper_string() -> ElementId {
+pub const fn t_upper_string() -> ElementId {
     prelude::UPPERCASE_STRING
 }
 
-pub fn t_truthy_string() -> ElementId {
+pub const fn t_truthy_string() -> ElementId {
     prelude::TRUTHY_STRING
 }
 
-pub fn t_callable_string() -> ElementId {
+pub const fn t_callable_string() -> ElementId {
     prelude::CALLABLE_STRING
 }
 
@@ -378,7 +365,7 @@ pub fn t_callable(params: &[TypeId], return_type: TypeId) -> ElementId {
     t_callable_sig(&p, return_type, false)
 }
 
-pub fn ak_int(n: i64) -> ArrayKey {
+pub const fn ak_int(n: i64) -> ArrayKey {
     ArrayKey::Int(n)
 }
 
@@ -397,7 +384,7 @@ pub fn u_many(atoms: Vec<ElementId>) -> TypeId {
 /// Combine `n` copies of an element and assert the result is exactly `[a]`
 /// (idempotency under self-combination).
 pub fn assert_self_idempotent(a: ElementId, n: usize) {
-    let input: Vec<ElementId> = std::iter::repeat_n(a, n).collect();
+    let input: Vec<ElementId> = core::iter::repeat_n(a, n).collect();
     let out = combine_default(input);
     assert_eq!(out.len(), 1, "self-combination should produce 1 element for {a:?}, got {out:?}");
     assert_eq!(out[0], a, "self-combination should preserve identity for {a:?}");

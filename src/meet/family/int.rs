@@ -34,6 +34,7 @@ pub(in crate::meet) fn int_meet(a: ElementId, b: ElementId) -> Option<ElementId>
     }
 }
 
+#[inline]
 fn int_bounds(info: IntInfo) -> (Option<i64>, Option<i64>) {
     match info {
         IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),

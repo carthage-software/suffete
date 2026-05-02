@@ -18,6 +18,78 @@ print_stdout = { level = "forbid" }
 print_stderr = { level = "forbid" }
 dbg_macro = { level = "forbid" }
 let_underscore_lock = { level = "forbid" }
+pedantic = { level = "warn", priority = -1 }
+restriction = { level = "warn", priority = -2 }
+perf = { level = "warn", priority = -3 }
+nursery = { level = "warn", priority = -4 }
+min_ident_chars = "allow"                  # `a`, `b`, `c`
+implicit_return = "allow"                  # Rust returns the last expression.
+single_call_fn = "allow"                   # Helper fns are useful.
+arbitrary_source_item_ordering = "allow"   # Logical grouping > alphabet.
+pub_with_shorthand = "allow"               # `pub(crate)` reads fine.
+question_mark_used = "allow"               # `?` is idiomatic.
+wildcard_enum_match_arm = "allow"          # Common in dispatch.
+default_numeric_fallback = "allow"         # `0..n` is fine.
+iter_over_hash_type = "allow"              # Test helpers iterate hashmaps.
+unseparated_literal_suffix = "allow"       # Style choice.
+as_conversions = "allow"                   # Pervasive, often required.
+non_ascii_literal = "allow"                # `α`, `β`, `⊓` in docs.
+blanket_clippy_restriction_lints = "allow" # Self-referential meta.
+mod_module_files = "allow"                 # `mod.rs` layout chosen.
+exhaustive_structs = "allow"               # Internal types churn.
+allow_attributes_without_reason = "allow"  # Excessive ceremony.
+let_underscore_untyped = "allow"           # Tests use `_` freely.
+multiple_inherent_impl = "allow"           # Distributed-impl pattern.
+pattern_type_mismatch = "allow"            # Mostly false positives.
+single_option_map = "allow"                # Too narrow.
+indexing_slicing = "allow"                 # Bounds are guarded at the call site.
+cast_possible_truncation = "allow"         # Sized handles, audited at use sites.
+cast_possible_wrap = "allow"               # Same.
+cast_precision_loss = "allow"              # Same.
+cast_sign_loss = "allow"                   # Same.
+cast_lossless = "allow"                    # Explicit `as` is clearer.
+many_single_char_names = "allow"           # `a`, `b`, `c` for binary ops.
+items_after_statements = "allow"           # Locality helpers stay where used.
+single_char_pattern = "allow"              # Trivial case.
+single_match_else = "allow"                # Style.
+if_then_some_else_none = "allow"           # Style.
+if_not_else = "allow"                      # Style.
+unused_trait_names = "allow"               # `use` for inherent helpers.
+ref_as_ptr = "allow"                       # Rare.
+useless_let_if_seq = "allow"               # Sometimes clearer.
+struct_excessive_bools = "allow"           # Options structs.
+unneeded_field_pattern = "allow"           # Documentation in patterns.
+stable_sort_primitive = "allow"            # `sort_unstable` not always wanted.
+zero_sized_map_values = "allow"            # `HashSet`-as-map is intentional.
+unnecessary_trailing_comma = "allow"       # rustfmt territory.
+option_option = "allow"                    # Carries semantic distinction.
+float_cmp = "allow"                        # Rare; intentional.
+needless_pass_by_value = "allow"           # Library APIs choose ergonomics.
+return_and_then = "allow"                  # Style.
+option_if_let_else = "allow"               # Style.
+match_same_arms = "allow"                  # Explicit arms aid review.
+module_name_repetitions = "allow"          # `ObjectInfo` etc. carry context.
+unnested_or_patterns = "allow"             # Style.
+cognitive_complexity = "allow"             # Lattice rules need the branches.
+too_many_lines = "allow"                   # Same.
+too_many_arguments = "allow"               # State-machine helpers carry many.
+single_match = "allow"                     # Style.
+unnecessary_wraps = "allow"                # API consistency.
+manual_assert = "allow"                    # `assert!` style.
+redundant_pub_crate = "allow"              # Crate-private re-exports.
+collapsible_else_if = "allow"              # Sometimes clearer expanded.
+collapsible_if = "allow"                   # Same.
+manual_unwrap_or_default = "allow"         # Clarity.
+self_named_module_files = "allow"          # Style.
+needless_raw_string_hashes = "allow"       # Sometimes safer for future edits.
+allow_attributes = "allow"                 # `#[allow]` reads fine.
+use_self = "allow"                         # Sometimes the explicit name reads better.
+inline_always = "allow"                    # Used for hot paths intentionally.
+uninlined_format_args = "allow"            # Pre-edition style still readable.
+string_slice = "allow"                     # ASCII-only contexts.
+branches_sharing_code = "allow"            # Sometimes clarity wins.
+same_name_method = "allow"                 # Conscious shadowing of trait methods.
+non_send_fields_in_send_ty = "allow"       # Reviewed at the type definition.
 
 [features]
 default = []

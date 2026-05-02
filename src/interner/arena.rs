@@ -1,4 +1,6 @@
-use std::hash::Hash;
+#![allow(clippy::arithmetic_side_effects)]
+
+use core::hash::Hash;
 
 use dashmap::DashMap;
 use dashmap::Entry;
@@ -22,6 +24,7 @@ impl<T: Eq + Hash + Clone + Send + Sync + 'static> Arena<T> {
     /// A fresh, empty arena. Slot indices start at 1 (slot `0` is reserved as
     /// the niche so handle types can be `NonZeroU32`).
     #[inline]
+    #[must_use] 
     pub fn new() -> Self {
         Self { storage: boxcar::Vec::new(), dedup: DashMap::new() }
     }
@@ -34,6 +37,7 @@ impl<T: Eq + Hash + Clone + Send + Sync + 'static> Arena<T> {
     ///
     /// Concurrent calls with the same value race on the dedup entry, but only
     /// one wins the insert; the others see the already-interned slot.
+    #[inline]
     pub fn intern(&self, value: T) -> u32 {
         match self.dedup.entry(value) {
             Entry::Occupied(occupied) => *occupied.get(),
@@ -75,6 +79,7 @@ impl<T: Eq + Hash + Clone + Send + Sync + 'static> Arena<T> {
 }
 
 impl<T: Eq + Hash + Clone + Send + Sync + 'static> Default for Arena<T> {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -96,6 +101,7 @@ pub struct SliceArena<T: Eq + Hash + Clone + Send + Sync + 'static> {
 
 impl<T: Eq + Hash + Clone + Send + Sync + 'static> SliceArena<T> {
     #[inline]
+    #[must_use] 
     pub fn new() -> Self {
         Self { storage: boxcar::Vec::new(), dedup: DashMap::new() }
     }
@@ -106,6 +112,7 @@ impl<T: Eq + Hash + Clone + Send + Sync + 'static> SliceArena<T> {
     /// allocated and leaked to `'static` only on first sight of a given
     /// content. Subsequent interns of slices with identical contents return
     /// the original slot and allocate nothing.
+    #[inline]
     pub fn intern(&self, slice: &[T]) -> u32 {
         let key: Box<[T]> = slice.into();
 
@@ -145,18 +152,21 @@ impl<T: Eq + Hash + Clone + Send + Sync + 'static> SliceArena<T> {
 }
 
 impl<T: Eq + Hash + Clone + Send + Sync + 'static> Default for SliceArena<T> {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::panic, clippy::unwrap_used, clippy::expect_used, clippy::tests_outside_test_module)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
+    use alloc::sync::Arc;
     use std::thread;
 
     #[test]
+    #[inline]
     fn arena_dedups_values() {
         let arena: Arena<i64> = Arena::new();
 
@@ -170,6 +180,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn arena_slots_are_one_based_and_get_roundtrips() {
         let arena: Arena<i64> = Arena::new();
 
@@ -181,6 +192,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn arena_handles_concurrent_inserts_without_duplicates() {
         let arena: Arc<Arena<i64>> = Arc::new(Arena::new());
         let threads = 16;
@@ -188,11 +200,11 @@ mod tests {
 
         let handles: Vec<_> = (0..threads)
             .map(|t| {
-                let arena = Arc::clone(&arena);
+                let arena_for_thread = Arc::clone(&arena);
                 thread::spawn(move || {
                     for i in 0..inserts_per_thread {
                         // Overlapping value space across threads forces dedup races.
-                        arena.intern((t + i) as i64);
+                        arena_for_thread.intern((t + i) as i64);
                     }
                 })
             })
@@ -218,6 +230,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn slice_arena_dedups_by_content() {
         let arena: SliceArena<u32> = SliceArena::new();
 
@@ -231,17 +244,22 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn slice_arena_returns_static_slices_with_correct_contents() {
         let arena: SliceArena<u32> = SliceArena::new();
         let slot = arena.intern(&[10, 20, 30]);
 
-        let stored: &'static [u32] = arena.get(slot).expect("just-interned slot resolves");
+        let stored: &'static [u32] = match arena.get(slot) {
+            Some(s) => s,
+            None => panic!("just-interned slot failed to resolve"),
+        };
         assert_eq!(stored, &[10, 20, 30]);
         assert_eq!(arena.get(0), None);
         assert_eq!(arena.get(999), None);
     }
 
     #[test]
+    #[inline]
     fn slice_arena_distinguishes_empty_from_singleton() {
         let arena: SliceArena<u32> = SliceArena::new();
 

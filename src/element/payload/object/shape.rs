@@ -1,4 +1,6 @@
-use std::mem::size_of;
+#![allow(clippy::arithmetic_side_effects)]
+
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
@@ -43,6 +45,7 @@ impl ObjectShapeFlags {
     const SEALED: u8 = 1 << 0;
 
     #[inline]
+    #[must_use] 
     pub const fn sealed(self) -> bool {
         self.0 & Self::SEALED != 0
     }
@@ -54,11 +57,12 @@ impl ObjectShapeFlags {
     }
 }
 
-const _: () = assert!(size_of::<ObjectShapeInfo>() <= 16);
-const _: () = assert!(size_of::<KnownPropertyEntry>() <= 24);
+const _: () = assert!(size_of::<ObjectShapeInfo>() <= 16, "size budget exceeded");
+const _: () = assert!(size_of::<KnownPropertyEntry>() <= 24, "size budget exceeded");
 
-impl std::fmt::Display for ObjectShapeInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ObjectShapeInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let i = crate::interner::interner();
         f.write_str("object{")?;
         let mut first = true;
@@ -73,7 +77,7 @@ impl std::fmt::Display for ObjectShapeInfo {
                     f.write_str("?")?;
                 }
                 f.write_str(": ")?;
-                std::fmt::Display::fmt(&entry.value, f)?;
+                core::fmt::Display::fmt(&entry.value, f)?;
             }
         }
         if !self.flags.sealed() {
@@ -88,11 +92,12 @@ impl std::fmt::Display for ObjectShapeInfo {
 }
 
 impl ObjectShapeInfo {
+    #[inline]
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
         use crate::typed::Typed;
         let i = crate::interner::interner();
         let entries =
-            self.known_properties.map(|id| i.get_known_properties(id)).unwrap_or(&[] as &[KnownPropertyEntry]);
+            self.known_properties.map_or(&[] as &[KnownPropertyEntry], |id| i.get_known_properties(id));
         if entries.is_empty() {
             return if self.flags.sealed() { String::from("object{}") } else { String::from("object{...}") };
         }
@@ -117,14 +122,16 @@ impl ObjectShapeInfo {
         out.push_str(&" ".repeat(indent));
         out.push('}');
 
-        // Append intersections (compact) — pretty form for those is the
+        // Append intersections (compact) ; pretty form for those is the
         // same as Display.
         let mut buf = out;
         if let Some(id) = self.intersections {
             for &conjunct in i.get_element_list(id) {
                 let s = conjunct.to_string();
                 if conjunct.has_intersection_types() {
-                    buf.push_str(&format!("&({s})"));
+                    buf.push_str("&(");
+                    buf.push_str(&s);
+                    buf.push(')');
                 } else {
                     buf.push('&');
                     buf.push_str(&s);

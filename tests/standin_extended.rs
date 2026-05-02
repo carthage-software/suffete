@@ -1,6 +1,14 @@
-//! Extended standin co-traversal: keyed arrays, callable signatures,
-//! descendant-class object arguments via extension resolution, and the
-//! iteration-depth cutoff.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 

@@ -1,3 +1,5 @@
+#![allow(clippy::pub_use)]
+
 //! Payload structs for non-trivial [`Element`](crate::Element) kinds.
 //!
 //! Every payload here obeys the lean-by-design contract: ≤ 24 bytes per slot

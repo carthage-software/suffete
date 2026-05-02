@@ -1,3 +1,15 @@
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
+
 mod combiner_common;
 
 use combiner_common::*;
@@ -69,7 +81,7 @@ fn void_or_never_keeps_void() {
 #[test]
 fn void_kept_with_two_other_types() {
     let r = combine_default(vec![void(), t_int(), t_string()]);
-    let mut sorted = r.clone();
+    let mut sorted = r;
     sorted.sort();
     let mut expected = vec![t_int(), t_string(), void()];
     expected.sort();
@@ -79,7 +91,7 @@ fn void_kept_with_two_other_types() {
 #[test]
 fn null_or_int_kept_separate() {
     let r = combine_default(vec![null(), t_int()]);
-    let mut sorted = r.clone();
+    let mut sorted = r;
     sorted.sort();
     let mut expected = vec![null(), t_int()];
     expected.sort();
@@ -89,7 +101,7 @@ fn null_or_int_kept_separate() {
 #[test]
 fn null_or_string_kept_separate() {
     let r = combine_default(vec![null(), t_string()]);
-    let mut sorted = r.clone();
+    let mut sorted = r;
     sorted.sort();
     let mut expected = vec![null(), t_string()];
     expected.sort();
@@ -99,7 +111,7 @@ fn null_or_string_kept_separate() {
 #[test]
 fn null_or_bool_kept_separate() {
     let r = combine_default(vec![null(), t_bool()]);
-    let mut sorted = r.clone();
+    let mut sorted = r;
     sorted.sort();
     let mut expected = vec![null(), t_bool()];
     expected.sort();
@@ -109,7 +121,7 @@ fn null_or_bool_kept_separate() {
 #[test]
 fn null_or_object_kept_separate() {
     let r = combine_default(vec![null(), t_object_any()]);
-    let mut sorted = r.clone();
+    let mut sorted = r;
     sorted.sort();
     let mut expected = vec![null(), t_object_any()];
     expected.sort();
@@ -146,7 +158,7 @@ fn never_dropped_with_object() {
 #[test]
 fn never_dropped_with_three_atoms() {
     let r = combine_default(vec![never(), t_int(), t_string()]);
-    let mut sorted = r.clone();
+    let mut sorted = r;
     sorted.sort();
     let mut expected = vec![t_int(), t_string()];
     expected.sort();

@@ -1,3 +1,5 @@
+#![allow(clippy::pub_use)]
+
 //! Template-parameter operations: capture-free substitution today,
 //! standin-replacement (inference), bound reconciliation, and expansion
 //! as later stages of generics.md land.

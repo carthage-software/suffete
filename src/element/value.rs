@@ -1,6 +1,6 @@
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
+use core::fmt::Display;
+use core::fmt::Formatter;
+use core::fmt::Result as FmtResult;
 
 use crate::ElementId;
 use crate::ElementKind;
@@ -79,6 +79,8 @@ pub enum Element {
 }
 
 impl Element {
+    #[inline]
+    #[must_use] 
     pub const fn kind(&self) -> ElementKind {
         match self {
             Element::Null => ElementKind::Null,
@@ -121,6 +123,7 @@ impl Element {
 }
 
 impl Display for Element {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Element::Null => f.write_str("null"),
@@ -163,6 +166,12 @@ impl Display for Element {
 }
 
 impl Typed for Element {
+    #[inline]
+    fn pretty(&self) -> String {
+        self.pretty_with_indent(0)
+    }
+
+    #[inline]
     fn pretty_with_indent(&self, indent: usize) -> String {
         match self {
             Element::Object(info) => info.pretty_with_indent(indent),
@@ -179,6 +188,7 @@ impl Typed for Element {
         }
     }
 
+    #[inline]
     fn intersection_types(&self) -> &'static [ElementId] {
         let i = crate::interner::interner();
         let id = match self {
@@ -197,10 +207,12 @@ impl Typed for Element {
         }
     }
 
+    #[inline]
     fn has_intersection_types(&self) -> bool {
         !self.intersection_types().is_empty()
     }
 
+    #[inline]
     fn can_be_intersected(&self) -> bool {
         matches!(
             self.kind(),
@@ -214,6 +226,7 @@ impl Typed for Element {
         )
     }
 
+    #[inline]
     fn is_complex(&self) -> bool {
         match self {
             Element::ObjectShape(_) | Element::Array(_) | Element::List(_) | Element::Callable(_) => true,

@@ -52,6 +52,8 @@ impl ElementKind {
     /// `true` when the kind is fully described by its tag, with no arena slot
     /// needed and no payload to look up. Trivial elements have a single
     /// canonical instance.
+    #[inline]
+    #[must_use] 
     pub const fn is_trivial(self) -> bool {
         matches!(
             self,

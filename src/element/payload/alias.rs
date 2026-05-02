@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
@@ -13,10 +13,11 @@ pub struct AliasInfo {
     pub alias_name: Atom,
 }
 
-const _: () = assert!(size_of::<AliasInfo>() <= 16);
+const _: () = assert!(size_of::<AliasInfo>() <= 16, "size budget exceeded");
 
-impl std::fmt::Display for AliasInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for AliasInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}::{}", self.class_name.as_str(), self.alias_name.as_str())
     }
 }

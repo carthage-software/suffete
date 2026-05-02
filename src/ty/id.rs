@@ -1,4 +1,4 @@
-use std::num::NonZeroU64;
+use core::num::NonZeroU64;
 
 use crate::ElementId;
 use crate::FlowFlags;
@@ -41,7 +41,7 @@ const FLAGS_BITS: u32 = 16;
 const META_BITS: u32 = 8;
 const RESERVED_BITS: u32 = 8;
 
-const _: () = assert!(SLOT_BITS + FLAGS_BITS + META_BITS + RESERVED_BITS == 64);
+const _: () = assert!(SLOT_BITS + FLAGS_BITS + META_BITS + RESERVED_BITS == 64, "TypeId bit layout must sum to 64");
 
 const SLOT_SHIFT: u32 = FLAGS_BITS + META_BITS + RESERVED_BITS;
 const FLAGS_SHIFT: u32 = META_BITS + RESERVED_BITS;
@@ -65,7 +65,7 @@ impl TypeId {
     /// Construct from the encoded `(slot, flags, meta)` triple. Reserved
     /// for the interner.
     #[inline]
-    pub(crate) fn from_parts(slot: u32, flags: FlowFlags, meta: u8) -> Self {
+    pub(crate) const fn from_parts(slot: u32, flags: FlowFlags, meta: u8) -> Self {
         let bits =
             ((slot as u64) << SLOT_SHIFT) | ((flags.bits() as u64) << FLAGS_SHIFT) | ((meta as u64) << META_SHIFT);
         // SAFETY: slot is 1-based; the high SLOT_BITS are non-zero, so the
@@ -73,7 +73,7 @@ impl TypeId {
         unsafe { Self(NonZeroU64::new_unchecked(bits)) }
     }
 
-    /// Arena slot — content identity, ignoring flags and meta.
+    /// Arena slot ; content identity, ignoring flags and meta.
     #[inline]
     pub(crate) const fn slot(self) -> u32 {
         ((self.0.get() & SLOT_MASK) >> SLOT_SHIFT) as u32
@@ -81,6 +81,7 @@ impl TypeId {
 
     /// Flow flags carried on the handle.
     #[inline]
+    #[must_use] 
     pub const fn flags(self) -> FlowFlags {
         FlowFlags::from_bits(((self.0.get() & FLAGS_MASK) >> FLAGS_SHIFT) as u16)
     }
@@ -89,6 +90,7 @@ impl TypeId {
     /// field; the value is whatever the consumer last wrote with
     /// [`TypeId::with_meta`] (default `0`).
     #[inline]
+    #[must_use] 
     pub const fn meta(self) -> u8 {
         ((self.0.get() & META_MASK) >> META_SHIFT) as u8
     }
@@ -96,7 +98,7 @@ impl TypeId {
     /// Same content slot, with `flags` substituted. O(1), no arena hit.
     #[inline]
     #[must_use]
-    pub fn with_flags(self, flags: FlowFlags) -> Self {
+    pub const fn with_flags(self, flags: FlowFlags) -> Self {
         Self::from_parts(self.slot(), flags, self.meta())
     }
 
@@ -104,13 +106,14 @@ impl TypeId {
     /// arena hit.
     #[inline]
     #[must_use]
-    pub fn with_meta(self, meta: u8) -> Self {
+    pub const fn with_meta(self, meta: u8) -> Self {
         Self::from_parts(self.slot(), self.flags(), meta)
     }
 
     /// `true` iff `self` and `other` refer to the same content slot,
     /// regardless of flags or meta.
     #[inline]
+    #[must_use] 
     pub const fn content_eq(self, other: Self) -> bool {
         self.slot() == other.slot()
     }
@@ -125,12 +128,14 @@ impl TypeId {
     /// handle was forged or constructed before the boot routine ran.
     #[allow(clippy::should_implement_trait)]
     #[inline]
+    #[must_use] 
     pub fn as_ref(self) -> &'static Type {
         crate::interner::interner().get_type(self)
     }
 
     /// Build a singleton union from one element, with empty flow flags.
     #[inline]
+    #[must_use] 
     pub fn singleton(element: ElementId) -> Self {
         Self::union(&[element])
     }
@@ -146,12 +151,14 @@ impl TypeId {
     ///
     /// Empty input collapses to `[never]`.
     #[inline]
+    #[must_use] 
     pub fn union(elements: &[ElementId]) -> Self {
         crate::interner::interner().intern_type(elements, FlowFlags::EMPTY)
     }
 
     /// Singleton type wrapping a literal integer.
     #[inline]
+    #[must_use] 
     pub fn int_literal(value: i64) -> Self {
         Self::singleton(ElementId::int_literal(value))
     }
@@ -159,18 +166,21 @@ impl TypeId {
     /// Singleton type wrapping an integer range. Either bound may be `None`
     /// for open (`-∞` / `+∞`).
     #[inline]
+    #[must_use] 
     pub fn int_range(lower: Option<i64>, upper: Option<i64>) -> Self {
         Self::singleton(ElementId::int_range(lower, upper))
     }
 
     /// Singleton type wrapping a literal float.
     #[inline]
+    #[must_use] 
     pub fn float_literal(value: f64) -> Self {
         Self::singleton(ElementId::float_literal(value))
     }
 
     /// Singleton type wrapping a literal string.
     #[inline]
+    #[must_use] 
     pub fn string_literal(value: &str) -> Self {
         Self::singleton(ElementId::string_literal(value))
     }
@@ -183,14 +193,16 @@ define_handle! {
     TypeListId
 }
 
-impl std::fmt::Display for TypeId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.as_ref(), f)
+impl core::fmt::Display for TypeId {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(self.as_ref(), f)
     }
 }
 
-impl std::fmt::Debug for TypeId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for TypeId {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if f.alternate() {
             return f
                 .debug_struct("TypeId")
@@ -213,22 +225,32 @@ impl std::fmt::Debug for TypeId {
 }
 
 impl crate::typed::Typed for TypeId {
+    #[inline]
+    fn pretty(&self) -> String {
+        crate::typed::Typed::pretty(self.as_ref())
+    }
+
+    #[inline]
     fn pretty_with_indent(&self, indent: usize) -> String {
         crate::typed::Typed::pretty_with_indent(self.as_ref(), indent)
     }
 
+    #[inline]
     fn intersection_types(&self) -> &'static [crate::ElementId] {
         &[]
     }
 
+    #[inline]
     fn has_intersection_types(&self) -> bool {
         false
     }
 
+    #[inline]
     fn can_be_intersected(&self) -> bool {
         false
     }
 
+    #[inline]
     fn is_complex(&self) -> bool {
         crate::typed::Typed::is_complex(self.as_ref())
     }

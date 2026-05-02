@@ -1,3 +1,5 @@
+#![allow(clippy::pub_use)]
+
 //! A single element of a [`Type`](crate::Type), and everything it carries.
 
 mod id;

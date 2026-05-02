@@ -1,7 +1,7 @@
 //! Bound reconciliation: pick the relevant bounds for a template
 //! parameter from a [`TemplateState`] and union them into the
-//! parameter's *witness* — the type the parameter resolves to in the
-//! current call context. Implements `type-system/generics.md` §6.
+//! parameter's *witness*: the type the parameter resolves to in the
+//! current call context.
 //!
 //! # Algorithm
 //!
@@ -18,16 +18,16 @@
 //!
 //! The relevant bounds' types are then unioned via [`crate::join`].
 //! When no bounds were collected, the materialisation falls back to
-//! the parameter's constraint (`κ(T)`), per §6.5.
+//! the parameter's constraint (`κ(T)`).
 //!
 //! # Equality marker (current first-cut approximation)
 //!
-//! The spec's `equality_marker` is "set when the bound was collected
-//! through an invariant generic position". We approximate that by
-//! treating [`BoundKind::Equality`] as the marker — sound when the
-//! invariant position is the position itself, but precision-loose
-//! when invariance happens *higher* in the structural walk and the
-//! deeper bound is recorded at a covariant position. Tightening this
+//! `equality_marker` is "set when the bound was collected through an
+//! invariant generic position". We approximate that by treating
+//! [`BoundKind::Equality`] as the marker: sound when the invariant
+//! position is the position itself, but precision-loose when
+//! invariance happens *higher* in the structural walk and the deeper
+//! bound is recorded at a covariant position. Tightening this
 //! requires propagating a marker flag through the standin walk; left
 //! as a TODO.
 
@@ -38,12 +38,14 @@ use super::standin::BoundKind;
 use super::standin::TemplateKey;
 use super::standin::TemplateState;
 
-/// Apply §6.3 selection to a list of bounds and return the unioned
-/// witness type. Returns `None` when the bound list is empty so the
-/// caller can fall back to the parameter's constraint (§6.5).
+/// Run depth-based selection on a list of bounds and return the
+/// unioned witness type. Returns `None` when the bound list is
+/// empty so the caller can fall back to the parameter's constraint.
 ///
-/// `bounds` is taken as a slice; ordering doesn't matter — this
+/// `bounds` is taken as a slice; ordering doesn't matter; this
 /// function sorts internally.
+#[inline]
+#[must_use] 
 pub fn reconcile(bounds: &[Bound]) -> Option<TypeId> {
     if bounds.is_empty() {
         return None;
@@ -89,6 +91,8 @@ impl TemplateState {
     /// Materialise `key`'s witness from its collected bounds. Returns
     /// `fallback` (typically the parameter's constraint or `mixed`)
     /// when no bound was recorded.
+    #[inline]
+    #[must_use] 
     pub fn witness(&self, key: TemplateKey, fallback: TypeId) -> TypeId {
         reconcile(self.bounds_for(key)).unwrap_or(fallback)
     }

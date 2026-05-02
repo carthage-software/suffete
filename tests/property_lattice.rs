@@ -1,11 +1,15 @@
-//! Property-based lattice axiom tests.
-//!
-//! Generates a random world (fixed structural shape, randomised
-//! template variance + edges + member metadata) plus arbitrary types
-//! that reference it, then asserts core lattice axioms across many
-//! cases. Failures here are either real algorithm bugs or documented
-//! precision gaps; the latter are filtered with `prop_assume!` rather
-//! than `prop_assert!`.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+    clippy::arithmetic_side_effects,
+)]
 
 mod comparator_common;
 
@@ -30,7 +34,7 @@ use suffete::prelude::INT;
 use suffete::prelude::STRING;
 use suffete::subtract;
 use suffete::world::Variance;
-use suffete::world::World;
+use suffete::world::World as _;
 
 const CLASSES: &[&str] = &["A", "B", "C", "D", "E"];
 const ENUMS: &[&str] = &["Color"];
@@ -41,7 +45,7 @@ const TEMPLATES: &[&str] = &["T", "U"];
 #[derive(Debug, Clone)]
 struct WorldHandle(Arc<MockWorld>);
 
-impl std::ops::Deref for WorldHandle {
+impl core::ops::Deref for WorldHandle {
     type Target = MockWorld;
     fn deref(&self) -> &MockWorld {
         &self.0
@@ -59,85 +63,90 @@ fn arb_world() -> impl Strategy<Value = WorldHandle> {
     // (over- / under-supplied annotations) are a separate, deliberate
     // stress and should be tested by their own targeted strategy,
     // not by random collision with the world's declared arity here.
-    let class_templates: Vec<_> = CLASSES.iter().map(|_| proptest::collection::vec(arb_variance(), 1)).collect();
+    let class_templates_strat: Vec<_> = CLASSES.iter().map(|_| proptest::collection::vec(arb_variance(), 1)).collect();
 
+    // Combinations C(n, 2): n*(n-1) is always even.
+    #[allow(clippy::integer_division, clippy::integer_division_remainder_used, clippy::arithmetic_side_effects)]
     let edge_count = CLASSES.len() * (CLASSES.len() - 1) / 2;
-    let edges = proptest::collection::vec(any::<bool>(), edge_count);
+    let edges_strat = proptest::collection::vec(any::<bool>(), edge_count);
 
-    let methods = proptest::collection::vec(any::<bool>(), CLASSES.len() * METHODS.len());
-    let properties = proptest::collection::vec(any::<bool>(), CLASSES.len() * PROPERTIES.len());
-    let finals = proptest::collection::vec(any::<bool>(), CLASSES.len());
+    let methods_strat = proptest::collection::vec(any::<bool>(), CLASSES.len() * METHODS.len());
+    let properties_strat = proptest::collection::vec(any::<bool>(), CLASSES.len() * PROPERTIES.len());
+    let finals_strat = proptest::collection::vec(any::<bool>(), CLASSES.len());
 
-    (class_templates, edges, methods, properties, finals).prop_map(|(templates, edges, methods, properties, finals)| {
-        let mut w = MockWorld::new();
+    (class_templates_strat, edges_strat, methods_strat, properties_strat, finals_strat).prop_map(
+        |(templates, edges, methods, properties, finals)| {
+            let mut w = MockWorld::new();
 
-        for (idx, class) in CLASSES.iter().enumerate() {
-            let variances = &templates[idx];
-            if variances.is_empty() {
-                w.declare(class);
-            } else {
-                let tmpl: Vec<(&str, Variance)> =
-                    variances.iter().enumerate().map(|(i, v)| (TEMPLATES[i], *v)).collect();
-                w.with_templates(class, &tmpl);
-            }
-        }
-
-        let mut edge_idx = 0;
-        for (i, child) in CLASSES.iter().enumerate() {
-            for j in (i + 1)..CLASSES.len() {
-                if edges[edge_idx] {
-                    let parent_arity = templates[j].len();
-                    let parent_args: Vec<TypeId> = (0..parent_arity).map(|_| prelude::TYPE_MIXED).collect();
-                    w.with_extended(child, CLASSES[j], parent_args);
-                }
-
-                edge_idx += 1;
-            }
-        }
-
-        for (i, class) in CLASSES.iter().enumerate() {
-            for (j, method) in METHODS.iter().enumerate() {
-                if methods[i * METHODS.len() + j] {
-                    w.with_method(class, method);
+            for (idx, class) in CLASSES.iter().enumerate() {
+                let variances = &templates[idx];
+                if variances.is_empty() {
+                    w.declare(class);
+                } else {
+                    let tmpl: Vec<(&str, Variance)> =
+                        variances.iter().enumerate().map(|(i, v)| (TEMPLATES[i], *v)).collect();
+                    w.with_templates(class, &tmpl);
                 }
             }
-        }
 
-        for (i, class) in CLASSES.iter().enumerate() {
-            for (j, property) in PROPERTIES.iter().enumerate() {
-                if properties[i * PROPERTIES.len() + j] {
-                    w.with_property(class, property, prelude::TYPE_MIXED);
+            let mut edge_idx = 0;
+            for (i, child) in CLASSES.iter().enumerate() {
+                for j in (i + 1)..CLASSES.len() {
+                    if edges[edge_idx] {
+                        let parent_arity = templates[j].len();
+                        let parent_args: Vec<TypeId> =
+                            std::iter::repeat_n(prelude::TYPE_MIXED, parent_arity).collect();
+                        w.with_extended(child, CLASSES[j], parent_args);
+                    }
+
+                    edge_idx += 1;
                 }
             }
-        }
 
-        for e in ENUMS {
-            w.with_pure_enum(e);
-        }
-
-        // A class can only be marked `final` when no other class
-        // declares it as a parent: PHP forbids extending a final
-        // class, and the lattice relies on that invariant when
-        // collapsing `final C & X` intersections to `never`.
-        // Random worlds that violated the invariant produced
-        // contradictory `B <: E` + `is_final(E)` configurations
-        // and broke meet-monotonicity through no fault of the
-        // algorithm.
-        for (i, class) in CLASSES.iter().enumerate() {
-            if !finals[i] {
-                continue;
+            for (i, class) in CLASSES.iter().enumerate() {
+                for (j, method) in METHODS.iter().enumerate() {
+                    if methods[i * METHODS.len() + j] {
+                        w.with_method(class, method);
+                    }
+                }
             }
 
-            let class_atom = mago_atom::atom(class);
-            let has_descendants =
-                CLASSES.iter().any(|other| *other != *class && w.descends_from(mago_atom::atom(other), class_atom));
-            if !has_descendants {
-                w.with_final(class);
+            for (i, class) in CLASSES.iter().enumerate() {
+                for (j, property) in PROPERTIES.iter().enumerate() {
+                    if properties[i * PROPERTIES.len() + j] {
+                        w.with_property(class, property, prelude::TYPE_MIXED);
+                    }
+                }
             }
-        }
 
-        WorldHandle(Arc::new(w))
-    })
+            for e in ENUMS {
+                w.with_pure_enum(e);
+            }
+
+            // A class can only be marked `final` when no other class
+            // declares it as a parent: PHP forbids extending a final
+            // class, and the lattice relies on that invariant when
+            // collapsing `final C & X` intersections to `never`.
+            // Random worlds that violated the invariant produced
+            // contradictory `B <: E` + `is_final(E)` configurations
+            // and broke meet-monotonicity through no fault of the
+            // algorithm.
+            for (i, class) in CLASSES.iter().enumerate() {
+                if !finals[i] {
+                    continue;
+                }
+
+                let class_atom = mago_atom::atom(class);
+                let has_descendants =
+                    CLASSES.iter().any(|other| *other != *class && w.descends_from(mago_atom::atom(other), class_atom));
+                if !has_descendants {
+                    w.with_final(class);
+                }
+            }
+
+            WorldHandle(Arc::new(w))
+        },
+    )
 }
 
 fn primitive_type() -> impl Strategy<Value = TypeId> {
@@ -306,7 +315,7 @@ fn arb_type() -> impl Strategy<Value = TypeId> {
                 elems.extend_from_slice(c.as_ref().elements);
                 interner().intern_type(&elems, FlowFlags::EMPTY)
             }),
-            (inner.clone(), inner.clone(), inner.clone(), inner.clone()).prop_map(|(a, b, c, d)| {
+            (inner.clone(), inner.clone(), inner.clone(), inner).prop_map(|(a, b, c, d)| {
                 let mut elems: Vec<ElementId> = a.as_ref().elements.to_vec();
                 elems.extend_from_slice(b.as_ref().elements);
                 elems.extend_from_slice(c.as_ref().elements);
@@ -367,7 +376,7 @@ fn does_overlap(a: TypeId, b: TypeId, w: &MockWorld) -> bool {
 /// the canonical `NEVER`: the obvious case is an object with an
 /// intersection list that mixes nominal classes from different,
 /// unrelated branches of the inheritance graph (`A & D` when neither
-/// descends the other) — no runtime instance can be both at once.
+/// descends the other), so no runtime instance can be both at once.
 fn element_is_value_never(elem: suffete::ElementId, w: &MockWorld) -> bool {
     if elem.kind() != suffete::ElementKind::Object {
         return false;
@@ -380,7 +389,7 @@ fn element_is_value_never(elem: suffete::ElementId, w: &MockWorld) -> bool {
             classes.push(interner().get_object(conjunct).name);
         }
     }
-    use suffete::world::World;
+    use suffete::world::World as _;
     for (idx, &left) in classes.iter().enumerate() {
         for &right in &classes[idx + 1..] {
             if left == right {
@@ -479,8 +488,8 @@ fn element_is_imprecise(e: suffete::ElementId) -> bool {
     }
 }
 
-/// `true` for a String atom carrying refinement flags or casing —
-/// `non-empty-string`, `numeric-string`, `lowercase-string`, etc.
+/// `true` for a String atom carrying refinement flags or casing
+/// (`non-empty-string`, `numeric-string`, `lowercase-string`, etc.).
 /// Subtract has no canonical complement form for these axes, so any
 /// refined-string survivor on either side of `(a \ b) ∩ b` is a
 /// known precision gap.
@@ -796,10 +805,10 @@ proptest! {
 
     #[test]
     fn meet_with_never_is_never((world, a) in arb_world_and_type()) {
-        let m = meet_of(a, prelude::TYPE_NEVER, &world);
-        prop_assert_eq!(m, prelude::TYPE_NEVER, "meet(a, NEVER) should be NEVER for a={}", a);
-        let m = meet_of(prelude::TYPE_NEVER, a, &world);
-        prop_assert_eq!(m, prelude::TYPE_NEVER, "meet(NEVER, a) should be NEVER for a={}", a);
+        let m_left = meet_of(a, prelude::TYPE_NEVER, &world);
+        prop_assert_eq!(m_left, prelude::TYPE_NEVER, "meet(a, NEVER) should be NEVER for a={}", a);
+        let m_right = meet_of(prelude::TYPE_NEVER, a, &world);
+        prop_assert_eq!(m_right, prelude::TYPE_NEVER, "meet(NEVER, a) should be NEVER for a={}", a);
     }
 
     #[test]

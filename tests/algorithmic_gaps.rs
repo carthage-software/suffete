@@ -1,15 +1,14 @@
-//! Failing-by-design tests that pin known algorithmic gaps in the
-//! lattice. Each test is `#[ignore]`d so the suite stays green in CI;
-//! the test body shows the *expected* outcome once the gap is
-//! implemented and panics today, with a comment block documenting
-//! the missing rule and where it should land in the source tree.
-//!
-//! Run with `cargo test --test algorithmic_gaps -- --ignored` to
-//! follow progress as gaps close.
-//!
-//! Layout: one `#[test]` per gap; each is preceded by a `// GAP N:`
-//! comment that matches the followup queue in
-//! `memory/project_perfection_mandate.md`.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -35,12 +34,6 @@ fn does_refine<W: suffete::world::World>(a: suffete::TypeId, b: suffete::TypeId,
     refines(a, b, w, LatticeOptions::default(), &mut LatticeReport::new())
 }
 
-// CLOSED: `reconcile_descendant_participants` in
-// `src/meet/family/object.rs::compose_object_intersection` projects
-// the descendant's view of the ancestor through
-// `World::inherited_template_argument` and reconciles the args
-// under the ancestor's variance. The matching overlap rule lives
-// in `src/lattice/overlaps.rs::descendant_args_satisfy_ancestor`.
 #[test]
 fn gap_compose_descendant_invariant_mismatch_collapses_to_never() {
     let mut w = MockWorld::new();
@@ -60,9 +53,6 @@ fn gap_compose_descendant_invariant_mismatch_collapses_to_never() {
     );
 }
 
-// CLOSED: true-union subtract fan-out lives in
-// `src/subtract/mod.rs::true_union_minus`. Covers Scalar, Numeric,
-// ArrayKey minus broad sub-family members.
 #[test]
 fn gap_subtract_scalar_minus_int_splits_to_other_scalars() {
     let cb = empty_world();
@@ -96,13 +86,6 @@ fn gap_subtract_numeric_minus_int_yields_float_or_numeric_string() {
     );
 }
 
-// CLOSED: `ObjectInfo.excluded` carries a sorted list of nominal
-// classes whose instances are removed from the object's value-set.
-// `src/subtract/mod.rs::object_descendant_minus` records the
-// exclusion; `src/lattice/family/object.rs::refines_named_named`,
-// `src/lattice/overlaps.rs::ancestor_excludes_descendant`, and
-// `src/meet/family/object.rs::reconcile_descendant_participants`
-// honor it on the consumer side.
 #[test]
 fn gap_subtract_b_minus_descendant_a_excludes_a_instances() {
     let mut w = MockWorld::new();
@@ -114,16 +97,10 @@ fn gap_subtract_b_minus_descendant_a_excludes_a_instances() {
     let a = u(t_named("A"));
     let s = lattice_subtract(b, a, &w);
 
-    // The minimal correctness check: meet of (B \ A) with A should
-    // be never — every A is removed from the surviving B-instances.
     let m = lattice_meet(s, a, &w);
     assert_eq!(m, prelude::TYPE_NEVER, "(B \\ A) ∩ A should be never (got {m}; B \\ A = {s})");
 }
 
-// CLOSED: `iterable_array_meet` and `iterable_list_meet` live in
-// `src/meet/family/array.rs`, with matching overlap rules in
-// `src/lattice/overlaps.rs::iterable_array_overlap` /
-// `iterable_list_overlap`.
 #[test]
 fn gap_meet_iterable_with_array_yields_array() {
     let cb = empty_world();
@@ -137,24 +114,10 @@ fn gap_meet_iterable_with_array_yields_array() {
     );
 }
 
-// GAP 6: refines fan-out for refined-string complements.
-//
-// `string` should refine `non-empty-string | string('')` (this works,
-// via `string_union_covers`). The natural extension is the casing
-// axis: `string` should refine `lowercase-string | (string &
-// has-uppercase)` once we have a `has-uppercase` (or
-// `non-lowercase-string`) atom. The test pins the form once the
-// representation lands.
 #[test]
 #[ignore = "algorithmic gap: requires non-lowercase-string complement representation"]
 fn gap_refines_string_covered_by_lowercase_and_non_lowercase() {
     let cb = empty_world();
-    // Today there is no `non-lowercase-string` representation, so the
-    // test asserts the property once it lands. The placeholder uses
-    // `t_upper_string()` as a stand-in: every string is either
-    // lowercase OR has at least one uppercase letter, but
-    // `upper_string` only captures the *all-uppercase* subset and
-    // is therefore strictly smaller than the true complement.
     let s = u(t_string());
     let split = u_many(vec![t_lower_string(), t_upper_string()]);
     assert!(
@@ -163,10 +126,6 @@ fn gap_refines_string_covered_by_lowercase_and_non_lowercase() {
     );
 }
 
-// CLOSED: arity-0 reduction now fires in
-// `src/lattice/family/object.rs::refines_named_named`. A bare class
-// that the world declares with zero template parameters drops any
-// explicit `type_args` before the variance check.
 #[test]
 fn gap_arity_zero_class_with_explicit_args_reduces_to_bare() {
     let mut w = MockWorld::new();

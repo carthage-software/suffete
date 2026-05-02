@@ -1,7 +1,9 @@
+#![allow(clippy::absolute_paths, clippy::missing_docs_in_private_items, clippy::significant_drop_tightening)]
+
+use core::hint::black_box;
 use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
-use std::hint::black_box;
 use suffete::ElementId;
 use suffete::ElementKind;
 

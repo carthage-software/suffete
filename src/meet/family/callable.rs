@@ -2,10 +2,10 @@
 //!
 //! For two callable signatures with the same parameter arity:
 //!
-//! - return type is **covariant** — a value satisfying both must
+//! - return type is **covariant** ; a value satisfying both must
 //!   produce a value compatible with both, so the meet narrows the
 //!   return type via [`crate::meet::compute`].
-//! - parameter types are **contravariant** — both signatures must
+//! - parameter types are **contravariant** ; both signatures must
 //!   accept any input either accepts, so the meet *widens* each
 //!   parameter via [`crate::join::compute`].
 //! - purity is conjunctive (`pure ∧ pure → pure`, otherwise impure).
@@ -39,8 +39,8 @@ pub(in crate::meet) fn callable_meet<W: World>(
     let a_sig = *i.get_signature(a_id);
     let b_sig = *i.get_signature(b_id);
 
-    let a_params: &[ParamInfo] = a_sig.parameters.map(|p| i.get_param_list(p)).unwrap_or(&[]);
-    let b_params: &[ParamInfo] = b_sig.parameters.map(|p| i.get_param_list(p)).unwrap_or(&[]);
+    let a_params: &[ParamInfo] = a_sig.parameters.map_or(&[], |p| i.get_param_list(p));
+    let b_params: &[ParamInfo] = b_sig.parameters.map_or(&[], |p| i.get_param_list(p));
     if a_params.len() != b_params.len() {
         return None;
     }

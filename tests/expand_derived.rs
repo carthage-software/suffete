@@ -1,10 +1,19 @@
-//! Stage 3 expander tests: `Derived` atoms (`KeyOf`, `ValueOf`,
-//! `IndexAccess`, `IntMask`, `IntMaskOf`, `TemplateType`).
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
+use core::num::NonZeroU32;
 use std::collections::BTreeMap;
-use std::num::NonZeroU32;
 
 use comparator_common::*;
 
@@ -205,7 +214,7 @@ fn int_mask_of_two_literals_yields_four_combinations() {
             _ => None,
         })
         .collect();
-    got.sort();
+    got.sort_unstable();
     assert_eq!(got, vec![0, 1, 2, 3]);
 }
 
@@ -234,7 +243,7 @@ fn int_mask_of_widens_target_to_int_mask_set() {
             _ => None,
         })
         .collect();
-    got.sort();
+    got.sort_unstable();
     assert_eq!(got, vec![0, 1, 2, 3]);
 }
 

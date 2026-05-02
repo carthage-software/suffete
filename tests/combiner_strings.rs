@@ -1,3 +1,15 @@
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
+
 mod combiner_common;
 
 use combiner_common::*;
@@ -209,7 +221,7 @@ fn case_sensitive_literals_kept_apart() {
 
 #[test]
 fn n_distinct_literals_kept() {
-    for n in [3_usize, 5, 10, 50, 100] {
+    for n in [3usize, 5, 10, 50, 100] {
         let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_string(&format!("s{i}"))).collect();
         let result = combine_default(inputs);
         assert_eq!(result.len(), n);
@@ -218,7 +230,7 @@ fn n_distinct_literals_kept() {
 
 #[test]
 fn many_distinct_literals_exceed_threshold_generalise() {
-    let n = 200_usize;
+    let n = 200usize;
     let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_string(&format!("s{i}"))).collect();
     let result = combine_default(inputs);
     assert_eq!(result, vec![t_string()]);
@@ -226,7 +238,7 @@ fn many_distinct_literals_exceed_threshold_generalise() {
 
 #[test]
 fn under_threshold_keeps_literals() {
-    let n = 100_usize;
+    let n = 100usize;
     let inputs: Vec<ElementId> = (0..n).map(|i| t_lit_string(&format!("s{i}"))).collect();
     let result = combine_default(inputs);
     assert_eq!(result.len(), n);
@@ -234,7 +246,7 @@ fn under_threshold_keeps_literals() {
 
 #[test]
 fn custom_low_threshold_generalises_quickly() {
-    let inputs: Vec<ElementId> = (0..20_usize).map(|i| t_lit_string(&format!("s{i}"))).collect();
+    let inputs: Vec<ElementId> = (0..20usize).map(|i| t_lit_string(&format!("s{i}"))).collect();
     let result = combine_with_string_threshold(inputs, 5);
     assert_eq!(result, vec![t_string()]);
 }
@@ -315,13 +327,13 @@ fn lit_lower_with_lit_upper_kept_apart() {
 #[test]
 fn many_lower_literals_with_non_empty_lower_collapse() {
     let inputs: Vec<ElementId> =
-        std::iter::once(t_lower_string()).chain((0..20).map(|i| t_lit_string(&format!("s{i}")))).collect();
+        core::iter::once(t_lower_string()).chain((0..20).map(|i| t_lit_string(&format!("s{i}")))).collect();
     assert_combines_to(inputs, vec![t_lower_string()]);
 }
 
 #[test]
 fn many_uppercase_literals_with_uppercase_collapse() {
     let inputs: Vec<ElementId> =
-        std::iter::once(t_upper_string()).chain((0..20).map(|i| t_lit_string(&format!("S{i}")))).collect();
+        core::iter::once(t_upper_string()).chain((0..20).map(|i| t_lit_string(&format!("S{i}")))).collect();
     assert_combines_to(inputs, vec![t_upper_string()]);
 }

@@ -1,5 +1,14 @@
-//! Pair-wise combiner cases. Each test runs a list of `(label, input,
-//! expected)` rows.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod combiner_common;
 
@@ -159,9 +168,7 @@ fn primitive_pairs_object() {
     check("object | Foo", vec![t_object_any(), t_named("Foo")], &[t_object_any()]);
     check("Foo | object", vec![t_named("Foo"), t_object_any()], &[t_object_any()]);
     check("object | Bar", vec![t_object_any(), t_named("Bar")], &[t_object_any()]);
-    // mago expects `[enum(E), object]` (no enum-vs-object collapse) but
-    // suffete's structural rule has `object` absorb the entire object
-    // family including enums, so the row diverges intentionally.
+    // `object` absorbs the entire object family including enums.
     check("object | enum (suffete absorbs)", vec![t_object_any(), t_enum("E")], &[t_object_any()]);
     check("object | int", vec![t_object_any(), t_int()], &[t_int(), t_object_any()]);
     check("object | resource", vec![t_object_any(), t_resource()], &[t_object_any(), t_resource()]);

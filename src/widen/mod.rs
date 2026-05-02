@@ -1,7 +1,7 @@
 //! Two scalar-widening modes for [`TypeId`].
 //!
-//! - [`scalars`]: replace **every** scalar narrowing — literal *and*
-//!   user-declared — with the family dominator. `42` / `int<0,10>` /
+//! - [`scalars`]: replace **every** scalar narrowing ; literal *and*
+//!   user-declared ; with the family dominator. `42` / `int<0,10>` /
 //!   `positive-int` → `int`; `"foo"` / `non-empty-string` / `truthy-
 //!   numeric-string` → `string`; `1.5` → `float`; `true` / `false` →
 //!   `bool`. `class-string<Foo>` / `class-string<of: T>` →
@@ -40,16 +40,19 @@ use crate::prelude::STRING;
 use crate::transform;
 
 /// Replace every scalar narrowing with its family dominator.
+#[inline]
 pub fn scalars(ty: TypeId) -> TypeId {
     transform::map(ty, widen_element_scalar)
 }
 
 /// Replace literal scalar values with their tightest non-literal
 /// refinement; preserve user-declared narrowings.
+#[inline]
 pub fn literals(ty: TypeId) -> TypeId {
     transform::map(ty, widen_element_literal)
 }
 
+#[inline]
 fn widen_element_scalar(elem: ElementId) -> ElementId {
     match elem.kind() {
         ElementKind::Int => INT,
@@ -61,6 +64,7 @@ fn widen_element_scalar(elem: ElementId) -> ElementId {
     }
 }
 
+#[inline]
 fn widen_element_literal(elem: ElementId) -> ElementId {
     match elem.kind() {
         ElementKind::Int => widen_int_literal(elem),
@@ -72,6 +76,7 @@ fn widen_element_literal(elem: ElementId) -> ElementId {
     }
 }
 
+#[inline]
 fn widen_int_literal(elem: ElementId) -> ElementId {
     match interner().get_int(elem) {
         IntInfo::Literal(_) | IntInfo::UnspecifiedLiteral => INT,
@@ -79,6 +84,7 @@ fn widen_int_literal(elem: ElementId) -> ElementId {
     }
 }
 
+#[inline]
 fn widen_float_literal(elem: ElementId) -> ElementId {
     match interner().get_float(elem) {
         FloatInfo::Literal(_) | FloatInfo::UnspecifiedLiteral => FLOAT,
@@ -90,6 +96,7 @@ fn widen_float_literal(elem: ElementId) -> ElementId {
 /// refinement bit the literal value satisfies. Empty strings collapse
 /// to `STRING` naturally (every inferred flag is false → matches the
 /// well-known dominator's interned shape).
+#[inline]
 fn widen_string_literal(elem: ElementId) -> ElementId {
     let i = interner();
     let info = *i.get_string(elem);
@@ -113,6 +120,7 @@ fn widen_string_literal(elem: ElementId) -> ElementId {
     }
 }
 
+#[inline]
 fn widen_class_like_string_to_any(elem: ElementId) -> ElementId {
     let i = interner();
     let info = *i.get_class_like_string(elem);
@@ -126,9 +134,10 @@ fn widen_class_like_string_to_any(elem: ElementId) -> ElementId {
 /// no uppercase letter is. Uppercase symmetric. Strings with no
 /// letters at all (digits, punctuation) get [`StringCasing::Unspecified`]
 /// to avoid claiming a casing the string does not exhibit.
+#[inline]
 fn infer_casing(s: &str) -> StringCasing {
-    let has_upper = s.chars().any(|c| c.is_uppercase());
-    let has_lower = s.chars().any(|c| c.is_lowercase());
+    let has_upper = s.chars().any(char::is_uppercase);
+    let has_lower = s.chars().any(char::is_lowercase);
     match (has_upper, has_lower) {
         (false, true) => StringCasing::Lowercase,
         (true, false) => StringCasing::Uppercase,
@@ -140,6 +149,7 @@ fn infer_casing(s: &str) -> StringCasing {
 ///
 /// Trims leading/trailing whitespace, strips a leading sign, removes
 /// leading zeros, and uses `f64`'s parser for the remainder.
+#[inline]
 fn str_is_numeric(input: &str) -> bool {
     let mut maybe_numeric = input.trim();
     if maybe_numeric.is_empty() {

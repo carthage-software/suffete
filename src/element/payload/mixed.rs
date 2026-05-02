@@ -1,7 +1,7 @@
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::mem::size_of;
+use core::fmt::Display;
+use core::fmt::Formatter;
+use core::fmt::Result as FmtResult;
+use core::mem::size_of;
 
 /// `mixed` and its narrowed forms (`non-null-mixed`, `truthy-mixed`,
 /// `falsy-mixed`, `isset-from-loop`).
@@ -28,6 +28,7 @@ impl MixedInfo {
     ///
     /// Both bits set simultaneously is invalid; constructors reject it.
     #[inline]
+    #[must_use] 
     pub const fn truthiness(self) -> Truthiness {
         match (self.0 & Self::IS_TRUTHY != 0, self.0 & Self::IS_FALSY != 0) {
             (false, false) => Truthiness::Undetermined,
@@ -38,16 +39,19 @@ impl MixedInfo {
     }
 
     #[inline]
+    #[must_use] 
     pub const fn is_non_null(self) -> bool {
         self.0 & Self::IS_NON_NULL != 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn is_empty(self) -> bool {
         self.0 & Self::IS_EMPTY != 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn is_isset_from_loop(self) -> bool {
         self.0 & Self::IS_ISSET_FROM_LOOP != 0
     }
@@ -92,9 +96,10 @@ pub enum Truthiness {
     Falsy,
 }
 
-const _: () = assert!(size_of::<MixedInfo>() == 1);
+const _: () = assert!(size_of::<MixedInfo>() == 1, "size budget exceeded");
 
 impl Display for MixedInfo {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let label = if self.is_empty() {
             match self.truthiness() {

@@ -1,6 +1,14 @@
-//! Standin replacement tests: bound recording at each variance,
-//! co-traversal through Object / List / Iterable, and refined-type
-//! shape (parameter slot becomes the constraint).
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -192,7 +200,7 @@ fn object_with_unrelated_arg_passes_parameter_through() {
     let opts = StandinOptions::default();
     let t = template_param("Box", "T");
     let param = u(t_generic_named("Box", vec![u(t)]));
-    // Argument is a different class — no inference.
+    // Argument is a different class ; no inference.
     let arg = u(t_generic_named("Bag", vec![prelude::TYPE_INT]));
     let result = template::standin(param, arg, &w, &mut state, &opts);
     assert_eq!(result, param);
@@ -416,7 +424,7 @@ fn freeze_preserves_declarations_bounds_and_anti_bounds() {
 fn freeze_consumes_state() {
     let state = TemplateState::new();
     let _result = state.freeze();
-    // Re-using `state` here would not compile — by-value freeze enforces
+    // Re-using `state` here would not compile ; by-value freeze enforces
     // that no further mutation can happen on the same handle.
 }
 

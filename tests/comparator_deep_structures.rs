@@ -1,4 +1,14 @@
-//! Deep / nested-structure refinement coverage.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -11,29 +21,29 @@ use suffete::world::Variance;
 fn list_of_lists_reflexive() {
     let inner = u(t_list(u(t_int()), false));
     let outer = t_list(inner, false);
-    assert_atomic_subtype(&outer, &outer);
+    assert_atomic_subtype(outer, outer);
 }
 
 #[test]
 fn deeply_nested_list_lit_in_general() {
     let lit3 = t_list(u(t_list(u(t_list(u(t_lit_int(1)), false)), false)), false);
     let int3 = t_list(u(t_list(u(t_list(u(t_int()), false)), false)), false);
-    assert_atomic_subtype(&lit3, &int3);
-    assert_atomic_not_subtype(&int3, &lit3);
+    assert_atomic_subtype(lit3, int3);
+    assert_atomic_not_subtype(int3, lit3);
 }
 
 #[test]
 fn list_of_keyed_arrays() {
     let inner = u(t_keyed_unsealed(u(t_string()), u(t_int()), false));
     let outer = t_list(inner, false);
-    assert_atomic_subtype(&outer, &outer);
+    assert_atomic_subtype(outer, outer);
 }
 
 #[test]
 fn keyed_of_lists() {
     let inner = u(t_list(u(t_int()), false));
     let outer = t_keyed_unsealed(u(t_string()), inner, false);
-    assert_atomic_subtype(&outer, &outer);
+    assert_atomic_subtype(outer, outer);
 }
 
 #[test]
@@ -42,7 +52,7 @@ fn shaped_array_simple() {
         BTreeMap::from([(ak_str("name"), (false, u(t_string()))), (ak_str("age"), (false, u(t_int())))]),
         false,
     );
-    assert_atomic_subtype(&s, &s);
+    assert_atomic_subtype(s, s);
 }
 
 #[test]
@@ -55,8 +65,8 @@ fn shaped_array_with_lit_values_in_general_shape() {
         BTreeMap::from([(ak_str("name"), (false, u(t_string()))), (ak_str("age"), (false, u(t_int())))]),
         false,
     );
-    assert_atomic_subtype(&lit, &general);
-    assert_atomic_not_subtype(&general, &lit);
+    assert_atomic_subtype(lit, general);
+    assert_atomic_not_subtype(general, lit);
 }
 
 #[test]
@@ -69,8 +79,8 @@ fn shaped_array_required_in_optional() {
         BTreeMap::from([(ak_str("name"), (false, u(t_string()))), (ak_str("age"), (true, u(t_int())))]),
         false,
     );
-    assert_atomic_subtype(&req, &opt_age);
-    assert_atomic_not_subtype(&opt_age, &req);
+    assert_atomic_subtype(req, opt_age);
+    assert_atomic_not_subtype(opt_age, req);
 }
 
 #[test]
@@ -80,7 +90,7 @@ fn shaped_array_subset_with_optional_extra() {
         BTreeMap::from([(ak_str("a"), (false, u(t_int()))), (ak_str("b"), (true, u(t_string())))]),
         false,
     );
-    assert_atomic_subtype(&small, &big_opt);
+    assert_atomic_subtype(small, big_opt);
 }
 
 #[test]
@@ -90,14 +100,14 @@ fn shaped_array_extra_required_not_subtype() {
         BTreeMap::from([(ak_str("a"), (false, u(t_int()))), (ak_str("b"), (false, u(t_string())))]),
         false,
     );
-    assert_atomic_not_subtype(&small, &big);
+    assert_atomic_not_subtype(small, big);
 }
 
 #[test]
 fn nested_shape_with_list_value() {
     let lit = t_keyed_sealed(BTreeMap::from([(ak_str("items"), (false, u(t_list(u(t_lit_int(1)), false))))]), false);
     let general = t_keyed_sealed(BTreeMap::from([(ak_str("items"), (false, u(t_list(u(t_int()), false))))]), false);
-    assert_atomic_subtype(&lit, &general);
+    assert_atomic_subtype(lit, general);
 }
 
 #[test]
@@ -116,8 +126,8 @@ fn nested_shape_with_keyed_value() {
         )]),
         false,
     );
-    assert_atomic_subtype(&lit, &general);
-    assert_atomic_not_subtype(&general, &lit);
+    assert_atomic_subtype(lit, general);
+    assert_atomic_not_subtype(general, lit);
 }
 
 #[test]
@@ -142,8 +152,8 @@ fn deeply_nested_keyed_shape_three_levels() {
     };
     let lit = make(ui(42));
     let general = make(u(t_int()));
-    assert_atomic_subtype(&lit, &general);
-    assert_atomic_not_subtype(&general, &lit);
+    assert_atomic_subtype(lit, general);
+    assert_atomic_not_subtype(general, lit);
 }
 
 #[test]
@@ -158,7 +168,7 @@ fn shape_in_unsealed_keyed_array() {
         BTreeMap::from([(ak_str("a"), (false, u(t_int()))), (ak_str("b"), (false, u(t_string())))]),
         false,
     );
-    assert_atomic_subtype(&s, &t_keyed_unsealed(u(t_string()), u(t_array_key()), false));
+    assert_atomic_subtype(s, t_keyed_unsealed(u(t_string()), u(t_array_key()), false));
 }
 
 #[test]
@@ -187,19 +197,19 @@ fn deep_nested_object_in_box() {
 fn list_in_iterable_with_lit_values() {
     let list_lit = t_list(u(t_lit_int(1)), false);
     let iter_int = t_iterable(u(t_int()), u(t_int()));
-    assert_atomic_subtype(&list_lit, &iter_int);
+    assert_atomic_subtype(list_lit, iter_int);
 }
 
 #[test]
 fn array_of_arrays_chain() {
     let inner = u(t_keyed_unsealed(u(t_string()), u(t_int()), false));
     let outer = t_keyed_unsealed(u(t_string()), inner, false);
-    assert_atomic_subtype(&outer, &outer);
+    assert_atomic_subtype(outer, outer);
 }
 
 #[test]
 fn many_shape_widths() {
-    for n_keys in 1..=5_usize {
+    for n_keys in 1..=5usize {
         let mut lit_map = BTreeMap::new();
         let mut general_map = BTreeMap::new();
         for i in 0..n_keys {
@@ -209,7 +219,7 @@ fn many_shape_widths() {
         }
         let lit = t_keyed_sealed(lit_map, false);
         let general = t_keyed_sealed(general_map, false);
-        assert_atomic_subtype(&lit, &general);
+        assert_atomic_subtype(lit, general);
     }
 }
 
@@ -218,7 +228,7 @@ fn shape_with_string_in_string_lit() {
     for s in ["hello", "world", "foo", "bar"] {
         let lit = t_keyed_sealed(BTreeMap::from([(ak_str("k"), (false, us(s)))]), false);
         let general = t_keyed_sealed(BTreeMap::from([(ak_str("k"), (false, u(t_string())))]), false);
-        assert_atomic_subtype(&lit, &general);
+        assert_atomic_subtype(lit, general);
     }
 }
 

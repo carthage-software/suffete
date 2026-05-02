@@ -28,6 +28,7 @@ use crate::world::World;
 /// `X <: !T` iff `meet(X, T) ≡ ⊥`. The check is by structural
 /// disjointness: if `X` has no value in common with `T`, every
 /// value of `X` lies outside `T`, satisfying the negation.
+#[inline]
 pub fn refines_container_negated<W: World>(
     input: ElementId,
     container: ElementId,
@@ -41,19 +42,12 @@ pub fn refines_container_negated<W: World>(
     !crate::lattice::overlaps(input_t, info.inner, world, options, report)
 }
 
-/// `!T <: X` iff `mixed \ T <: X` iff `T ∪ X ≡ mixed` (the union of
-/// `T` and `X` exhausts every value).
+/// `!T <: X` iff `mixed \ T <: X` iff `T ∪ X ≡ mixed`.
 ///
-/// Three exact paths:
-///
-/// - `X = mixed` ⇒ trivially true.
-/// - `X = !U` ⇒ contravariance: `!T <: !U` iff `U <: T`.
-/// - Otherwise: build the union `T ∪ X` as a [`TypeId`] and ask
-///   `mixed <: T ∪ X` via the standard `refines` dispatch. The
-///   recognized partitions (`null | nonnull-mixed`, integer ranges,
-///   string axes, true-union dominators) drive the answer; outside
-///   of those we fall back to `false` conservatively, never
-///   over-claiming.
+/// Three paths: `X = mixed` is trivially true; `X = !U` reduces by
+/// contravariance to `U <: T`; otherwise we ask `refines(MIXED, T ∪ X)`
+/// and let the recognized partitions drive the answer.
+#[inline]
 pub fn refines_input_negated<W: World>(
     input: ElementId,
     container: ElementId,

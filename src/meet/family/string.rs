@@ -15,6 +15,7 @@ use crate::interner::interner;
 /// side pins one. Opposite fixed casings collapse to `lit("")` (the
 /// only string satisfying both); literal-vs-flag and literal-vs-casing
 /// incompatibilities collapse to `None` (disjoint).
+#[inline]
 pub(crate) fn string_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     let i = interner();
     let a_info = *i.get_string(a);
@@ -58,7 +59,7 @@ pub(crate) fn string_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
 
     // Opposite-casing collapse: when neither side fixed a literal value,
     // the only string in both sets is `""`. With a literal on one side,
-    // fall through — the literal-vs-flags / literal-vs-casing checks
+    // fall through ; the literal-vs-flags / literal-vs-casing checks
     // below will reject it iff the literal violates the casing it carries.
     if opposite_casings && matches!(literal, StringLiteral::None | StringLiteral::Unspecified) {
         return Some(ElementId::string_literal(""));
@@ -70,7 +71,7 @@ pub(crate) fn string_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     }
     if opposite_casings && let StringLiteral::Value(v) = merged.literal {
         let s = v.as_str();
-        // Literal must satisfy BOTH original casings — i.e. carry no
+        // Literal must satisfy BOTH original casings ; i.e. carry no
         // ASCII letters at all.
         if s.chars().any(|c| c.is_ascii_alphabetic()) {
             return None;
@@ -83,7 +84,7 @@ pub(crate) fn string_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
 }
 
 /// `numeric ∧ string` is the set of strings whose value parses as a
-/// number — i.e. the `numeric-string` refinement, preserving any
+/// number ; i.e. the `numeric-string` refinement, preserving any
 /// casing / literal / flags already on the string side.
 pub(in crate::meet) fn numeric_string_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     let i = interner();
@@ -101,6 +102,7 @@ pub(in crate::meet) fn numeric_string_meet(a: ElementId, b: ElementId) -> Option
     Some(i.intern_string(merged))
 }
 
+#[inline]
 fn literal_satisfies_flags(literal: StringLiteral, flags: StringRefinementFlags) -> bool {
     let StringLiteral::Value(v) = literal else { return true };
     let s = v.as_str();
@@ -116,6 +118,7 @@ fn literal_satisfies_flags(literal: StringLiteral, flags: StringRefinementFlags)
     true
 }
 
+#[inline]
 fn literal_satisfies_casing(literal: StringLiteral, casing: StringCasing) -> bool {
     let StringLiteral::Value(v) = literal else { return true };
     let s = v.as_str();

@@ -1,3 +1,15 @@
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
+
 mod comparator_common;
 
 use comparator_common::*;
@@ -67,7 +79,7 @@ fn cell_int_and_cell_string_diverge_static_vs_runtime() {
 
 #[test]
 fn cell_int_and_box_string_unrelated_classes_incompatible() {
-    // Mark both `Cell` and `Box` as `final` — without that, PHP's
+    // Mark both `Cell` and `Box` as `final` ; without that, PHP's
     // open class graph admits a hypothetical descendant that
     // satisfies both, and the lattice correctly reports that as a
     // possible runtime witness. Final closes the door, giving the

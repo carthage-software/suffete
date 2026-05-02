@@ -1,11 +1,13 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
 use crate::ElementListId;
 
 /// "Some object that has a method named `M`", produced by `method_exists`
-/// narrowing. Subtype of [`ObjectInfo`](super::ObjectInfo) `Any`; subtype of a
+/// narrowing.
+///
+/// Subtype of [`ObjectInfo`](super::ObjectInfo) `Any`; subtype of a
 /// specific [`ObjectInfo`](super::ObjectInfo) iff the world confirms that
 /// class has the method.
 ///
@@ -18,10 +20,11 @@ pub struct HasMethodInfo {
     pub intersections: Option<ElementListId>,
 }
 
-const _: () = assert!(size_of::<HasMethodInfo>() <= 16);
+const _: () = assert!(size_of::<HasMethodInfo>() <= 16, "size budget exceeded");
 
-impl std::fmt::Display for HasMethodInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for HasMethodInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "has-method<'{}'>", self.method_name.as_str())?;
         super::render_intersection_chain(self.intersections, f)
     }

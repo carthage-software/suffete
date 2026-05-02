@@ -1,12 +1,11 @@
-//! Per-element truthiness / falsiness / literal classifiers, ported
-//! from mago's verified pattern.
+//! Per-element truthiness / falsiness / literal classifiers.
 //!
 //! Each function returns a 2-state guarantee on a single element:
 //!
-//! - [`is_truthy`] — every value the element admits is truthy.
-//! - [`is_falsy`] — every value the element admits is falsy.
-//! - [`could_be_truthy`] — at least one value could be truthy.
-//! - [`could_be_falsy`] — at least one value could be falsy.
+//! - [`is_truthy`] ; every value the element admits is truthy.
+//! - [`is_falsy`] ; every value the element admits is falsy.
+//! - [`could_be_truthy`] ; at least one value could be truthy.
+//! - [`could_be_falsy`] ; at least one value could be falsy.
 //!
 //! [`is_literal`] reports whether the element represents a single
 //! literal value (used by [`crate::predicates::is_literal`] and
@@ -23,6 +22,7 @@ use crate::interner::interner;
 use crate::prelude;
 
 /// Every value of `elem` is guaranteed truthy at runtime.
+#[inline]
 pub(crate) fn is_truthy(elem: ElementId) -> bool {
     let i = interner();
     match elem.kind() {
@@ -128,6 +128,7 @@ pub(crate) fn is_truthy(elem: ElementId) -> bool {
 }
 
 /// Every value of `elem` is guaranteed falsy at runtime.
+#[inline]
 pub(crate) fn is_falsy(elem: ElementId) -> bool {
     let i = interner();
     match elem.kind() {

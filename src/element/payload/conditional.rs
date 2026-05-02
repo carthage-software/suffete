@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use crate::TypeId;
 
@@ -16,16 +16,18 @@ pub struct ConditionalInfo {
     pub negated: bool,
 }
 
-const _: () = assert!(size_of::<ConditionalInfo>() <= 40);
+const _: () = assert!(size_of::<ConditionalInfo>() <= 40, "size budget exceeded");
 
-impl std::fmt::Display for ConditionalInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ConditionalInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let op = if self.negated { " is not " } else { " is " };
         write!(f, "({}{}{} ? {} : {})", self.subject, op, self.target, self.then, self.otherwise)
     }
 }
 
 impl ConditionalInfo {
+    #[inline]
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
         let _ = indent;
         self.to_string()

@@ -35,7 +35,9 @@ impl LatticeOptions {
     /// `ignore_null` mirrors `flags.ignore_nullable_issues()` and
     /// `ignore_false` mirrors `flags.ignore_falsable_issues()`.
     /// `inside_assertion` stays `false`.
-    pub fn of_type(ty: TypeId) -> Self {
+    #[inline]
+    #[must_use] 
+    pub const fn of_type(ty: TypeId) -> Self {
         let f = ty.flags();
         Self {
             ignore_null: f.ignore_nullable_issues(),
@@ -45,12 +47,15 @@ impl LatticeOptions {
     }
 
     /// Same as [`of_type`](Self::of_type), but with `inside_assertion` set.
-    pub fn assertion_of_type(ty: TypeId) -> Self {
+    #[inline]
+    #[must_use] 
+    pub const fn assertion_of_type(ty: TypeId) -> Self {
         Self::of_type(ty).inside_assertion()
     }
 
     /// Set [`ignore_null`](Self::ignore_null) to `true`.
     #[must_use]
+    #[inline]
     pub const fn with_ignore_null(mut self) -> Self {
         self.ignore_null = true;
         self
@@ -58,6 +63,7 @@ impl LatticeOptions {
 
     /// Set [`ignore_false`](Self::ignore_false) to `true`.
     #[must_use]
+    #[inline]
     pub const fn with_ignore_false(mut self) -> Self {
         self.ignore_false = true;
         self
@@ -65,6 +71,7 @@ impl LatticeOptions {
 
     /// Set [`inside_assertion`](Self::inside_assertion) to `true`.
     #[must_use]
+    #[inline]
     pub const fn inside_assertion(mut self) -> Self {
         self.inside_assertion = true;
         self

@@ -88,6 +88,7 @@ pub(super) fn walk<F: FnMut(ElementId) -> Outcome>(ty: TypeId, f: &mut F) -> Typ
 /// Recurse into every nested `TypeId` carried by `elem`'s payload.
 /// Returns `Some(rebuilt_element)` when at least one nested type
 /// changed, `None` otherwise.
+#[inline]
 fn walk_nested<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     use crate::ElementKind;
     match elem.kind() {
@@ -108,6 +109,7 @@ fn walk_nested<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Op
     }
 }
 
+#[inline]
 fn walk_intersections<F: FnMut(ElementId) -> Outcome>(
     intersections: Option<ElementListId>,
     f: &mut F,
@@ -124,6 +126,7 @@ fn walk_intersections<F: FnMut(ElementId) -> Outcome>(
     })
 }
 
+#[inline]
 fn walk_object<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_object(elem);
@@ -155,6 +158,7 @@ fn walk_object<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Op
     }))
 }
 
+#[inline]
 fn walk_list<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_list(elem);
@@ -183,6 +187,7 @@ fn walk_list<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Opti
     }))
 }
 
+#[inline]
 fn walk_keyed_array<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_array(elem);
@@ -213,6 +218,7 @@ fn walk_keyed_array<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) 
     }))
 }
 
+#[inline]
 fn walk_iterable<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_iterable(elem);
@@ -229,6 +235,7 @@ fn walk_iterable<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> 
     }))
 }
 
+#[inline]
 fn walk_object_shape<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_object_shape(elem);
@@ -257,6 +264,7 @@ fn walk_object_shape<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F)
     }))
 }
 
+#[inline]
 fn walk_has_method<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_has_method(elem);
@@ -264,6 +272,7 @@ fn walk_has_method<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -
     Some(i.intern_has_method(crate::element::payload::HasMethodInfo { intersections: Some(new_intersections), ..info }))
 }
 
+#[inline]
 fn walk_has_property<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_has_property(elem);
@@ -274,6 +283,7 @@ fn walk_has_property<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F)
     }))
 }
 
+#[inline]
 fn walk_class_like_string<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_class_like_string(elem);
@@ -297,6 +307,7 @@ fn walk_class_like_string<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &m
     Some(i.intern_class_like_string(ClassLikeStringInfo { specifier: new_specifier, ..info }))
 }
 
+#[inline]
 fn walk_generic_parameter<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_generic_parameter(elem);
@@ -307,6 +318,7 @@ fn walk_generic_parameter<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &m
     Some(i.intern_generic_parameter(GenericParameterInfo { constraint: walked, ..info }))
 }
 
+#[inline]
 fn walk_reference<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_reference(elem);
@@ -337,6 +349,7 @@ fn walk_reference<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) ->
     }))
 }
 
+#[inline]
 fn walk_conditional<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_conditional(elem);
@@ -350,6 +363,7 @@ fn walk_conditional<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) 
     Some(i.intern_conditional(ConditionalInfo { subject, target, then, otherwise, negated: info.negated }))
 }
 
+#[inline]
 fn walk_derived<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_derived(elem);
@@ -418,14 +432,15 @@ fn walk_derived<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> O
     Some(i.intern_derived(walked))
 }
 
+#[inline]
 fn walk_callable<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     use crate::element::payload::CallableInfo;
     let i = interner();
     let info = *i.get_callable(elem);
-    let sig_id = match info {
-        CallableInfo::Signature(s) | CallableInfo::Closure(s) => s,
-        _ => return None,
+    let (CallableInfo::Signature(sig_id) | CallableInfo::Closure(sig_id)) = info else {
+        return None;
     };
+
     let sig = *i.get_signature(sig_id);
     let new_return = walk(sig.return_type, f);
     let new_throws = sig.throws.map(|t| walk(t, f));

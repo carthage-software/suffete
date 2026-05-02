@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 use mago_span::Span;
@@ -30,10 +30,11 @@ pub enum CallableAlias {
 // `Closure(Span)` may match or exceed that depending on `Span`'s layout.
 // The whole alias is interned via `CallableAliasId`, so a slightly larger
 // entry costs one allocation per *unique* callable, not per use site.
-const _: () = assert!(size_of::<CallableAlias>() <= 40);
+const _: () = assert!(size_of::<CallableAlias>() <= 40, "size budget exceeded");
 
-impl std::fmt::Display for CallableAlias {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for CallableAlias {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             CallableAlias::Function(name) => write!(f, "Closure<{}>(...)", name.as_str()),
             CallableAlias::Method { class, method } => {

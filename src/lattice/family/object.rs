@@ -2,31 +2,31 @@
 //! enums and enum cases, object shapes, has-method / has-property
 //! narrowings.
 //!
-//! Implements the nominal subtype check from `comparison.md` plus the
-//! type-argument comparison from `generics.md` §5 (specialisation): for
-//! same-class containers, walk type arguments by position with the
-//! container's variance; for descendant containers, resolve the inherited
-//! arguments via [`World::inherited_template_argument`], substitute
-//! `child`'s actual arguments through them, and then compare positionally
+//! Implements the nominal subtype check plus type-argument
+//! specialisation: for same-class containers, walk type arguments
+//! by position with the container's variance; for descendant
+//! containers, resolve the inherited arguments via
+//! [`World::inherited_template_argument`], substitute `child`'s
+//! actual arguments through them, and then compare positionally
 //! with the container's variance.
 //!
-//! Intersection types (`Foo&Bar`) are handled by the Int-L / Int-R rules
-//! from comparison.md §1.4.3: container intersections require the input
-//! to refine every conjunct; input intersections require some conjunct to
-//! refine the container.
+//! Intersection types (`Foo&Bar`) follow the Int-L / Int-R rules:
+//! container intersections require the input to refine every
+//! conjunct; input intersections require some conjunct to refine
+//! the container.
 //!
-//! `static` and `$this` modality (comparison.md §1.4.4) is enforced
-//! asymmetrically: a container marked `static` (or `$this`) accepts only
-//! inputs that are at least as constrained on that flag.
+//! `static` / `$this` modality is enforced asymmetrically: a
+//! container marked `static` (or `$this`) accepts only inputs that
+//! are at least as constrained on that flag.
 //!
-//! Structural narrowings (comparison.md §1.4.6):
+//! Structural narrowings:
 //!
 //! - `HasMethod(m)`: input is accepted iff it is itself `HasMethod(m)`,
 //!   or a `Named(C)` (or descendant) where `Γ` confirms `C` declares /
 //!   inherits `m`.
 //! - `HasProperty(p)`: symmetric to `HasMethod`.
 //! - `ObjectShape{props_out}`: shape-vs-shape uses the same rules as
-//!   keyed arrays — every required-out key must be present (and
+//!   keyed arrays. Every required-out key must be present (and
 //!   required) in the input shape with a refining value, and a sealed
 //!   container demands a sealed input. `Named(C)` refines an object
 //!   shape iff every required property of the shape is declared on `C`
@@ -62,12 +62,15 @@ use crate::world::World;
 
 /// Container is `object` (`ObjectAny`): accept anything in the object
 /// family.
-pub fn refines_object_any(input: ElementId, _container: ElementId) -> bool {
+#[inline]
+#[must_use] 
+pub const fn refines_object_any(input: ElementId, _container: ElementId) -> bool {
     is_object_family_kind(input.kind())
 }
 
 /// Refinement for `Object | Enum | ObjectShape | HasMethod | HasProperty`
 /// containers.
+#[inline]
 pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,
@@ -99,8 +102,8 @@ pub fn refines<W: World>(
         }
     }
 
-    // Container-intersection rule for HasMethod / HasProperty: same as
-    // for Object — every conjunct (including the head) must match.
+    // Container-intersection rule for HasMethod / HasProperty: every
+    // conjunct (including the head) must match.
     if container.kind() == ElementKind::HasMethod {
         let container_info = *i.get_has_method(container);
         if let Some(intersections_id) = container_info.intersections {
@@ -240,6 +243,7 @@ pub fn refines<W: World>(
     }
 }
 
+#[inline]
 fn refines_has_method<W: World>(input: ElementId, method: Atom, world: &W) -> bool {
     let i = interner();
     match input.kind() {
@@ -251,6 +255,7 @@ fn refines_has_method<W: World>(input: ElementId, method: Atom, world: &W) -> bo
     }
 }
 
+#[inline]
 fn refines_has_property<W: World>(input: ElementId, property: Atom, world: &W) -> bool {
     let i = interner();
     match input.kind() {
@@ -264,12 +269,11 @@ fn refines_has_property<W: World>(input: ElementId, property: Atom, world: &W) -
             let shape = *i.get_object_shape(input);
             shape
                 .known_properties
-                .map(|id| {
+                .is_some_and(|id| {
                     i.get_known_properties(id)
                         .iter()
                         .any(|entry: &KnownPropertyEntry| entry.name == property && !entry.optional)
                 })
-                .unwrap_or(false)
         }
         _ => false,
     }
@@ -277,6 +281,7 @@ fn refines_has_property<W: World>(input: ElementId, property: Atom, world: &W) -
 
 /// Built-in enum properties: `name` is always present (any enum case has
 /// one); `value` is present only on backed enums.
+#[inline]
 fn enum_property_present<W: World>(enum_name: Atom, property: Atom, world: &W) -> bool {
     if property == atom("name") {
         return true;
@@ -287,6 +292,7 @@ fn enum_property_present<W: World>(enum_name: Atom, property: Atom, world: &W) -
     false
 }
 
+#[inline]
 fn refines_object_shape<W: World>(
     input: ElementId,
     container: ObjectShapeInfo,
@@ -320,8 +326,9 @@ fn refines_object_shape<W: World>(
 /// specific case), and `value` is the backing type for backed enums.
 /// The shape is sealed because enum cases expose no other properties.
 ///
-/// Returns `None` when the world doesn't know the enum's backing — the
+/// Returns `None` when the world doesn't know the enum's backing; the
 /// caller treats that as "can't prove refinement" and rejects.
+#[inline]
 fn build_enum_shape<W: World>(info: EnumInfo, world: &W) -> Option<ObjectShapeInfo> {
     let i = interner();
     let backing = world.enum_backing(info.name)?;
@@ -344,11 +351,12 @@ fn build_enum_shape<W: World>(info: EnumInfo, world: &W) -> Option<ObjectShapeIn
     })
 }
 
-/// Shape-vs-shape rule from comparison.md §1.4.6, mirroring the keyed-
+/// Shape-vs-shape rule , mirroring the keyed-
 /// array rule: every required key in the container must be present
 /// (required) in the input with a refining value, a sealed container
 /// demands a sealed input, and the input may not introduce required keys
 /// the container does not list when sealed.
+#[inline]
 fn shape_refines_shape<W: World>(
     input: ObjectShapeInfo,
     container: ObjectShapeInfo,
@@ -357,8 +365,10 @@ fn shape_refines_shape<W: World>(
     report: &mut LatticeReport,
 ) -> bool {
     let i = interner();
-    let in_props = input.known_properties.map(|id| i.get_known_properties(id)).unwrap_or(&[]);
-    let out_props = container.known_properties.map(|id| i.get_known_properties(id)).unwrap_or(&[]);
+    let in_props: &[KnownPropertyEntry] =
+        input.known_properties.map_or(&[], |id| i.get_known_properties(id));
+    let out_props: &[KnownPropertyEntry] =
+        container.known_properties.map_or(&[], |id| i.get_known_properties(id));
 
     if container.flags.sealed() && !input.flags.sealed() {
         return false;
@@ -397,6 +407,7 @@ fn shape_refines_shape<W: World>(
 /// required property `pi` on `C` (or an ancestor) with a declared type
 /// that refines `Ti`. Optional container properties impose no
 /// requirement when missing on `C`.
+#[inline]
 fn named_refines_shape<W: World>(
     class: mago_atom::Atom,
     container: ObjectShapeInfo,
@@ -405,7 +416,8 @@ fn named_refines_shape<W: World>(
     report: &mut LatticeReport,
 ) -> bool {
     let i = interner();
-    let out_props = container.known_properties.map(|id| i.get_known_properties(id)).unwrap_or(&[]);
+    let out_props: &[KnownPropertyEntry] =
+        container.known_properties.map_or(&[], |id| i.get_known_properties(id));
 
     for out in out_props {
         match world.class_property_type(class, out.name) {
@@ -425,6 +437,7 @@ fn named_refines_shape<W: World>(
     true
 }
 
+#[inline]
 fn element_refines_via_type<W: World>(
     input: ElementId,
     container: ElementId,
@@ -438,6 +451,7 @@ fn element_refines_via_type<W: World>(
     type_refines(it, ct, world, options, report)
 }
 
+#[inline]
 fn refines_named_named<W: World>(
     input: ObjectInfo,
     container: ObjectInfo,
@@ -486,15 +500,14 @@ fn refines_named_named<W: World>(
     let same_class = input.name == container.name;
 
     for (position, &container_arg) in container_args.iter().enumerate() {
-        let input_arg = input_argument_for_container_position(
+        let Some(input_arg) = input_argument_for_container_position(
             input.name,
             &input_actual_args,
             container.name,
             position,
             same_class,
             world,
-        );
-        let Some(input_arg) = input_arg else {
+        ) else {
             return false;
         };
 
@@ -516,13 +529,14 @@ fn refines_named_named<W: World>(
 /// remaining references to `input`'s own templates.
 ///
 /// Same-class case: the input's positional argument, or its constraint /
-/// `mixed` when no argument was supplied at the use site (the spec's
-/// "partial application" path).
+/// `mixed` when no argument was supplied at the use site (partial
+/// application).
 ///
 /// Strict-descendant case: query [`World::inherited_template_argument`]
 /// for the chain-resolved type (in `input`'s template namespace), then
 /// substitute `input`'s actual arguments into any `GenericParameter`
 /// references that name `input`'s own templates.
+#[inline]
 fn input_argument_for_container_position<W: World>(
     input_name: mago_atom::Atom,
     input_actual_args: &[TypeId],
@@ -556,6 +570,7 @@ fn input_argument_for_container_position<W: World>(
 /// declared variance. A default-fill marker on either side bypasses the
 /// check and records [`CoercionCauses::TEMPLATE_DEFAULT`] so the consumer
 /// can warn about the unpinned position.
+#[inline]
 fn compare_with_variance<W: World>(
     input: TypeId,
     container: TypeId,
@@ -587,7 +602,8 @@ fn compare_with_variance<W: World>(
 /// Stamp `ty` with [`FlowFlags::from_template_default`]. The flag rides
 /// with the [`TypeId`] wherever it is later nested, so the variance check
 /// sees it even several layers deep.
-fn mark_default_filled(ty: TypeId) -> TypeId {
+#[inline]
+const fn mark_default_filled(ty: TypeId) -> TypeId {
     if ty.flags().from_template_default() {
         return ty;
     }
@@ -599,6 +615,7 @@ fn mark_default_filled(ty: TypeId) -> TypeId {
 /// upper bound (or `mixed`) stamped with
 /// [`FlowFlags::from_template_default`]. Empty when `class` has no
 /// declared templates.
+#[inline]
 fn default_fill_template_args<W: World>(class: Atom, world: &W) -> Vec<TypeId> {
     let arity = world.template_parameter_arity(class);
     (0..arity)
@@ -614,7 +631,8 @@ fn default_fill_template_args<W: World>(class: Atom, world: &W) -> Vec<TypeId> {
 /// `$this`. A plain `Named(C)` refines neither, because the late-static
 /// modality is a stronger guarantee than nominal identity. Inputs more
 /// specific than the container's modality are accepted (`$this <: static`).
-fn modality_satisfied(input: ObjectFlags, container: ObjectFlags) -> bool {
+#[inline]
+const fn modality_satisfied(input: ObjectFlags, container: ObjectFlags) -> bool {
     if container.is_this() && !input.is_this() {
         return false;
     }
@@ -624,7 +642,8 @@ fn modality_satisfied(input: ObjectFlags, container: ObjectFlags) -> bool {
     true
 }
 
-pub(crate) fn is_object_family_kind(kind: ElementKind) -> bool {
+#[inline]
+pub(crate) const fn is_object_family_kind(kind: ElementKind) -> bool {
     matches!(
         kind,
         ElementKind::Object

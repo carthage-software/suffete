@@ -1,6 +1,14 @@
-//! Bound reconciliation (`generics.md §6`) tests: §6.3 selection rule
-//! (shallowest depth, equality-marker propagation, offset matching),
-//! §6.5 fallback, and the `TemplateState::witness` integration.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -30,7 +38,7 @@ fn key_for(class: &str, name: &str) -> TemplateKey {
     TemplateKey { defining_entity, name: atom(name) }
 }
 
-fn bound(kind: BoundKind, ty: TypeId, depth: u32, offset: u32) -> Bound {
+const fn bound(kind: BoundKind, ty: TypeId, depth: u32, offset: u32) -> Bound {
     Bound { kind, ty, depth, argument_offset: offset, equality_bound_classlike: None, span: None }
 }
 

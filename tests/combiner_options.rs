@@ -1,5 +1,14 @@
-//! `JoinOptions` extended-rule tests (report §19): each rule must fire
-//! only when its toggle is on.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod combiner_common;
 
@@ -11,6 +20,7 @@ use suffete::ElementId;
 use suffete::FlowFlags;
 use suffete::TypeId;
 use suffete::element::payload::ArrayKey;
+use suffete::element::payload::KeyedArrayFlags;
 use suffete::element::payload::KeyedArrayInfo;
 use suffete::element::payload::KnownItemEntry;
 use suffete::interner::interner;
@@ -25,7 +35,7 @@ fn t_array_with_items(items: &[(ArrayKey, TypeId)]) -> ElementId {
         key_param: None,
         value_param: None,
         known_items: Some(i.intern_known_items(&entries)),
-        flags: Default::default(),
+        flags: KeyedArrayFlags::default(),
     })
 }
 
@@ -35,7 +45,7 @@ fn t_array_with_params(key: TypeId, value: TypeId) -> ElementId {
         key_param: Some(key),
         value_param: Some(value),
         known_items: None,
-        flags: Default::default(),
+        flags: KeyedArrayFlags::default(),
     })
 }
 
@@ -63,7 +73,7 @@ fn overwrite_empty_array_keeps_when_alone() {
 fn overwrite_empty_array_off_keeps_both() {
     let other = t_array_with_params(ut(t_string()), ut(t_int()));
     let out = join::compute_with(&[t_empty_array(), other], &join::JoinOptions::structural());
-    let mut sorted = out.clone();
+    let mut sorted = out;
     sorted.sort();
     let mut expected = vec![t_empty_array(), other];
     expected.sort();
@@ -83,9 +93,9 @@ fn string_literal_collapse_at_or_below_threshold_keeps_literals() {
     let lits = (0..3).map(|n| t_lit_string(&format!("s{n}"))).collect::<Vec<_>>();
     let opts = join::JoinOptions::structural().with_string_literal_collapse_threshold(3);
     let out = join::compute_with(&lits, &opts);
-    let mut sorted = out.clone();
+    let mut sorted = out;
     sorted.sort();
-    let mut expected = lits.clone();
+    let mut expected = lits;
     expected.sort();
     assert_eq!(sorted, expected);
 }
@@ -101,7 +111,7 @@ fn merge_int_ranges_collapses_consecutive_literals() {
 fn merge_int_ranges_with_gap_keeps_separate() {
     let opts = join::JoinOptions::structural().with_merge_int_ranges(true);
     let out = join::compute_with(&[t_lit_int(0), t_lit_int(1), t_lit_int(5)], &opts);
-    let mut sorted = out.clone();
+    let mut sorted = out;
     sorted.sort();
     let mut expected = vec![ElementId::int_range(Some(0), Some(1)), t_lit_int(5)];
     expected.sort();
@@ -120,7 +130,7 @@ fn merge_int_ranges_combines_overlapping_ranges() {
 #[test]
 fn merge_int_ranges_off_keeps_separate() {
     let out = join::compute_with(&[t_lit_int(0), t_lit_int(1)], &join::JoinOptions::structural());
-    let mut sorted = out.clone();
+    let mut sorted = out;
     sorted.sort();
     let mut expected = vec![t_lit_int(0), t_lit_int(1)];
     expected.sort();
@@ -192,10 +202,9 @@ fn default_options_match_compute() {
     assert_eq!(a, b);
 }
 
-// Suppress unused warnings on the BTreeMap import — kept for symmetry
-// with other combiner tests that build sealed shapes via the keyed-
-// shape helper.
+// Kept for symmetry with other combiner tests that build sealed
+// shapes via the keyed-shape helper.
 #[allow(dead_code)]
-fn _unused_btreemap() -> BTreeMap<ArrayKey, ()> {
+const fn _unused_btreemap() -> BTreeMap<ArrayKey, ()> {
     BTreeMap::new()
 }

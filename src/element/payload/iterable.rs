@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use crate::ElementListId;
 use crate::TypeId;
@@ -17,10 +17,11 @@ pub struct IterableInfo {
     pub intersections: Option<ElementListId>,
 }
 
-const _: () = assert!(size_of::<IterableInfo>() <= 24);
+const _: () = assert!(size_of::<IterableInfo>() <= 24, "size budget exceeded");
 
-impl std::fmt::Display for IterableInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for IterableInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let base = format!("iterable<{}, {}>", self.key_type, self.value_type);
         if let Some(id) = self.intersections {
             f.write_str("(")?;
@@ -37,6 +38,7 @@ impl std::fmt::Display for IterableInfo {
 }
 
 impl IterableInfo {
+    #[inline]
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
         let _ = indent;
         self.to_string()

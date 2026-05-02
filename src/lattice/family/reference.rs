@@ -1,8 +1,8 @@
 //! Indirection family: `Variable`, `Reference`, `MemberReference`,
 //! `GlobalReference`, `Alias`, `Conditional`, `Derived`.
 //!
-//! Per comparison.md §1.11 these atoms are normally **resolved by the
-//! analyser before subtyping is consulted**: a `Reference` becomes the
+//! These atoms are normally **resolved by the analyser before
+//! subtyping is consulted**: a `Reference` becomes the
 //! type recorded for that name in `Γ`, an `Alias` substitutes its body,
 //! a `Derived` evaluates once its inputs are concrete. Two unresolved
 //! atoms refine each other only by *structural identity*.
@@ -28,6 +28,8 @@
 use crate::ElementId;
 use crate::ElementKind;
 
+#[inline]
+#[must_use] 
 pub fn refines(input: ElementId, container: ElementId) -> bool {
     if !is_indirection_kind(container.kind()) {
         return false;
@@ -40,7 +42,8 @@ pub fn refines(input: ElementId, container: ElementId) -> bool {
     false
 }
 
-fn is_indirection_kind(kind: ElementKind) -> bool {
+#[inline]
+const fn is_indirection_kind(kind: ElementKind) -> bool {
     matches!(
         kind,
         ElementKind::Variable

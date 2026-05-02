@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use core::num::NonZeroU32;
 
 use crate::Element;
 use crate::ElementKind;
@@ -32,8 +32,9 @@ use crate::element::payload::scalar::StringRefinementFlags;
 use crate::handle::define_handle;
 use crate::interner::interner;
 
-/// `true` iff `s` parses as an integer or float — used to derive the
+/// `true` iff `s` parses as an integer or float ; used to derive the
 /// `is_numeric` flag on literal strings.
+#[inline]
 fn is_numeric_string(s: &str) -> bool {
     s.parse::<i64>().is_ok() || s.parse::<f64>().is_ok()
 }
@@ -63,6 +64,7 @@ impl ElementId {
     /// Construct an `ElementId` from a kind and slot. `slot` must fit in
     /// [`Self::MAX_SLOT`]; in release builds this is unchecked.
     #[inline]
+    #[must_use] 
     pub const fn new(kind: ElementKind, slot: u32) -> Self {
         debug_assert!(slot <= Self::MAX_SLOT, "element slot overflow");
         let raw = ((kind as u32) << Self::SLOT_BITS) | (slot & Self::SLOT_MASK);
@@ -72,14 +74,16 @@ impl ElementId {
     }
 
     #[inline]
+    #[must_use] 
     pub const fn kind(self) -> ElementKind {
         let tag = (self.0.get() >> Self::SLOT_BITS) as u8;
         // SAFETY: every `ElementId` is constructed from a valid `ElementKind`
         // discriminant (1..=63 fits in 6 bits) via `Self::new`.
-        unsafe { std::mem::transmute::<u8, ElementKind>(tag) }
+        unsafe { core::mem::transmute::<u8, ElementKind>(tag) }
     }
 
     #[inline]
+    #[must_use] 
     pub const fn slot(self) -> u32 {
         self.0.get() & Self::SLOT_MASK
     }
@@ -97,6 +101,7 @@ impl ElementId {
     /// happen if the handle was forged or constructed before boot ran for the
     /// well-known constants in question).
     #[inline]
+    #[must_use] 
     pub fn view(self) -> Element {
         let i = interner();
         match self.kind() {
@@ -140,12 +145,15 @@ impl ElementId {
 
     /// Intern an integer literal element (`IntInfo::Literal(value)`).
     #[inline]
+    #[must_use] 
     pub fn int_literal(value: i64) -> Self {
         interner().intern_int(IntInfo::Literal(value))
     }
 
     /// Intern a bounded integer range (`IntInfo::Range`). Either bound may be
     /// `None`, denoting open (`-∞` or `+∞`).
+    #[inline]
+    #[must_use] 
     pub fn int_range(lower: Option<i64>, upper: Option<i64>) -> Self {
         let i = interner();
         let range = i.intern_int_range(IntRange::new(lower, upper));
@@ -154,6 +162,7 @@ impl ElementId {
 
     /// Intern a float literal element (`FloatInfo::Literal(value)`).
     #[inline]
+    #[must_use] 
     pub fn float_literal(value: f64) -> Self {
         interner().intern_float(FloatInfo::Literal(LiteralFloat::new(value)))
     }
@@ -162,6 +171,8 @@ impl ElementId {
     /// (`is_numeric`, `is_truthy`, `is_non_empty`) and casing are derived
     /// from the value: `"hello"` is non-empty and truthy and lowercase;
     /// `""` is none of those; `"123"` is numeric and truthy.
+    #[inline]
+    #[must_use] 
     pub fn string_literal(value: &str) -> Self {
         let is_numeric = is_numeric_string(value);
         let is_non_empty = is_numeric || !value.is_empty();
@@ -189,6 +200,8 @@ impl ElementId {
     /// Intern a named object element with no type arguments, no
     /// intersections, and default flags (`is_static = false`,
     /// `is_this = false`, `remapped_parameters = false`).
+    #[inline]
+    #[must_use] 
     pub fn object_named(name: &str) -> Self {
         let info = ObjectInfo {
             name: mago_atom::atom(name),
@@ -200,6 +213,8 @@ impl ElementId {
     }
 
     /// Intern an enum element ("any case of enum `name`").
+    #[inline]
+    #[must_use] 
     pub fn enum_any(name: &str) -> Self {
         let info = EnumInfo { name: mago_atom::atom(name), case: None };
         interner().intern_enum(info)
@@ -207,11 +222,15 @@ impl ElementId {
 
     /// Intern `!T` (the complement of `T` against `mixed`). Universal
     /// collapses (`!never → mixed`, `!mixed → never`) fire at intern.
+    #[inline]
+    #[must_use] 
     pub fn negated(inner: TypeId) -> Self {
         interner().intern_negated(crate::element::payload::NegatedInfo { inner })
     }
 
     /// Intern an enum-case element (`name::case`).
+    #[inline]
+    #[must_use] 
     pub fn enum_case(name: &str, case: &str) -> Self {
         let info = EnumInfo { name: mago_atom::atom(name), case: Some(mago_atom::atom(case)) };
         interner().intern_enum(info)
@@ -219,6 +238,8 @@ impl ElementId {
 
     /// Intern a literal class-string element (`class-string<Foo>` with a
     /// concrete name).
+    #[inline]
+    #[must_use] 
     pub fn class_string_literal(name: &str) -> Self {
         let info = ClassLikeStringInfo {
             kind: ClassLikeKind::Class,
@@ -228,6 +249,8 @@ impl ElementId {
     }
 
     /// Intern an `iterable<key, value>` element with no intersections.
+    #[inline]
+    #[must_use] 
     pub fn iterable(key_type: TypeId, value_type: TypeId) -> Self {
         let info = IterableInfo { key_type, value_type, intersections: None };
         interner().intern_iterable(info)
@@ -235,6 +258,8 @@ impl ElementId {
 
     /// Intern a `list<element>` (or `non-empty-list<element>`) element with
     /// no fixed-position elements.
+    #[inline]
+    #[must_use] 
     pub fn list(element_type: TypeId, non_empty: bool) -> Self {
         let info = ListInfo {
             element_type,
@@ -247,6 +272,8 @@ impl ElementId {
 
     /// Intern a sealed list element (`list{0: T0, 1: T1, ...}`) with the
     /// given known entries and no rest element type.
+    #[inline]
+    #[must_use] 
     pub fn sealed_list(elements: &[KnownElementEntry], non_empty: bool) -> Self {
         let i = interner();
         let known_count = NonZeroU32::new(elements.len() as u32);
@@ -261,6 +288,8 @@ impl ElementId {
 
     /// Intern an unsealed keyed-array element (`array<K, V>` /
     /// `non-empty-array<K, V>`) with no known fixed entries.
+    #[inline]
+    #[must_use] 
     pub fn keyed_unsealed(key_type: TypeId, value_type: TypeId, non_empty: bool) -> Self {
         let info = KeyedArrayInfo {
             key_param: Some(key_type),
@@ -273,6 +302,8 @@ impl ElementId {
 
     /// Intern a sealed keyed-array element (`array{a: int, b: string, ...}`)
     /// with the given known entries and no rest type.
+    #[inline]
+    #[must_use] 
     pub fn keyed_sealed(items: &[KnownItemEntry], non_empty: bool) -> Self {
         let i = interner();
         let known = i.intern_known_items(items);
@@ -286,12 +317,16 @@ impl ElementId {
     }
 
     /// Intern an `Any` callable (`callable` with no signature info).
+    #[inline]
+    #[must_use] 
     pub fn callable_any() -> Self {
         interner().intern_callable(CallableInfo::Any)
     }
 
     /// Intern a `callable(...)` with a "mixed" signature: parameters
     /// unspecified, return type `mixed`, no `throws`. Common test fixture.
+    #[inline]
+    #[must_use] 
     pub fn callable_mixed() -> Self {
         let i = interner();
         let sig = i.intern_signature(Signature {
@@ -306,6 +341,8 @@ impl ElementId {
 
     /// Intern a `Closure(...)` with the same "mixed" signature as
     /// [`callable_mixed`](Self::callable_mixed) but tagged as a closure.
+    #[inline]
+    #[must_use] 
     pub fn closure_mixed() -> Self {
         let i = interner();
         let sig = i.intern_signature(Signature {
@@ -321,6 +358,8 @@ impl ElementId {
     /// `defining_entity` qualifies the parameter so two `T`s declared in
     /// different scopes stay distinct. `constraint` is the upper bound;
     /// pass [`TYPE_MIXED`] for an unbounded parameter.
+    #[inline]
+    #[must_use] 
     pub fn generic_parameter(name: &str, defining_entity: DefiningEntity, constraint: TypeId) -> Self {
         let i = interner();
         let entity_id = i.intern_defining_entity(defining_entity);
@@ -341,6 +380,8 @@ impl ElementId {
     /// Element kinds that support intersections: `Object`, `Iterable`,
     /// `ObjectShape`, `HasMethod`, `HasProperty`, `GenericParameter`,
     /// `Reference`. Everything else returns `&[]`.
+    #[inline]
+    #[must_use] 
     pub fn intersection_types(self) -> &'static [ElementId] {
         let i = interner();
         let id = match self.kind() {
@@ -362,6 +403,7 @@ impl ElementId {
 
     /// `true` iff this element has at least one intersection conjunct.
     #[inline]
+    #[must_use] 
     pub fn has_intersection_types(self) -> bool {
         !self.intersection_types().is_empty()
     }
@@ -369,6 +411,7 @@ impl ElementId {
     /// `true` iff this element's kind supports intersections at all
     /// (regardless of whether the current instance has any).
     #[inline]
+    #[must_use] 
     pub const fn can_be_intersected(self) -> bool {
         matches!(
             self.kind(),
@@ -390,14 +433,16 @@ define_handle! {
     ElementListId
 }
 
-impl std::fmt::Display for ElementId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.view(), f)
+impl core::fmt::Display for ElementId {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(&self.view(), f)
     }
 }
 
-impl std::fmt::Debug for ElementId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for ElementId {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if f.alternate() {
             f.debug_struct("ElementId")
                 .field("raw", &format_args!("{:#010x}", self.0.get()))
@@ -412,22 +457,32 @@ impl std::fmt::Debug for ElementId {
 }
 
 impl Typed for ElementId {
+    #[inline]
+    fn pretty(&self) -> String {
+        Typed::pretty(&self.view())
+    }
+
+    #[inline]
     fn pretty_with_indent(&self, indent: usize) -> String {
         Typed::pretty_with_indent(&self.view(), indent)
     }
 
+    #[inline]
     fn intersection_types(&self) -> &'static [ElementId] {
         ElementId::intersection_types(*self)
     }
 
+    #[inline]
     fn has_intersection_types(&self) -> bool {
         ElementId::has_intersection_types(*self)
     }
 
+    #[inline]
     fn can_be_intersected(&self) -> bool {
         ElementId::can_be_intersected(*self)
     }
 
+    #[inline]
     fn is_complex(&self) -> bool {
         Typed::is_complex(&self.view())
     }

@@ -7,8 +7,7 @@ use crate::element::payload::HasPropertyInfo;
 use crate::interner::interner;
 
 /// `HasMethod(m₁) ∧ HasMethod(m₂)` → a single `HasMethod` with the
-/// other conjunct stored on the intersection list. Same shape mago
-/// uses, so the comparator already knows how to read it.
+/// other conjunct stored on the intersection list.
 pub(in crate::meet) fn has_method_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     let i = interner();
     let a_info = *i.get_has_method(a);
@@ -30,7 +29,7 @@ pub(in crate::meet) fn has_method_meet(a: ElementId, b: ElementId) -> Option<Ele
 
 /// `HasMethod(m) ∧ HasProperty(p)` → a `HasMethod` carrying the
 /// has-property as an extra conjunct. The two predicates are
-/// orthogonal — a class can declare both — so the meet composes
+/// orthogonal ; a class can declare both ; so the meet composes
 /// rather than collapsing.
 pub(in crate::meet) fn has_method_property_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     let i = interner();
@@ -70,7 +69,7 @@ pub(in crate::meet) fn has_method_property_meet(a: ElementId, b: ElementId) -> O
     Some(i.intern_has_method(HasMethodInfo { method_name: head_info.method_name, intersections }))
 }
 
-/// `HasProperty(p₁) ∧ HasProperty(p₂)` — same structure as has-method.
+/// `HasProperty(p₁) ∧ HasProperty(p₂)` ; same structure as has-method.
 pub(in crate::meet) fn has_property_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     let i = interner();
     let a_info = *i.get_has_property(a);
@@ -91,6 +90,7 @@ pub(in crate::meet) fn has_property_meet(a: ElementId, b: ElementId) -> Option<E
     Some(i.intern_has_property(HasPropertyInfo { property_name: head_info.property_name, intersections }))
 }
 
+#[inline]
 fn collect_has_method_conjuncts(elem: ElementId, info: HasMethodInfo) -> Vec<ElementId> {
     let i = interner();
     let mut out: Vec<ElementId> = Vec::new();
@@ -104,6 +104,7 @@ fn collect_has_method_conjuncts(elem: ElementId, info: HasMethodInfo) -> Vec<Ele
     out
 }
 
+#[inline]
 fn collect_has_property_conjuncts(elem: ElementId, info: HasPropertyInfo) -> Vec<ElementId> {
     let i = interner();
     let mut out: Vec<ElementId> = Vec::new();

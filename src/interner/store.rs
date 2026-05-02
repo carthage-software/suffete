@@ -1,3 +1,5 @@
+#![allow(clippy::arithmetic_side_effects)]
+
 use std::sync::OnceLock;
 
 use crate::ElementId;
@@ -103,6 +105,8 @@ impl Interner {
     /// A fresh, empty interner. The well-known slots are NOT pre-populated by
     /// this constructor; that responsibility belongs to the boot routine
     /// (added in a later layer).
+    #[inline]
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             mixed: Arena::new(),
@@ -158,13 +162,23 @@ impl Interner {
     /// from canonicalization because the subtype lattice is preserved
     /// under combination, so the comparator answers the same questions
     /// either way.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the just-interned slice fails to resolve, which would
+    /// indicate interner corruption.
+    #[inline]
     pub fn intern_type(&self, elements: &[ElementId], flags: FlowFlags) -> TypeId {
         let mut sorted: Vec<ElementId> = if elements.is_empty() { vec![NEVER] } else { elements.to_vec() };
         sorted.sort_unstable();
         sorted.dedup();
 
         let list_id = self.element_list.intern(&sorted);
-        let static_slice = self.element_list.get(list_id).expect("just-interned slice resolves");
+        // Just-interned: corruption invariant ; lookup cannot return None.
+        #[allow(clippy::panic)]
+        let Some(static_slice) = self.element_list.get(list_id) else {
+            panic!("interner corruption: just-interned slice failed to resolve");
+        };
         let value = Type { elements: static_slice };
         TypeId::from_parts(self.types.intern(value), flags, 0)
     }
@@ -179,11 +193,18 @@ impl Interner {
     /// before the boot routine ran for a well-known constant).
     #[inline]
     pub fn get_type(&self, id: TypeId) -> &Type {
-        self.types.get(id.slot()).expect("invalid TypeId slot")
+        // Invariant: a valid `TypeId` always resolves. A `None` here means a
+        // forged handle, or use before boot ; both are programmer errors.
+        #[allow(clippy::panic)]
+        let Some(value) = self.types.get(id.slot()) else {
+            panic!("invalid TypeId slot: {} (forged handle, or used before boot)", id.slot());
+        };
+        value
     }
 }
 
 impl Default for Interner {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -259,6 +280,11 @@ element_arena_methods! {
 }
 
 impl Interner {
+    /// Intern a `Negated` element. Collapses `!never` to `mixed`,
+    /// `!mixed` to `never`, and `!!T` to `T` when both layers carry
+    /// single-element types (multi-atom `!!T` is left as-is because
+    /// the result wouldn't fit a single [`ElementId`]).
+    #[inline]
     pub fn intern_negated(&self, info: NegatedInfo) -> ElementId {
         if info.inner == crate::prelude::TYPE_NEVER {
             return crate::prelude::MIXED;
@@ -373,6 +399,7 @@ mod tests {
     use crate::prelude::TYPE_INT_OR_STRING;
 
     #[test]
+    #[inline]
     fn intern_int_dedupes_and_packs_kind() {
         let i = Interner::new();
 
@@ -386,6 +413,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn get_int_resolves_to_the_interned_value() {
         let i = Interner::new();
         let id = i.intern_int(IntInfo::Literal(123));
@@ -394,6 +422,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn slot_spaces_are_independent_across_kinds() {
         let i = Interner::new();
 
@@ -410,6 +439,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn side_table_intern_returns_typed_handle() {
         let i = Interner::new();
 
@@ -422,6 +452,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn slice_arena_intern_dedupes_by_content() {
         let i = Interner::new();
 
@@ -434,6 +465,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn global_interner_returns_the_same_instance() {
         let a = interner() as *const Interner;
         let b = interner() as *const Interner;
@@ -441,6 +473,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn intern_type_sorts_and_dedupes_elements() {
         let i = interner();
         let a = i.intern_int(IntInfo::Literal(99));
@@ -456,6 +489,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn intern_type_distinguishes_flow_flags() {
         let i = Interner::new();
         let a = i.intern_int(IntInfo::Unspecified);
@@ -467,6 +501,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn intern_type_empty_input_collapses_to_never() {
         let i = Interner::new();
 
@@ -478,14 +513,16 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn type_id_as_ref_round_trips_through_global_interner() {
         let id = interner().intern_type(&[interner().intern_int(IntInfo::Literal(1729))], FlowFlags::EMPTY);
-        let t: &'static Type = id.as_ref();
+        let t = id.as_ref();
         assert_eq!(t.elements.len(), 1);
         assert_eq!(id.flags(), FlowFlags::EMPTY);
     }
 
     #[test]
+    #[inline]
     fn intern_type_does_not_canonicalize_bool() {
         // Raw intern_type stores whatever the caller hands in (modulo
         // sort+dedup). Canonicalization is the combiner's job.
@@ -494,6 +531,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn intern_type_preserves_unrelated_unions() {
         // INT and STRING have nothing to canonicalize, so raw intern_type
         // still hits the well-known TYPE_INT_OR_STRING slot.

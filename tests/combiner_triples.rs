@@ -1,4 +1,14 @@
-//! Triple-wise combiner cases.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod combiner_common;
 
@@ -50,8 +60,7 @@ fn never_triples_absorbed() {
     check("never,never,int", vec![never(), never(), t_int()], &[t_int()]);
     check("never,never,never", vec![never(), never(), never()], &[never()]);
     check("never,Foo,Bar", vec![never(), t_named("Foo"), t_named("Bar")], &[t_named("Bar"), t_named("Foo")]);
-    // mago expects `[enum(E), object]` (no enum-vs-object collapse) but
-    // suffete's structural object-family rule absorbs enums under object.
+    // `object` absorbs enums under the object family.
     check("never,object,enum (suffete absorbs enum)", vec![never(), t_object_any(), t_enum("E")], &[t_object_any()]);
 }
 

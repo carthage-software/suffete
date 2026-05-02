@@ -1,7 +1,9 @@
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::mem::size_of;
+#![allow(clippy::arithmetic_side_effects)]
+
+use core::fmt::Display;
+use core::fmt::Formatter;
+use core::fmt::Result as FmtResult;
+use core::mem::size_of;
 
 use crate::ElementId;
 use crate::ElementKind;
@@ -12,7 +14,7 @@ use crate::typed::Typed;
 /// `elements` is sorted, deduplicated, and lives in the slice arena, so two
 /// types with the same element set share one slice.
 ///
-/// Flow flags do **not** live here — they ride on the [`TypeId`](crate::TypeId)
+/// Flow flags do **not** live here ; they ride on the [`TypeId`](crate::TypeId)
 /// itself, so the same content shares a single arena slot regardless of
 /// the flag combinations the consumer wraps it in. Read flags via
 /// [`TypeId::flags`](crate::TypeId::flags); the [`Type`] value behind the
@@ -26,9 +28,10 @@ pub struct Type {
     pub elements: &'static [ElementId],
 }
 
-const _: () = assert!(size_of::<Type>() <= 16);
+const _: () = assert!(size_of::<Type>() <= 16, "size budget exceeded");
 
 impl Display for Type {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let len = self.elements.len();
         if len == 0 {
@@ -63,6 +66,12 @@ impl Display for Type {
 }
 
 impl Typed for Type {
+    #[inline]
+    fn pretty(&self) -> String {
+        self.pretty_with_indent(0)
+    }
+
+    #[inline]
     fn pretty_with_indent(&self, indent: usize) -> String {
         let len = self.elements.len();
         if len == 0 {
@@ -104,19 +113,23 @@ impl Typed for Type {
         }
     }
 
+    #[inline]
     fn intersection_types(&self) -> &'static [ElementId] {
         &[]
     }
 
+    #[inline]
     fn has_intersection_types(&self) -> bool {
         false
     }
 
+    #[inline]
     fn can_be_intersected(&self) -> bool {
         false
     }
 
+    #[inline]
     fn is_complex(&self) -> bool {
-        self.elements.len() > 3 || self.elements.iter().any(|e| e.is_complex())
+        self.elements.len() > 3 || self.elements.iter().any(super::super::typed::Typed::is_complex)
     }
 }

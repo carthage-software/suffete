@@ -1,3 +1,15 @@
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
+
 mod combiner_common;
 
 use combiner_common::*;
@@ -6,7 +18,7 @@ use suffete::ElementKind;
 
 #[test]
 fn int_absorbs_every_literal_in_minus_500_to_500() {
-    for v in -500..=500_i64 {
+    for v in -500..=500i64 {
         assert_combines_to(vec![t_int(), t_lit_int(v)], vec![t_int()]);
         assert_combines_to(vec![t_lit_int(v), t_int()], vec![t_int()]);
     }
@@ -20,7 +32,7 @@ fn unspec_int_absorbs_lit_unspec_lit() {
 
 #[test]
 fn lit_int_self_dedup_for_many_values() {
-    for v in -50..=50_i64 {
+    for v in -50..=50i64 {
         for n in 2..=5 {
             let result = combine_default(vec![t_lit_int(v); n]);
             assert_eq!(result.len(), 1);
@@ -30,8 +42,8 @@ fn lit_int_self_dedup_for_many_values() {
 
 #[test]
 fn non_adjacent_lit_pairs_kept_apart() {
-    for a in -10..=10_i64 {
-        for b in -10..=10_i64 {
+    for a in -10..=10i64 {
+        for b in -10..=10i64 {
             if a == b || (a - b).abs() == 1 {
                 continue;
             }
@@ -43,7 +55,7 @@ fn non_adjacent_lit_pairs_kept_apart() {
 
 #[test]
 fn adjacent_lit_pairs_merge_to_range() {
-    for a in -5..=5_i64 {
+    for a in -5..=5i64 {
         let b = a + 1;
         let result = combine_default(vec![t_lit_int(a), t_lit_int(b)]);
         assert_eq!(result, vec![t_int_range(a, b)], "{a} | {b}");
@@ -94,7 +106,7 @@ fn distinct_lit_string_pairs_kept_apart() {
 #[test]
 fn float_absorbs_many_literals() {
     for i in 0..200 {
-        let v = f64::from(i) * 0.5 - 50.0;
+        let v = f64::from(i).mul_add(0.5, -50.0);
         assert_combines_to(vec![t_float(), t_lit_float(v)], vec![t_float()]);
         assert_combines_to(vec![t_lit_float(v), t_float()], vec![t_float()]);
     }
@@ -127,7 +139,7 @@ fn all_bool_triples_collapse() {
 
 #[test]
 fn many_distinct_named_objects_kept_apart() {
-    for n in [3_usize, 5, 10, 20, 50] {
+    for n in [3usize, 5, 10, 20, 50] {
         let inputs: Vec<ElementId> = (0..n).map(|i| t_named(&format!("Class{i}"))).collect();
         let result = combine_default(inputs);
         assert_eq!(result.len(), n);
@@ -160,7 +172,7 @@ fn generic_with_int_and_string_param_keeps_one_container() {}
 
 #[test]
 fn many_distinct_enums_kept_apart() {
-    for n in [3_usize, 5, 10, 20] {
+    for n in [3usize, 5, 10, 20] {
         let inputs: Vec<ElementId> = (0..n).map(|i| t_enum(&format!("E{i}"))).collect();
         let result = combine_default(inputs);
         assert_eq!(result.len(), n);
@@ -169,7 +181,7 @@ fn many_distinct_enums_kept_apart() {
 
 #[test]
 fn many_distinct_enum_cases_kept_apart() {
-    for n in [3_usize, 5, 10] {
+    for n in [3usize, 5, 10] {
         let inputs: Vec<ElementId> = (0..n).map(|i| t_enum_case("E", &format!("Case{i}"))).collect();
         let result = combine_default(inputs);
         assert_eq!(result.len(), n);
@@ -178,7 +190,7 @@ fn many_distinct_enum_cases_kept_apart() {
 
 #[test]
 fn many_copies_of_simple_atoms_collapse() {
-    // Subset of mago's atom list (no list/keyed helpers in suffete yet).
+    // Simple-atom subset (no list/keyed helpers yet).
     let atoms = [
         t_int(),
         t_string(),
@@ -196,7 +208,7 @@ fn many_copies_of_simple_atoms_collapse() {
         t_empty_array(),
     ];
     for atom in &atoms {
-        for n in [2_usize, 5, 10, 20, 50, 100] {
+        for n in [2usize, 5, 10, 20, 50, 100] {
             let result = combine_default(vec![*atom; n]);
             assert_eq!(result.len(), 1, "{n} copies of {atom:?}");
         }
@@ -206,9 +218,9 @@ fn many_copies_of_simple_atoms_collapse() {
 #[test]
 fn three_way_stable_primitives_consistent() {
     let stable = [t_int(), t_string(), t_float(), t_bool(), null(), t_object_any(), t_named("X"), t_resource()];
-    for a in stable.iter() {
-        for b in stable.iter() {
-            for c in stable.iter() {
+    for a in &stable {
+        for b in &stable {
+            for c in &stable {
                 let r = combine_default(vec![*a, *b, *c]);
                 let r_rev = combine_default(vec![*c, *b, *a]);
                 assert_multiset_eq(&r, &r_rev);
@@ -326,8 +338,8 @@ fn alternating_named_collapses() {
 
 #[test]
 fn n_copies_plus_adjacent_int_merges_to_range() {
-    for n in [1_usize, 5, 10, 50, 100] {
-        let mut inputs: Vec<ElementId> = (0..n).map(|_| t_lit_int(0)).collect();
+    for n in [1usize, 5, 10, 50, 100] {
+        let mut inputs: Vec<ElementId> = std::iter::repeat_with(|| t_lit_int(0)).take(n).collect();
         inputs.push(t_lit_int(1));
         let r = combine_default(inputs);
         assert_eq!(r, vec![t_int_range(0, 1)], "n={n}");

@@ -1,7 +1,14 @@
-//! Meet (greatest lower bound) tests: universal axioms, subsumption,
-//! integer-range intersection, compositional object intersection. The
-//! lower-bound property `meet(A, B) <: A ∧ meet(A, B) <: B` is the
-//! soundness invariant exercised throughout.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 

@@ -1,3 +1,5 @@
+#![allow(clippy::pub_use)]
+
 //! Scalar payloads: `Int`, `Float`, `String`, `ClassLikeString`.
 //!
 //! `Mixed` is a top type, not a scalar; see [`crate::element::payload::MixedInfo`].

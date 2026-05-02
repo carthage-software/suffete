@@ -3,7 +3,7 @@
 //! `iterable` accepts:
 //!
 //! - other `iterable<K', V'>` when `K' <: K` and `V' <: V` (key + value
-//!   covariance — iterables are read-only at the type level so values are
+//!   covariance ; iterables are read-only at the type level so values are
 //!   covariant; PHP doesn't model write positions on `iterable`)
 //! - `list<E>` when `E <: V` and `array-key <: K` (lists key by `int <:
 //!   array-key`)
@@ -26,6 +26,7 @@ use crate::prelude::EMPTY_ARRAY;
 use crate::prelude::INT;
 use crate::world::World;
 
+#[inline]
 pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,
@@ -65,6 +66,7 @@ pub fn refines<W: World>(
     }
 }
 
+#[inline]
 fn type_refines<W: World>(
     a: TypeId,
     b: TypeId,
@@ -75,6 +77,7 @@ fn type_refines<W: World>(
     type_refines_outer(a, b, world, options, report)
 }
 
+#[inline]
 fn single_type(element: ElementId) -> TypeId {
     interner().intern_type(&[element], crate::FlowFlags::EMPTY)
 }

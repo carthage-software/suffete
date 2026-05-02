@@ -1,6 +1,14 @@
-//! Enum cases are structurally `object{name: non-empty-string}` for pure
-//! enums and `object{name: non-empty-string, value: <backing>}` for
-//! backed enums. These tests pin down the resulting subtype edges.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 

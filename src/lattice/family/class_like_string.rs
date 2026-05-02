@@ -1,7 +1,10 @@
-//! Class-like-string family: `class-string`, `interface-string`,
-//! `enum-string`, `trait-string`, plus refined forms (`class-string<Foo>`,
-//! `class-string<T>`, `class-string<T of B>`, the literal `"App\\Foo"`
-//! typed as a class-string).
+#![allow(clippy::arithmetic_side_effects)]
+
+//! Class-like-string family.
+//!
+//! `class-string`, `interface-string`, `enum-string`, `trait-string`,
+//! plus refined forms (`class-string<Foo>`, `class-string<T>`,
+//! `class-string<T of B>`, the literal `"App\\Foo"` typed as a class-string).
 //!
 //! Distinct kinds are disjoint: `class-string` is not a subtype of
 //! `interface-string`, etc. Within a kind, the rule is "input fits
@@ -31,6 +34,7 @@ use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::world::World;
 
+#[inline]
 pub fn refines<W: World>(
     input: ElementId,
     container: ElementId,
@@ -60,6 +64,7 @@ pub fn refines<W: World>(
     crate::lattice::refines(input_target, container_target, world, options, report)
 }
 
+#[inline]
 fn matches_kind<W: World>(input: ElementId, container_kind: ClassLikeKind, world: &W) -> bool {
     if input.kind() == ElementKind::String {
         let info = interner().get_string(input);
@@ -68,8 +73,8 @@ fn matches_kind<W: World>(input: ElementId, container_kind: ClassLikeKind, world
             return false;
         }
         // If the world classifies the name, require an exact kind match.
-        // When the world is silent, accept: an unknown name shouldn't
-        // narrow stricter than mago's permissive fallback.
+        // When the world is silent, accept: an unknown name stays
+        // permissive (open-world).
         return match world.class_like_kind(value) {
             Some(k) => k == container_kind,
             None => true,
@@ -81,6 +86,7 @@ fn matches_kind<W: World>(input: ElementId, container_kind: ClassLikeKind, world
     interner().get_class_like_string(input).kind == container_kind
 }
 
+#[inline]
 fn represented_type<W: World>(elem: ElementId, world: &W) -> Option<TypeId> {
     let info = *interner().get_class_like_string(elem);
     match info.specifier {
@@ -92,6 +98,7 @@ fn represented_type<W: World>(elem: ElementId, world: &W) -> Option<TypeId> {
     }
 }
 
+#[inline]
 fn input_represented_type<W: World>(input: ElementId, world: &W) -> Option<TypeId> {
     if input.kind() == ElementKind::ClassLikeString {
         return represented_type(input, world);
@@ -108,6 +115,7 @@ fn input_represented_type<W: World>(input: ElementId, world: &W) -> Option<TypeI
     Some(name_as_object_type(value, kind, world))
 }
 
+#[inline]
 fn name_as_object_type<W: World>(name: mago_atom::Atom, kind: ClassLikeKind, _world: &W) -> TypeId {
     let i = interner();
     let element = match kind {
@@ -119,6 +127,7 @@ fn name_as_object_type<W: World>(name: mago_atom::Atom, kind: ClassLikeKind, _wo
     i.intern_type(&[element], FlowFlags::EMPTY)
 }
 
+#[inline]
 fn kind_from_world<W: World>(name: mago_atom::Atom, world: &W) -> ClassLikeKind {
     world.class_like_kind(name).unwrap_or(ClassLikeKind::Class)
 }
@@ -127,6 +136,7 @@ fn kind_from_world<W: World>(name: mago_atom::Atom, world: &W) -> ClassLikeKind 
 /// (`Foo`, `\Foo`, `Foo\Bar`, `App\Service\Logger`, …). Used to reject
 /// arbitrary string literals that don't look like class names before
 /// treating them as class-strings.
+#[inline]
 fn is_valid_class_name(s: &str) -> bool {
     let bytes = s.as_bytes();
     let len = bytes.len();
@@ -140,6 +150,7 @@ fn is_valid_class_name(s: &str) -> bool {
     let mut part_start = true;
     while i < len {
         let b = bytes[i];
+        #[allow(clippy::else_if_without_else)]
         if b == b'\\' {
             if part_start {
                 return false;

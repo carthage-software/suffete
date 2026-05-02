@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
@@ -48,13 +48,14 @@ pub enum NameSelector {
     Wildcard,
 }
 
-const _: () = assert!(size_of::<SymbolReference>() <= 24);
-const _: () = assert!(size_of::<MemberReference>() <= 24);
-const _: () = assert!(size_of::<GlobalReference>() <= 16);
-const _: () = assert!(size_of::<NameSelector>() <= 16);
+const _: () = assert!(size_of::<SymbolReference>() <= 24, "size budget exceeded");
+const _: () = assert!(size_of::<MemberReference>() <= 24, "size budget exceeded");
+const _: () = assert!(size_of::<GlobalReference>() <= 16, "size budget exceeded");
+const _: () = assert!(size_of::<NameSelector>() <= 16, "size budget exceeded");
 
-impl std::fmt::Display for NameSelector {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for NameSelector {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             NameSelector::Identifier(a) => f.write_str(a.as_str()),
             NameSelector::StartsWith(a) => write!(f, "{}*", a.as_str()),
@@ -65,8 +66,9 @@ impl std::fmt::Display for NameSelector {
     }
 }
 
-impl std::fmt::Display for SymbolReference {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for SymbolReference {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.name.as_str())?;
         if let Some(args_id) = self.type_args {
             let i = crate::interner::interner();
@@ -75,7 +77,7 @@ impl std::fmt::Display for SymbolReference {
                 if idx > 0 {
                     f.write_str(", ")?;
                 }
-                std::fmt::Display::fmt(&arg, f)?;
+                core::fmt::Display::fmt(&arg, f)?;
             }
             f.write_str(">")?;
         }
@@ -84,20 +86,23 @@ impl std::fmt::Display for SymbolReference {
 }
 
 impl SymbolReference {
+    #[inline]
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
         let _ = indent;
         self.to_string()
     }
 }
 
-impl std::fmt::Display for MemberReference {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for MemberReference {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}::{}", self.class_like_name.as_str(), self.selector)
     }
 }
 
-impl std::fmt::Display for GlobalReference {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.selector, f)
+impl core::fmt::Display for GlobalReference {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(&self.selector, f)
     }
 }

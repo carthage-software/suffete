@@ -1,6 +1,14 @@
-//! Threshold-based literal collapse: when a union exceeds the configured
-//! literal-count threshold for ints/strings/floats, the literals collapse
-//! to the base type.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod combiner_common;
 
@@ -8,7 +16,7 @@ use combiner_common::*;
 
 #[test]
 fn at_default_int_threshold_keeps_non_adjacent_literals() {
-    let n = 128_usize;
+    let n = 128usize;
     let inputs: Vec<_> = (0..n).map(|i| t_lit_int((i as i64) * 10)).collect();
     let result = combine_default(inputs);
     assert_eq!(result.len(), n);
@@ -16,7 +24,7 @@ fn at_default_int_threshold_keeps_non_adjacent_literals() {
 
 #[test]
 fn just_over_default_int_threshold_generalises() {
-    let n = 129_usize;
+    let n = 129usize;
     let inputs: Vec<_> = (0..n).map(|i| t_lit_int(i as i64)).collect();
     let result = combine_default(inputs);
     assert_eq!(result, vec![t_int()]);
@@ -24,8 +32,8 @@ fn just_over_default_int_threshold_generalises() {
 
 #[test]
 fn many_int_thresholds_walk() {
-    for threshold in [1_u16, 2, 5, 10, 32, 64, 100, 128] {
-        let inputs: Vec<_> = (0..200_i64).map(t_lit_int).collect();
+    for threshold in [1u16, 2, 5, 10, 32, 64, 100, 128] {
+        let inputs: Vec<_> = (0..200i64).map(t_lit_int).collect();
         let result = combine_with_int_threshold(inputs, threshold);
         assert_eq!(result, vec![t_int()]);
     }
@@ -33,14 +41,14 @@ fn many_int_thresholds_walk() {
 
 #[test]
 fn int_threshold_above_input_count_keeps_literals() {
-    let inputs: Vec<_> = (0..50_i64).map(t_lit_int).collect();
+    let inputs: Vec<_> = (0..50i64).map(t_lit_int).collect();
     let result = combine_with_int_threshold(inputs, 100);
     assert_eq!(result.len(), 50);
 }
 
 #[test]
 fn at_default_string_threshold_keeps_literals() {
-    let n = 128_usize;
+    let n = 128usize;
     let inputs: Vec<_> = (0..n).map(|i| t_lit_string(&format!("s{i}"))).collect();
     let result = combine_default(inputs);
     assert_eq!(result.len(), n);
@@ -48,7 +56,7 @@ fn at_default_string_threshold_keeps_literals() {
 
 #[test]
 fn just_over_default_string_threshold_generalises() {
-    let n = 129_usize;
+    let n = 129usize;
     let inputs: Vec<_> = (0..n).map(|i| t_lit_string(&format!("s{i}"))).collect();
     let result = combine_default(inputs);
     assert_eq!(result, vec![t_string()]);
@@ -56,8 +64,8 @@ fn just_over_default_string_threshold_generalises() {
 
 #[test]
 fn many_string_thresholds_walk() {
-    for threshold in [1_u16, 2, 5, 10, 32, 64, 100, 128] {
-        let inputs: Vec<_> = (0..200_usize).map(|i| t_lit_string(&format!("s{i}"))).collect();
+    for threshold in [1u16, 2, 5, 10, 32, 64, 100, 128] {
+        let inputs: Vec<_> = (0..200usize).map(|i| t_lit_string(&format!("s{i}"))).collect();
         let result = combine_with_string_threshold(inputs, threshold);
         assert_eq!(result, vec![t_string()]);
     }
@@ -65,7 +73,7 @@ fn many_string_thresholds_walk() {
 
 #[test]
 fn just_over_default_float_threshold_generalises() {
-    let n = 129_usize;
+    let n = 129usize;
     let inputs: Vec<_> = (0..n).map(|i| t_lit_float(i as f64)).collect();
     let result = combine_default(inputs);
     assert_eq!(result, vec![t_float()]);

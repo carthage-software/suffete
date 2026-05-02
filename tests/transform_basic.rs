@@ -1,7 +1,14 @@
-//! `suffete::transform` primitives: deep map, flat_map, filter_map,
-//! filter. Verifies the post-order contract, the no-op short-circuit,
-//! and the single-intern-per-level cost model (indirectly, via handle
-//! identity).
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -69,8 +76,8 @@ fn map_post_order_sees_rebuilt_children() {
         seen.push(e);
         e
     });
-    let int_idx = seen.iter().position(|e| *e == t_int()).expect("int leaf seen");
-    let list_idx = seen.iter().position(|e| e.kind() == suffete::ElementKind::List).expect("list seen");
+    let Some(int_idx) = seen.iter().position(|e| *e == t_int()) else { panic!("int leaf seen") };
+    let Some(list_idx) = seen.iter().position(|e| e.kind() == suffete::ElementKind::List) else { panic!("list seen") };
     assert!(int_idx < list_idx, "post-order: leaf must be visited before its container");
 }
 

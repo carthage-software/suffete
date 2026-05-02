@@ -17,7 +17,7 @@
 //!
 //! Post-order. Nested types are rebuilt first, then the closure is
 //! invoked on the (possibly rebuilt) element. The closure therefore
-//! sees an element whose nested types have already been transformed —
+//! sees an element whose nested types have already been transformed ;
 //! useful when the decision depends on the final shape of the
 //! children.
 //!
@@ -32,7 +32,7 @@
 //!
 //! When the closure returns each element unchanged at every level (and
 //! no recursion observed a change), the original `TypeId` is returned
-//! verbatim — no intern call at all.
+//! verbatim ; no intern call at all.
 
 mod walk;
 
@@ -48,6 +48,7 @@ use self::walk::walk;
 ///
 /// Returns the original `TypeId` unchanged when the closure returned
 /// each element identical at every level.
+#[inline]
 pub fn map<F: FnMut(ElementId) -> ElementId>(ty: TypeId, mut f: F) -> TypeId {
     walk(ty, &mut |elem| {
         let replaced = f(elem);
@@ -58,6 +59,7 @@ pub fn map<F: FnMut(ElementId) -> ElementId>(ty: TypeId, mut f: F) -> TypeId {
 /// Apply `f` to every element, replacing each with zero or more
 /// elements. Returning an empty iterator drops the element from the
 /// surrounding union (collapses to `never` if the level becomes empty).
+#[inline]
 pub fn flat_map<F, I>(ty: TypeId, mut f: F) -> TypeId
 where
     F: FnMut(ElementId) -> I,
@@ -76,6 +78,7 @@ where
 
 /// Apply `f` to every element, dropping any element for which `f`
 /// returns `None`.
+#[inline]
 pub fn filter_map<F: FnMut(ElementId) -> Option<ElementId>>(ty: TypeId, mut f: F) -> TypeId {
     walk(ty, &mut |elem| match f(elem) {
         Some(replaced) if replaced == elem => Outcome::Unchanged,
@@ -85,6 +88,7 @@ pub fn filter_map<F: FnMut(ElementId) -> Option<ElementId>>(ty: TypeId, mut f: F
 }
 
 /// Drop every element for which `predicate` returns `false`.
+#[inline]
 pub fn filter<F: FnMut(&ElementId) -> bool>(ty: TypeId, mut predicate: F) -> TypeId {
     walk(ty, &mut |elem| if predicate(&elem) { Outcome::Unchanged } else { Outcome::Drop })
 }

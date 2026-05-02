@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
@@ -46,21 +46,25 @@ impl StringRefinementFlags {
     const IS_CALLABLE: u8 = 1 << 3;
 
     #[inline]
+    #[must_use] 
     pub const fn is_numeric(self) -> bool {
         self.0 & Self::IS_NUMERIC != 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn is_truthy(self) -> bool {
         self.0 & Self::IS_TRUTHY != 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn is_non_empty(self) -> bool {
         self.0 & Self::IS_NON_EMPTY != 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn is_callable(self) -> bool {
         self.0 & Self::IS_CALLABLE != 0
     }
@@ -89,7 +93,7 @@ impl StringRefinementFlags {
         Self(if on { self.0 | Self::IS_CALLABLE } else { self.0 & !Self::IS_CALLABLE })
     }
 
-    /// Bitwise AND of two flag sets — keeps a flag only when both sides
+    /// Bitwise AND of two flag sets ; keeps a flag only when both sides
     /// have it. Used by the join's string-axis merge.
     #[inline]
     #[must_use]
@@ -97,7 +101,7 @@ impl StringRefinementFlags {
         Self(self.0 & other.0)
     }
 
-    /// Bitwise OR of two flag sets — keeps a flag when either side has
+    /// Bitwise OR of two flag sets ; keeps a flag when either side has
     /// it. Used by the meet's string-axis composition.
     #[inline]
     #[must_use]
@@ -108,27 +112,25 @@ impl StringRefinementFlags {
 
 // `StringLiteral` is the size driver: `Value(Atom)` is 8 bytes, plus 1 byte
 // tag, padded to 16. Plus 1 byte casing + 1 byte flags = 18, padded to 24.
-const _: () = assert!(size_of::<StringInfo>() <= 24);
-const _: () = assert!(size_of::<StringLiteral>() <= 16);
-const _: () = assert!(size_of::<StringRefinementFlags>() == 1);
+const _: () = assert!(size_of::<StringInfo>() <= 24, "size budget exceeded");
+const _: () = assert!(size_of::<StringLiteral>() <= 16, "size budget exceeded");
+const _: () = assert!(size_of::<StringRefinementFlags>() == 1, "size budget exceeded");
 
-impl std::fmt::Display for StringInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let StringLiteral::Value(value) = self.literal {
-            return write!(f, "string('{}')", value.as_str());
-        }
-
+impl core::fmt::Display for StringInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let label = match self.literal {
+            StringLiteral::Value(value) => return write!(f, "string('{}')", value.as_str()),
             StringLiteral::Unspecified => label_literal_string(self),
             StringLiteral::None => label_general_string(self),
-            StringLiteral::Value(_) => unreachable!(),
         };
 
         f.write_str(label)
     }
 }
 
-fn label_literal_string(info: &StringInfo) -> &'static str {
+#[inline]
+const fn label_literal_string(info: &StringInfo) -> &'static str {
     if info.flags.is_truthy() {
         if info.flags.is_numeric() {
             "truthy-numeric-literal-string"
@@ -156,7 +158,8 @@ fn label_literal_string(info: &StringInfo) -> &'static str {
     }
 }
 
-fn label_general_string(info: &StringInfo) -> &'static str {
+#[inline]
+const fn label_general_string(info: &StringInfo) -> &'static str {
     if info.flags.is_callable() {
         return match info.casing {
             StringCasing::Lowercase => "lowercase-callable-string",

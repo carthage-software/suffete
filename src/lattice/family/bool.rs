@@ -11,6 +11,8 @@ use crate::prelude::TRUE;
 /// `true | false <: bool`. The dispatcher passes `container` for symmetry
 /// with other families; here it must be `BOOL`. Reflexivity (`bool <: bool`)
 /// is the dispatcher's responsibility.
+#[inline]
+#[must_use] 
 pub fn refines(input: ElementId, _container: ElementId) -> bool {
     input == TRUE || input == FALSE
 }

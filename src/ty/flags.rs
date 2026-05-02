@@ -1,9 +1,9 @@
 /// Provenance and analysis-state bits attached to a [`Type`](crate::Type).
 ///
-/// Per spec §1, flow flags do not participate in the denotational meaning of
-/// a type: two unions with identical elements but different flags inhabit
-/// the same set of values. They affect diagnostics, narrowing, and
-/// substitution.
+/// Flow flags do not participate in the denotational meaning of a
+/// type: two unions with identical elements but different flags
+/// inhabit the same set of values. They affect diagnostics,
+/// narrowing, and substitution.
 ///
 /// Flow flags **do** participate in the [`TypeId`](crate::TypeId) interner
 /// key: two unions with identical elements but different flags get different
@@ -26,11 +26,13 @@ impl FlowFlags {
     const REFERENCE_FREE: u16 = 1 << 9;
 
     #[inline]
+    #[must_use] 
     pub const fn bits(self) -> u16 {
         self.0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn from_bits(bits: u16) -> Self {
         Self(bits)
     }

@@ -1,6 +1,8 @@
+#![allow(clippy::pub_use, clippy::arithmetic_side_effects)]
+
 //! Type expansion: resolve non-structural type forms (`Alias`,
 //! `Reference`, `Derived`, `Conditional`, contextual keywords) into
-//! their structural definitions, per `type-system/generics.md` §7.
+//! their structural definitions.
 //!
 //! [`expand`] is the no-context entry point for callers that just want
 //! `Alias` / `Reference` / `Derived` resolution. [`expand_with`] takes
@@ -21,7 +23,7 @@
 //!
 //! # Structural descent
 //!
-//! Per `§7.4`, expansion descends into every nested type — `Object`
+//! Expansion descends into every nested type: `Object`
 //! type arguments, list / keyed-array / iterable element-types, sealed
 //! known items, class-like-string constraints, generic-parameter
 //! constraints, conditional / derived / callable operands. The walk
@@ -62,20 +64,23 @@ use crate::world::World;
 /// Resolve every expandable atom inside `ty` against `world`, with the
 /// default expansion context (no contextual class names, conditionals
 /// preserved).
+#[inline]
 pub fn expand<W: World>(ty: TypeId, world: &W) -> TypeId {
     expand_with(ty, world, &ExpansionContext::default())
 }
 
 /// Like [`expand`] but with a caller-supplied [`ExpansionContext`].
 /// Returns the same `TypeId` handle when nothing changed.
+#[inline]
 pub fn expand_with<W: World>(ty: TypeId, world: &W, ctx: &ExpansionContext) -> TypeId {
     transform::flat_map(ty, |elem| resolve_element(elem, world, ctx))
 }
 
 /// Per-element resolution. By the time this fires, [`crate::transform`]
 /// has already recursively walked every nested `TypeId` carried in
-/// `elem`'s payload — the closure receives an element whose children
+/// `elem`'s payload ; the closure receives an element whose children
 /// are fully expanded.
+#[inline]
 fn resolve_element<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     match elem.kind() {
         ElementKind::Alias => resolve_alias(elem, world, ctx),
@@ -90,6 +95,7 @@ fn resolve_element<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext)
     }
 }
 
+#[inline]
 fn resolve_alias<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     if !ctx.eval_aliases {
         return vec![elem];
@@ -107,6 +113,7 @@ fn resolve_alias<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -
 /// surrounding [`crate::transform`] call, so we just reuse them.
 /// Contextual keyword substitution applies (a `self` / `static` /
 /// `parent` reference picks up the corresponding context entry).
+#[inline]
 fn resolve_reference<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     let i = interner();
     let info = *i.get_reference(elem);
@@ -135,8 +142,9 @@ fn resolve_reference<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContex
 
 /// Replace a free `GenericParameter` atom with its constraint. Gated
 /// on [`ExpansionContext::substitute_template_constraints`]; when off,
-/// the atom passes through (the common case — comparing two template
+/// the atom passes through (the common case ; comparing two template
 /// parameters for identity must see them as opaque).
+#[inline]
 fn resolve_generic_parameter(elem: ElementId, ctx: &ExpansionContext) -> Vec<ElementId> {
     if !ctx.substitute_template_constraints {
         return vec![elem];
@@ -150,6 +158,7 @@ fn resolve_generic_parameter(elem: ElementId, ctx: &ExpansionContext) -> Vec<Ele
 /// [`World::class_constant_type`], recursively expanded. Other
 /// selectors (wildcard / prefix / suffix) need a constant-enumeration
 /// query and pass through unchanged for now.
+#[inline]
 fn resolve_member_reference<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     if !ctx.eval_class_constants {
         return vec![elem];
@@ -166,6 +175,7 @@ fn resolve_member_reference<W: World>(elem: ElementId, world: &W, ctx: &Expansio
 
 /// A global constant reference resolves through
 /// [`World::global_constant_type`]. Wildcard selectors pass through.
+#[inline]
 fn resolve_global_reference<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     if !ctx.eval_global_constants {
         return vec![elem];
@@ -180,6 +190,7 @@ fn resolve_global_reference<W: World>(elem: ElementId, world: &W, ctx: &Expansio
     expand_with(body, world, ctx).as_ref().elements.to_vec()
 }
 
+#[inline]
 fn resolve_derived<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     let info = *interner().get_derived(elem);
     let evaluated = match info {
@@ -206,11 +217,12 @@ fn resolve_derived<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext)
 /// decided via the lattice. A subtype hit picks the then-branch (or
 /// the otherwise-branch when negated); a disjoint pair picks the
 /// other side; an undecidable test widens to the union of both
-/// branches (per spec §7.3).
+/// branches ().
 ///
 /// When `ctx.eval_conditional` is off, the atom is preserved
-/// unchanged — its operands have already been walked by the enclosing
+/// unchanged ; its operands have already been walked by the enclosing
 /// transform call.
+#[inline]
 fn resolve_conditional<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     if !ctx.eval_conditional {
         return vec![elem];
@@ -248,11 +260,13 @@ fn resolve_conditional<W: World>(elem: ElementId, world: &W, ctx: &ExpansionCont
 ///   needed).
 /// - Default-fill of unfilled generic positions when
 ///   [`ExpansionContext::fill_template_defaults`] is on.
+#[inline]
 fn resolve_object<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) -> Vec<ElementId> {
     let i = interner();
     let mut info = *i.get_object(elem);
     let mut changed = false;
 
+    #[allow(clippy::else_if_without_else)]
     if let Some(class) = resolve_keyword_name(info.name, info.flags, ctx) {
         info = ObjectInfo { name: class, flags: info.flags.with_is_static(false).with_is_this(false), ..info };
         changed = true;
@@ -281,6 +295,7 @@ fn resolve_object<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContext) 
 /// modality flags to a concrete class name pulled from `ctx`. Returns
 /// `None` when no keyword applies (the atom is a plain `Named(C)`) or
 /// when the context lacks the required entry.
+#[inline]
 fn resolve_keyword_name(name: Atom, flags: ObjectFlags, ctx: &ExpansionContext) -> Option<Atom> {
     let name_str = name.as_str();
     if flags.is_this() || flags.is_static() || name_str == "static" {
@@ -294,8 +309,9 @@ fn resolve_keyword_name(name: Atom, flags: ObjectFlags, ctx: &ExpansionContext) 
     }
 }
 
-/// `key-of<τ>` per spec §7.3: keys admissible by `τ`. Operand has
+/// `key-of<τ>`: keys admissible by `τ`. Operand has
 /// already been expanded by the surrounding walk.
+#[inline]
 fn eval_key_of(target: TypeId) -> TypeId {
     let elems = target.as_ref().elements;
     if elems.len() != 1 {
@@ -313,9 +329,9 @@ fn eval_key_of(target: TypeId) -> TypeId {
                 }
             }
             match info.known_count {
-                Some(n) => {
-                    let n = n.get() as i64;
-                    keys.push(ElementId::int_range(Some(0), Some(n - 1)));
+                Some(count_nz) => {
+                    let count = count_nz.get() as i64;
+                    keys.push(ElementId::int_range(Some(0), Some(count - 1)));
                 }
                 None => {
                     keys.push(NON_NEGATIVE_INT);
@@ -355,7 +371,8 @@ fn eval_key_of(target: TypeId) -> TypeId {
     }
 }
 
-/// `value-of<τ>` per spec §7.3: values admissible by `τ`.
+/// `value-of<τ>`: values admissible by `τ`.
+#[inline]
 fn eval_value_of(target: TypeId) -> TypeId {
     let elems = target.as_ref().elements;
     if elems.len() != 1 {
@@ -404,7 +421,8 @@ fn eval_value_of(target: TypeId) -> TypeId {
     }
 }
 
-/// `τ[κ]` per spec §7.3.
+/// `τ[κ]`.
+#[inline]
 fn eval_index_access(target: TypeId, index: TypeId) -> TypeId {
     let target_elems = target.as_ref().elements;
     let index_elems = index.as_ref().elements;
@@ -466,6 +484,7 @@ fn eval_index_access(target: TypeId, index: TypeId) -> TypeId {
     }
 }
 
+#[inline]
 fn single_string_literal_atom_from_element(elem: ElementId) -> Option<Atom> {
     use crate::element::payload::scalar::StringLiteral;
     if elem.kind() != ElementKind::String {
@@ -477,6 +496,7 @@ fn single_string_literal_atom_from_element(elem: ElementId) -> Option<Atom> {
     }
 }
 
+#[inline]
 fn eval_int_mask(operands: crate::TypeListId) -> TypeId {
     let i = interner();
     let raw = i.get_type_list(operands);
@@ -494,6 +514,7 @@ fn eval_int_mask(operands: crate::TypeListId) -> TypeId {
     int_mask_union(&literals)
 }
 
+#[inline]
 fn eval_int_mask_of(target: TypeId) -> TypeId {
     let mut literals: Vec<i64> = Vec::new();
     for &el in target.as_ref().elements {
@@ -505,6 +526,7 @@ fn eval_int_mask_of(target: TypeId) -> TypeId {
     int_mask_union(&literals)
 }
 
+#[inline]
 fn int_mask_union(literals: &[i64]) -> TypeId {
     let n = literals.len();
     if n == 0 {
@@ -514,7 +536,7 @@ fn int_mask_union(literals: &[i64]) -> TypeId {
         return TYPE_INT;
     }
     let total = 1u32 << n;
-    let mut values: std::collections::BTreeSet<i64> = std::collections::BTreeSet::new();
+    let mut values: alloc::collections::BTreeSet<i64> = alloc::collections::BTreeSet::new();
     for mask in 0..total {
         let mut acc: i64 = 0;
         for (bit, &lit) in literals.iter().enumerate() {
@@ -528,6 +550,7 @@ fn int_mask_union(literals: &[i64]) -> TypeId {
     TypeId::union(&elems)
 }
 
+#[inline]
 fn eval_template_type<W: World>(
     class_name: TypeId,
     template_name: TypeId,
@@ -541,10 +564,11 @@ fn eval_template_type<W: World>(
     Some(expand_with(parameter.upper_bound.unwrap_or(TYPE_MIXED), world, ctx))
 }
 
-/// `properties-of<C>` per spec §7.3: enumerate `C`'s declared
+/// `properties-of<C>`: enumerate `C`'s declared
 /// properties and produce a sealed `array{name: type, ...}` shape.
 /// `visibility` filters the enumeration; `None` keeps every visible
 /// property.
+#[inline]
 fn eval_properties_of<W: World>(
     target: TypeId,
     visibility: Option<crate::element::payload::Visibility>,
@@ -581,11 +605,12 @@ fn eval_properties_of<W: World>(
     Some(TypeId::union(&[i.intern_array(info)]))
 }
 
-/// `new<C>` per spec §7.3: the type produced by `new C(...)`. The
+/// `new<C>`: the type produced by `new C(...)`. The
 /// constructor-driven template inference path is left for a later
 /// stage; this first cut produces `Object(C)` (with `mixed` filled in
 /// for any templates `C` declares) so the result at least has the
 /// right nominal class.
+#[inline]
 fn eval_new<W: World>(target: TypeId, world: &W) -> Option<TypeId> {
     let class = extract_class_name_from_class_string_or_object(target)?;
 
@@ -610,6 +635,7 @@ fn eval_new<W: World>(target: TypeId, world: &W) -> Option<TypeId> {
 /// Try to read a class-like name from `ty`, accepting either a single
 /// `Object(C)` / `Reference(C)` atom or a single literal class-string
 /// `class-string<Foo>`.
+#[inline]
 fn extract_class_name_from_class_string_or_object(ty: TypeId) -> Option<Atom> {
     let elems = ty.as_ref().elements;
     if elems.len() != 1 {
@@ -627,6 +653,7 @@ fn extract_class_name_from_class_string_or_object(ty: TypeId) -> Option<Atom> {
     }
 }
 
+#[inline]
 fn single_object_or_reference_name(ty: TypeId) -> Option<Atom> {
     let elems = ty.as_ref().elements;
     if elems.len() != 1 {
@@ -640,6 +667,7 @@ fn single_object_or_reference_name(ty: TypeId) -> Option<Atom> {
     }
 }
 
+#[inline]
 fn single_string_literal_atom(ty: TypeId) -> Option<Atom> {
     let elems = ty.as_ref().elements;
     if elems.len() != 1 || elems[0].kind() != ElementKind::String {
@@ -652,6 +680,7 @@ fn single_string_literal_atom(ty: TypeId) -> Option<Atom> {
     }
 }
 
+#[inline]
 fn array_key_to_element(key: ArrayKey) -> Option<ElementId> {
     match key {
         ArrayKey::Int(n) => Some(ElementId::int_literal(n)),
@@ -660,6 +689,7 @@ fn array_key_to_element(key: ArrayKey) -> Option<ElementId> {
     }
 }
 
+#[inline]
 fn element_to_array_key(elem: ElementId) -> Option<ArrayKey> {
     let i = interner();
     match elem.kind() {
@@ -678,6 +708,7 @@ fn element_to_array_key(elem: ElementId) -> Option<ArrayKey> {
     }
 }
 
+#[inline]
 fn literal_int(elem: ElementId) -> Option<i64> {
     if elem.kind() != ElementKind::Int {
         return None;

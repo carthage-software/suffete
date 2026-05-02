@@ -16,6 +16,8 @@ use crate::ElementKind;
 use crate::element::payload::scalar::FloatInfo;
 use crate::interner::interner;
 
+#[inline]
+#[must_use] 
 pub fn refines(input: ElementId, container: ElementId) -> bool {
     if input.kind() != ElementKind::Float {
         return false;

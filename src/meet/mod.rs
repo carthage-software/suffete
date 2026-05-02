@@ -1,4 +1,4 @@
-//! Lattice meet (greatest lower bound) — the type-returning intersection.
+//! Lattice meet (greatest lower bound): the type-returning intersection.
 //!
 //! Two entry points:
 //!
@@ -18,14 +18,14 @@
 //!
 //! # Strategy
 //!
-//! Intersection distributes over union (intersection.md §2.1): for each
+//! Intersection distributes over union: for each
 //! element on either side we compute pairwise atom meets, drop the
 //! disjoint pairs, and union the surviving atoms.
 //!
-//! Atom-pair meet (intersection.md §2.2) walks these rules in order:
+//! Atom-pair meet walks these rules in order:
 //!
 //! 1. Reflexivity / `never` / `mixed` / `placeholder`.
-//! 2. Subsumption — if either side refines the other, the more specific
+//! 2. Subsumption: if either side refines the other, the more specific
 //!    one is the meet.
 //! 3. Family-specific positive rules in [`family`] (integer ranges,
 //!    string axes + numeric-string crossing, list / keyed-array shape
@@ -37,7 +37,7 @@
 //! Returning [`prelude::TYPE_NEVER`] for a pair that actually overlaps is
 //! a precision loss but never an unsoundness: `never <: anything` so the
 //! lower-bound axiom holds. As family rules grow, what previously
-//! collapsed to `never` becomes the real meet — every step is monotone
+//! collapsed to `never` becomes the real meet; every step is monotone
 //! in result precision. The same precision debt feeds the classifier in
 //! [`narrow`]: an unhandled overlap pair will be misreported as
 //! `Impossible`, never as a false `Redundant`/`Narrowed`.
@@ -75,7 +75,9 @@ pub enum MeetOutcome {
 impl MeetOutcome {
     /// Extract the resulting [`TypeId`], mapping `Impossible` to
     /// [`prelude::TYPE_NEVER`].
-    pub fn into_type(self) -> TypeId {
+    #[inline]
+    #[must_use] 
+    pub const fn into_type(self) -> TypeId {
         match self {
             Self::Impossible => TYPE_NEVER,
             Self::Redundant(t) | Self::Narrowed(t) => t,
@@ -91,6 +93,7 @@ impl MeetOutcome {
 /// `result <: input` and `result <: narrowing` always hold for the
 /// `Narrowed` and `Redundant` variants; `Impossible` corresponds to
 /// `result ≡ ⊥`.
+#[inline]
 pub fn narrow<W: World>(
     input: TypeId,
     narrowing: TypeId,
@@ -106,8 +109,8 @@ pub fn narrow<W: World>(
     let narrowing_type = narrowing.as_ref();
 
     let mut atoms: Vec<ElementId> = Vec::new();
-    for &x in input_type.elements.iter() {
-        for &y in narrowing_type.elements.iter() {
+    for &x in input_type.elements {
+        for &y in narrowing_type.elements {
             if x.kind() == ElementKind::Negated || y.kind() == ElementKind::Negated {
                 atoms.extend(negated_atom_meet_multi(x, y, world, options, report));
                 continue;
@@ -130,12 +133,14 @@ pub fn narrow<W: World>(
     if result == input { MeetOutcome::Redundant(input) } else { MeetOutcome::Narrowed(result) }
 }
 
-/// Compute `A ∧ B`: the largest type whose values are in both `A` and
-/// `B`. Returns [`prelude::TYPE_NEVER`] when the two are disjoint (or
-/// when no rule yet describes their overlap; precision can only grow).
+/// Compute `A ∧ B`: the largest type whose values are in both `A` and `B`.
+///
+/// Returns [`prelude::TYPE_NEVER`] when the two are disjoint (or when no
+/// rule yet describes their overlap; precision can only grow).
 ///
 /// This is a thin wrapper over [`narrow`] for callers that don't need
 /// the assertion classification.
+#[inline]
 pub fn compute<W: World>(
     a: TypeId,
     b: TypeId,
@@ -146,6 +151,7 @@ pub fn compute<W: World>(
     narrow(a, b, world, options, report).into_type()
 }
 
+#[inline]
 fn atom_meet<W: World>(
     a: ElementId,
     b: ElementId,
@@ -178,14 +184,10 @@ fn atom_meet<W: World>(
         return None;
     }
 
-    // `meet(X, !T)` ≡ `subtract(X, T)`: route through subtract so
-    // `Negated` participation flows through the existing per-kind
-    // subtract rules. The symmetric case mirrors. `meet(!T, !U)` =
-    // `!(T ∪ U)`, expressed by interning the negation of the union.
-    // `narrow` handles the multi-atom case directly via
-    // [`negated_atom_meet_multi`]; this single-atom path is reached
-    // only from internal callers and conservatively drops when the
-    // result needs more than one atom.
+    // `meet(X, !T) ≡ subtract(X, T)`; `meet(!T, !U) ≡ !(T ∪ U)`.
+    // `narrow` handles multi-atom results via
+    // [`negated_atom_meet_multi`]; this single-atom path drops
+    // conservatively when the result needs more than one atom.
     if a.kind() == ElementKind::Negated || b.kind() == ElementKind::Negated {
         return negated_atom_meet(a, b, world, options, report);
     }
@@ -207,18 +209,10 @@ fn atom_meet<W: World>(
     family_atom_meet(a, b, world, options, report)
 }
 
-/// Cross-dominator pair meet: when neither side `refines` the other
-/// but their value-sets share members, decompose into the shared
-/// primitive members. Mirrors the symmetric overlap rule in
-/// [`crate::lattice::overlaps::family_overlap`] so the precision is
-/// consistent across `meet` / `overlaps`.
-///
-/// Today the only pair that needs this treatment is
-/// `(ArrayKey, Numeric)`: both contain `int` and the
-/// `string ∩ numeric` axis (numeric strings) but neither is a
-/// subset of the other, so subsumption can't fire.
-/// `(Scalar, Numeric)` and `(Scalar, ArrayKey)` already collapse
-/// via subsumption (the smaller side refines the larger).
+/// Cross-dominator pair meet: `(ArrayKey, Numeric)` shares `int`
+/// and `numeric-string` but neither dominates, so subsumption
+/// can't fire. `(Scalar, *)` already collapses via subsumption.
+#[inline]
 fn cross_dominator_meet(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
     use crate::prelude::INT;
     use crate::prelude::NUMERIC_STRING;
@@ -231,10 +225,10 @@ fn cross_dominator_meet(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
     None
 }
 
-/// Multi-atom variant of [`negated_atom_meet`] used by [`narrow`].
-/// Produces every atom in the meet without forcing a single-atom
-/// representation, so `meet(non-negative-int, !int(1))` correctly
-/// yields `[int(0), int<2,∞>]` instead of dropping to `None`.
+/// Multi-atom variant of [`negated_atom_meet`] used by [`narrow`]:
+/// returns every surviving atom (e.g. `meet(non-negative-int, !int(1))`
+/// yields `[int(0), int<2,∞>]`).
+#[inline]
 fn negated_atom_meet_multi<W: World>(
     a: ElementId,
     b: ElementId,
@@ -257,10 +251,9 @@ fn negated_atom_meet_multi<W: World>(
     surviving.as_ref().elements.to_vec()
 }
 
-/// `meet(!T, !U) ≡ !(T ∪ U)`, with two collapses: when `T <: U` the
-/// union is `U` and the result is just `!U`; symmetrically for
-/// `U <: T`. Falls back to interning the negation of the structural
-/// union when neither side dominates.
+/// `meet(!T, !U) ≡ !(T ∪ U)`. When `T <: U` the union collapses
+/// to `U` and the result is `!U`; symmetric for `U <: T`.
+#[inline]
 fn negated_pair_meet<W: World>(
     a: ElementId,
     b: ElementId,
@@ -292,6 +285,7 @@ fn negated_pair_meet<W: World>(
 /// drop to `None` and let the caller (via the loop in `narrow`)
 /// fall back through other meet pairs. A future refactor of
 /// `atom_meet` to return `Vec<ElementId>` would make this exact.
+#[inline]
 fn negated_atom_meet<W: World>(
     a: ElementId,
     b: ElementId,
@@ -321,6 +315,7 @@ fn negated_atom_meet<W: World>(
     None
 }
 
+#[inline]
 fn family_atom_meet<W: World>(
     a: ElementId,
     b: ElementId,

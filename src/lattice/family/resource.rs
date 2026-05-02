@@ -10,6 +10,8 @@ use crate::interner::interner;
 
 /// `Open <: Resource` and `Closed <: Resource`. Reflexivity is the
 /// dispatcher's job.
+#[inline]
+#[must_use] 
 pub fn refines(input: ElementId, container: ElementId) -> bool {
     if input.kind() != ElementKind::Resource {
         return false;

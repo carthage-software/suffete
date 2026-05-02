@@ -1,5 +1,6 @@
-//! Standin replacement: template inference at call sites, per
-//! `type-system/generics.md` §4.2.
+#![allow(clippy::arithmetic_side_effects)]
+
+//! Standin replacement: template inference at call sites.
 //!
 //! The operation walks a *parameter type* alongside an *argument
 //! type* in lockstep. Wherever the parameter mentions a template
@@ -7,8 +8,8 @@
 //! sub-type of the argument; the parameter slot itself is replaced by
 //! `T`'s constraint (the loosest type a value at that position can
 //! still inhabit). The caller threads the same [`TemplateState`] across
-//! every parameter of a call site, then runs bound reconciliation
-//! (§6) to materialise each `T`'s witness.
+//! every parameter of a call site, then runs bound reconciliation to
+//! materialise each `T`'s witness.
 //!
 //! # Public API
 //!
@@ -32,13 +33,13 @@
 //!   walks on key and value.
 //! - Distribution over union: each parameter atom inspects every
 //!   argument atom that could contribute (literal-equal atoms are
-//!   filtered per spec §4.2.4 once that case is observed).
+//!   filtered once that case is observed).
 //!
 //! Other parameter shapes (keyed arrays, callables, descendant generic
 //! objects, conditional/derived parameters) pass through unchanged for
 //! now; precision can only grow as more co-traversal cases land.
 
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use mago_atom::Atom;
 use mago_span::Span;
@@ -56,13 +57,13 @@ use crate::world::World;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum BoundKind {
-    /// `T ≽ τ` — `T` must be a supertype of `τ`. Collected at
+    /// `T ≽ τ` ; `T` must be a supertype of `τ`. Collected at
     /// covariant positions.
     Lower,
-    /// `T ≼ τ` — `T` must be a subtype of `τ`. Collected at
+    /// `T ≼ τ` ; `T` must be a subtype of `τ`. Collected at
     /// contravariant positions.
     Upper,
-    /// `T = τ` — collected at invariant positions; equivalent to a
+    /// `T = τ` ; collected at invariant positions; equivalent to a
     /// Lower and Upper bound at the same time.
     Equality,
 }
@@ -73,11 +74,11 @@ pub enum BoundKind {
 pub struct Bound {
     pub kind: BoundKind,
     pub ty: TypeId,
-    /// Call-site argument index (per spec §4.2.2).
+    /// Call-site argument index.
     pub argument_offset: u32,
-    /// Structural depth at which the bound was collected (per spec
-    /// §6.2). The top of the parameter type is depth `0`; each descent
-    /// into a generic-parameter application increments by one.
+    /// Structural depth at which the bound was collected. The top of
+    /// the parameter type is depth `0`; each descent into a generic-
+    /// parameter application increments by one.
     pub depth: u32,
     /// For [`BoundKind::Equality`] bounds, the class whose template
     /// parameter declaration introduced the equality (the class whose
@@ -87,7 +88,7 @@ pub struct Bound {
     pub equality_bound_classlike: Option<Atom>,
     /// Source location of the binding site (the call argument expression
     /// that produced this bound). `None` when the caller did not supply
-    /// one — span propagation is opt-in via [`StandinOptions::span`].
+    /// one ; span propagation is opt-in via [`StandinOptions::span`].
     pub span: Option<Span>,
 }
 
@@ -104,10 +105,10 @@ pub struct TemplateKey {
 #[derive(Debug, Clone, Copy)]
 pub struct StandinOptions {
     /// The call-site argument index this walk corresponds to. Used to
-    /// tag bounds so reconciliation (§6) can group them per-position.
+    /// tag bounds so reconciliation  can group them per-position.
     pub argument_offset: u32,
     /// Variance assumed for the top-level walk. Defaults to `Invariant`
-    /// — the soundest choice when no surrounding container declares a
+    /// ; the soundest choice when no surrounding container declares a
     /// position-specific variance.
     pub default_variance: Variance,
     /// Maximum structural descent depth. Walks past this depth replace
@@ -122,6 +123,7 @@ pub struct StandinOptions {
 }
 
 impl Default for StandinOptions {
+    #[inline]
     fn default() -> Self {
         Self { argument_offset: 0, default_variance: Variance::Invariant, max_depth: 8, span: None }
     }
@@ -129,56 +131,60 @@ impl Default for StandinOptions {
 
 impl StandinOptions {
     #[must_use]
+    #[inline]
     pub const fn with_argument_offset(mut self, offset: u32) -> Self {
         self.argument_offset = offset;
         self
     }
 
     #[must_use]
+    #[inline]
     pub const fn with_default_variance(mut self, variance: Variance) -> Self {
         self.default_variance = variance;
         self
     }
 
     #[must_use]
+    #[inline]
     pub const fn with_max_depth(mut self, depth: u32) -> Self {
         self.max_depth = depth;
         self
     }
 
     #[must_use]
+    #[inline]
     pub const fn with_span(mut self, span: Span) -> Self {
         self.span = Some(span);
         self
     }
 }
 
-/// Definition of a template parameter as it exists in the inference
-/// scope, distinct from any bound inferred for it. Mirrors mago's
-/// `GenericTemplate`. See report §11 — the analyzer needs to ask "does
-/// this template exist in scope" before it asks "what was inferred",
-/// because a template never bound is indistinguishable from one that
-/// doesn't exist if you only carry bounds.
+/// Definition of a template parameter as it exists in the inference scope.
+///
+/// Distinct from any bound inferred for it. The analyzer needs to ask
+/// "does this template exist in scope" before it asks "what was
+/// inferred", because a template never bound is indistinguishable from
+/// one that doesn't exist if you only carry bounds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GenericTemplate {
     pub defining_entity: DefiningEntityId,
     pub constraint: TypeId,
 }
 
-/// Definitions, bounds, and anti-bounds collected across one or more
-/// standin walks. The same [`TemplateState`] is threaded through every
-/// parameter of a call so reconciliation sees the full set per template
-/// parameter.
+/// Definitions, bounds, and anti-bounds collected across one or more standin walks.
+///
+/// The same [`TemplateState`] is threaded through every parameter of a
+/// call so reconciliation sees the full set per template parameter.
 ///
 /// Three parallel maps:
 ///
-/// - `template_types` records *definitions* — the templates the inference
+/// - `template_types` records *definitions* ; the templates the inference
 ///   scope knows about, with their constraints.
-/// - `bounds` records *inferred bounds* — what the standin walk
+/// - `bounds` records *inferred bounds* ; what the standin walk
 ///   discovered for each template.
-/// - `anti_bounds` records types each template *cannot* be — set by the
+/// - `anti_bounds` records types each template *cannot* be ; set by the
 ///   reconciler when one branch of a conditional rules out a possibility
-///   the other branch must remember (report §13).
+///   the other branch must remember.
 ///
 /// The walk auto-declares every template it encounters; consumers can
 /// also call [`TemplateState::declare`] explicitly for templates that
@@ -191,17 +197,21 @@ pub struct TemplateState {
 }
 
 impl TemplateState {
+    #[inline]
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
     /// All bounds recorded for `(defining_entity, name)`, in insertion
     /// order. Empty when no bound has been collected.
+    #[inline]
     pub fn bounds_for(&self, key: TemplateKey) -> &[Bound] {
-        self.bounds.get(&key).map(Vec::as_slice).unwrap_or(&[])
+        self.bounds.get(&key).map_or(&[][..], Vec::as_slice)
     }
 
     /// Iterate over every recorded `(key, bounds)` pair.
+    #[inline]
     pub fn iter(&self) -> impl Iterator<Item = (&TemplateKey, &[Bound])> {
         self.bounds.iter().map(|(k, v)| (k, v.as_slice()))
     }
@@ -210,12 +220,15 @@ impl TemplateState {
     /// the same `(key, constraint)` pair; subsequent calls with a
     /// different constraint overwrite (the latest declaration wins, as
     /// inner scopes shadow outer ones).
+    #[inline]
     pub fn declare(&mut self, key: TemplateKey, constraint: TypeId) {
         self.template_types.insert(key, GenericTemplate { defining_entity: key.defining_entity, constraint });
     }
 
     /// Declaration recorded for `key`, or `None` when the template has
     /// never been declared (or auto-declared by a walk).
+    #[inline]
+    #[must_use] 
     pub fn declaration(&self, key: TemplateKey) -> Option<&GenericTemplate> {
         self.template_types.get(&key)
     }
@@ -223,11 +236,14 @@ impl TemplateState {
     /// `true` iff `key` has a declaration recorded. The analyzer uses
     /// this to distinguish "no bound was inferred for an in-scope
     /// template" from "this template doesn't exist in this scope".
+    #[inline]
+    #[must_use] 
     pub fn is_declared(&self, key: TemplateKey) -> bool {
         self.template_types.contains_key(&key)
     }
 
     /// Iterate over every recorded `(key, declaration)` pair.
+    #[inline]
     pub fn declarations(&self) -> impl Iterator<Item = (&TemplateKey, &GenericTemplate)> {
         self.template_types.iter()
     }
@@ -235,12 +251,14 @@ impl TemplateState {
     /// Iterate every `(key, bounds)` pair whose defining entity matches
     /// `entity`. The analyzer uses this to walk a single class's
     /// inferences without touching unrelated scopes.
+    #[inline]
     pub fn bounds_in_scope(&self, entity: DefiningEntityId) -> impl Iterator<Item = (&TemplateKey, &[Bound])> {
         self.bounds.iter().filter(move |(k, _)| k.defining_entity == entity).map(|(k, v)| (k, v.as_slice()))
     }
 
     /// Iterate every `(key, declaration)` pair whose defining entity
     /// matches `entity`.
+    #[inline]
     pub fn declarations_in_scope(
         &self,
         entity: DefiningEntityId,
@@ -251,18 +269,21 @@ impl TemplateState {
     /// Record a type that `key`'s template may **not** be. Used by the
     /// reconciler when a conditional branch rules out a possibility the
     /// other branch must remember.
+    #[inline]
     pub fn add_anti_bound(&mut self, key: TemplateKey, ty: TypeId) {
         self.anti_bounds.entry(key).or_default().push(ty);
     }
 
     /// Types `key`'s template is forbidden from being. Empty when no
     /// anti-bounds have been recorded.
+    #[inline]
     pub fn anti_bounds_for(&self, key: TemplateKey) -> &[TypeId] {
-        self.anti_bounds.get(&key).map(Vec::as_slice).unwrap_or(&[])
+        self.anti_bounds.get(&key).map_or(&[][..], Vec::as_slice)
     }
 
     /// Iterate every `(key, anti-bounds)` pair whose defining entity
     /// matches `entity`.
+    #[inline]
     pub fn anti_bounds_in_scope(&self, entity: DefiningEntityId) -> impl Iterator<Item = (&TemplateKey, &[TypeId])> {
         self.anti_bounds.iter().filter(move |(k, _)| k.defining_entity == entity).map(|(k, v)| (k, v.as_slice()))
     }
@@ -272,6 +293,7 @@ impl TemplateState {
     /// the parent's inferences must propagate up under the child's
     /// entity. Bounds and anti-bounds append (the destination's
     /// existing list grows); declarations overwrite (latest scope wins).
+    #[inline]
     pub fn merge_scope(&mut self, from: DefiningEntityId, to: DefiningEntityId) {
         if from == to {
             return;
@@ -305,21 +327,25 @@ impl TemplateState {
     ///
     /// Once inference for a call site is complete, the analyzer freezes
     /// the state so later substitution passes cannot accidentally mutate
-    /// it (report §14). The split is type-state: callers who need to
+    /// it. The split is type-state: callers who need to
     /// keep adding bounds must keep the [`TemplateState`] handle; once
     /// substitution starts they take a [`TemplateResult`] and the type
     /// system rules out any further accumulation.
+    #[inline]
+    #[must_use] 
     pub fn freeze(self) -> TemplateResult {
         TemplateResult { template_types: self.template_types, bounds: self.bounds, anti_bounds: self.anti_bounds }
     }
 
+    #[inline]
     fn record(&mut self, key: TemplateKey, bound: Bound) {
         self.bounds.entry(key).or_default().push(bound);
     }
 }
 
-/// Read-only view of template definitions, bounds, and anti-bounds
-/// produced by [`TemplateState::freeze`]. Substitution and reconciliation
+/// Read-only view of template definitions, bounds, and anti-bounds.
+///
+/// Produced by [`TemplateState::freeze`]. Substitution and reconciliation
 /// take this; mutation is rejected at compile time because no
 /// `&mut self` methods exist.
 #[derive(Debug, Clone, Default)]
@@ -330,30 +356,39 @@ pub struct TemplateResult {
 }
 
 impl TemplateResult {
+    #[inline]
     pub fn bounds_for(&self, key: TemplateKey) -> &[Bound] {
-        self.bounds.get(&key).map(Vec::as_slice).unwrap_or(&[])
+        self.bounds.get(&key).map_or(&[][..], Vec::as_slice)
     }
 
+    #[inline]
     pub fn iter(&self) -> impl Iterator<Item = (&TemplateKey, &[Bound])> {
         self.bounds.iter().map(|(k, v)| (k, v.as_slice()))
     }
 
+    #[inline]
+    #[must_use] 
     pub fn declaration(&self, key: TemplateKey) -> Option<&GenericTemplate> {
         self.template_types.get(&key)
     }
 
+    #[inline]
+    #[must_use] 
     pub fn is_declared(&self, key: TemplateKey) -> bool {
         self.template_types.contains_key(&key)
     }
 
+    #[inline]
     pub fn declarations(&self) -> impl Iterator<Item = (&TemplateKey, &GenericTemplate)> {
         self.template_types.iter()
     }
 
+    #[inline]
     pub fn bounds_in_scope(&self, entity: DefiningEntityId) -> impl Iterator<Item = (&TemplateKey, &[Bound])> {
         self.bounds.iter().filter(move |(k, _)| k.defining_entity == entity).map(|(k, v)| (k, v.as_slice()))
     }
 
+    #[inline]
     pub fn declarations_in_scope(
         &self,
         entity: DefiningEntityId,
@@ -361,22 +396,25 @@ impl TemplateResult {
         self.template_types.iter().filter(move |(k, _)| k.defining_entity == entity)
     }
 
+    #[inline]
     pub fn anti_bounds_for(&self, key: TemplateKey) -> &[TypeId] {
-        self.anti_bounds.get(&key).map(Vec::as_slice).unwrap_or(&[])
+        self.anti_bounds.get(&key).map_or(&[][..], Vec::as_slice)
     }
 
+    #[inline]
     pub fn anti_bounds_in_scope(&self, entity: DefiningEntityId) -> impl Iterator<Item = (&TemplateKey, &[TypeId])> {
         self.anti_bounds.iter().filter(move |(k, _)| k.defining_entity == entity).map(|(k, v)| (k, v.as_slice()))
     }
 }
 
-/// Walk `parameter` and `argument` in lockstep; record bounds against
-/// any template parameters mentioned in `parameter`. Returns the
-/// refined parameter type — the standin — which mentions no template
-/// parameter from `parameter`'s defining entity.
+/// Walk `parameter` and `argument` in lockstep; record bounds against any template parameters mentioned in `parameter`.
+///
+/// Returns the refined parameter type ; the standin ; which mentions no
+/// template parameter from `parameter`'s defining entity.
 ///
 /// `state` accumulates bounds; reuse one across every parameter of a
 /// call site so reconciliation sees the full set.
+#[inline]
 pub fn standin<W: World>(
     parameter: TypeId,
     argument: TypeId,
@@ -388,6 +426,7 @@ pub fn standin<W: World>(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[inline]
 fn walk_type<W: World>(
     parameter: TypeId,
     argument: TypeId,
@@ -431,9 +470,10 @@ fn walk_type<W: World>(
     interner().intern_type(&new_elements, parameter.flags())
 }
 
-/// Past the iteration-depth cutoff (§4.2.3): replace any template
+/// Past the iteration-depth cutoff : replace any template
 /// parameter atom in `parameter` with its constraint, leaving other
-/// atoms untouched. No bound is recorded — the walk terminated.
+/// atoms untouched. No bound is recorded ; the walk terminated.
+#[inline]
 fn collapse_to_constraints(parameter: TypeId) -> TypeId {
     let i = interner();
     let p_type = parameter.as_ref();
@@ -461,6 +501,7 @@ enum Walk {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[inline]
 fn walk_element<W: World>(
     parameter: ElementId,
     argument: TypeId,
@@ -488,6 +529,7 @@ fn walk_element<W: World>(
 /// current variance, then emit `T`'s constraint as the refined type.
 /// When the constraint is unbounded (`mixed`), the standin keeps the
 /// loosest possible witness.
+#[inline]
 fn walk_generic_parameter(
     parameter: ElementId,
     argument: TypeId,
@@ -531,6 +573,7 @@ fn walk_generic_parameter(
 /// then substitute `D`'s actual type arguments to recover the type
 /// `D` passes for `C`'s `i`-th slot. The variance comes from `C`'s
 /// declaration, not `D`'s.
+#[inline]
 fn walk_object<W: World>(
     parameter: ElementId,
     argument: TypeId,
@@ -561,7 +604,7 @@ fn walk_object<W: World>(
     let mut changed = false;
     for (idx, &p_arg) in p_args.iter().enumerate() {
         let a_arg = projected_object_arg(p_info.name, &a_info, idx, world);
-        let variance = world.template_parameter_at(p_info.name, idx).map(|p| p.variance).unwrap_or(Variance::Invariant);
+        let variance = world.template_parameter_at(p_info.name, idx).map_or(Variance::Invariant, |p| p.variance);
         let refined = match a_arg {
             Some(t) => walk_type(p_arg, t, variance, depth + 1, Some(p_info.name), world, state, options),
             None => p_arg,
@@ -585,6 +628,7 @@ fn walk_object<W: World>(
 /// `argument.type_args[position]`. For descendant arguments it goes
 /// through `World::inherited_template_argument` and substitutes the
 /// argument's own template arguments into the inherited expression.
+#[inline]
 fn projected_object_arg<W: World>(
     container_class: Atom,
     argument_object: &crate::element::payload::ObjectInfo,
@@ -618,8 +662,9 @@ fn projected_object_arg<W: World>(
 
 /// `List(τ)` against `List(σ)` or `Iterable(_, σ)`: walk τ vs σ
 /// covariantly. The element type's variance is treated as covariant
-/// for inference (per spec §4.2: "covariant positions accumulate
+/// for inference (: "covariant positions accumulate
 /// lower bounds").
+#[inline]
 fn walk_list<W: World>(
     parameter: ElementId,
     argument: TypeId,
@@ -660,6 +705,7 @@ fn walk_list<W: World>(
 
 /// `Iterable(τ_K, τ_V)` against `Iterable(σ_K, σ_V)` or `List(σ)`
 /// (which exposes `int` keys and `σ` values).
+#[inline]
 fn walk_iterable<W: World>(
     parameter: ElementId,
     argument: TypeId,
@@ -706,8 +752,9 @@ fn walk_iterable<W: World>(
 /// `τ_K` against the argument's key parameter (covariantly), `τ_V`
 /// against the value parameter, and each known item against the
 /// argument's matching known item. Iterable arguments contribute their
-/// key/value to `τ_K` / `τ_V` only — known-item entries don't have a
+/// key/value to `τ_K` / `τ_V` only ; known-item entries don't have a
 /// corresponding projection.
+#[inline]
 fn walk_keyed_array<W: World>(
     parameter: ElementId,
     argument: TypeId,
@@ -751,7 +798,7 @@ fn walk_keyed_array<W: World>(
     let new_known = p_info.known_items.map(|id| {
         let p_entries = i.get_known_items(id);
         let a_entries: &[crate::element::payload::KnownItemEntry] =
-            arg.known_items.map(|aid| i.get_known_items(aid)).unwrap_or(&[]);
+            arg.known_items.map_or(&[], |aid| i.get_known_items(aid));
         let mut new_entries: Vec<crate::element::payload::KnownItemEntry> = Vec::with_capacity(p_entries.len());
         let mut changed_inner = false;
         for entry in p_entries {
@@ -794,6 +841,7 @@ struct KeyedProjection {
 /// `Callable(Sig(s_p))` against a callable argument: walk parameter
 /// types pointwise contravariantly and the return type covariantly.
 /// Aliases and `Any` callables pass through.
+#[inline]
 fn walk_callable<W: World>(
     parameter: ElementId,
     argument: TypeId,
@@ -807,9 +855,8 @@ fn walk_callable<W: World>(
 
     let i = interner();
     let p_info = *i.get_callable(parameter);
-    let p_sig_id = match p_info {
-        CallableInfo::Signature(s) | CallableInfo::Closure(s) => s,
-        _ => return Walk::Unchanged,
+    let (CallableInfo::Signature(p_sig_id) | CallableInfo::Closure(p_sig_id)) = p_info else {
+        return Walk::Unchanged;
     };
 
     let arg_sig_id = argument.as_ref().elements.iter().find_map(|&e| {
@@ -842,7 +889,7 @@ fn walk_callable<W: World>(
     let new_param_list = p_sig.parameters.map(|pid| {
         let p_params = i.get_param_list(pid);
         let a_params: &[crate::element::payload::ParamInfo] =
-            a_sig.parameters.map(|aid| i.get_param_list(aid)).unwrap_or(&[]);
+            a_sig.parameters.map_or(&[], |aid| i.get_param_list(aid));
         let mut new_params: Vec<crate::element::payload::ParamInfo> = Vec::with_capacity(p_params.len());
         let mut changed_inner = false;
         for (idx, p_param) in p_params.iter().enumerate() {
@@ -890,6 +937,7 @@ fn walk_callable<W: World>(
 /// Pass the entire argument through to the next walk. Refinements like
 /// "pick the Object atom whose name matches" happen inside each
 /// per-element handler, not here.
-fn project_argument(_parameter: ElementId, argument: TypeId) -> TypeId {
+#[inline]
+const fn project_argument(_parameter: ElementId, argument: TypeId) -> TypeId {
     argument
 }

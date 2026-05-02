@@ -1,5 +1,14 @@
-//! Generic-object comparison: type-argument variance, ancestor
-//! specialisation, multi-level chains, and the Cell<T> soundness check.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -66,7 +75,7 @@ fn cell_int_not_in_cell_scalar_exploit_rejected() {
 
     assert!(
         !atomic_is_contained(cell_int, cell_scalar, &w),
-        "Cell<int> must NOT refine Cell<scalar> — defaulting to covariant would let store_string() be called on a Cell<int>",
+        "Cell<int> must NOT refine Cell<scalar> ; defaulting to covariant would let store_string() be called on a Cell<int>",
     );
 }
 
@@ -182,7 +191,7 @@ fn unrelated_classes_disjoint_with_args() {
 
 #[test]
 fn non_generic_named_into_non_generic_descendant() {
-    // No type parameters anywhere — nominal subtyping is sufficient.
+    // No type parameters anywhere ; nominal subtyping is sufficient.
     let mut w = MockWorld::new();
     w.add_edge("Dog", "Animal");
 
@@ -196,7 +205,7 @@ fn non_generic_named_into_non_generic_descendant() {
 fn unspecialised_box_does_not_flow_into_box_int_under_invariance() {
     // `Box` (under-supplied) reads as `Box<mixed>` and is *wider* than
     // `Box<int>`, so under invariance `Box <: Box<int>` does not hold.
-    // (The reverse direction does — see
+    // (The reverse direction does ; see
     // `box_int_flows_into_unspecialised_box_under_invariance`.)
     let mut w = MockWorld::new();
     w.with_templates("Box", &[("T", Variance::Invariant)]);

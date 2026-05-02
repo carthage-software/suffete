@@ -1,6 +1,14 @@
-//! Display + `Typed::pretty` rendering. Each test pins a representative
-//! input → expected output. First-cut accuracy; PHP-style syntax where
-//! a natural correspondent exists.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -175,14 +183,14 @@ fn view_dispatches_to_inner() {
 
 #[test]
 fn handle_dispatches_to_inner() {
-    let h = Handle::Type(prelude::TYPE_INT);
-    assert_eq!(format!("{h}"), "int");
-    assert!(!Typed::can_be_intersected(&h));
+    let int_handle = Handle::Type(prelude::TYPE_INT);
+    assert_eq!(format!("{int_handle}"), "int");
+    assert!(!Typed::can_be_intersected(&int_handle));
 
     let foo = t_named("Foo");
-    let h = Handle::Element(foo);
-    assert_eq!(format!("{h}"), "Foo");
-    assert!(Typed::can_be_intersected(&h));
+    let foo_handle = Handle::Element(foo);
+    assert_eq!(format!("{foo_handle}"), "Foo");
+    assert!(Typed::can_be_intersected(&foo_handle));
 }
 
 #[test]
@@ -213,7 +221,7 @@ fn pretty_object_shape_breaks_into_lines() {
     let pretty = Typed::pretty(&shape);
     assert!(pretty.contains('\n'), "shape pretty should be multi-line, got: {pretty}");
     assert!(pretty.starts_with("object{\n"));
-    assert!(pretty.ends_with("}"));
+    assert!(pretty.ends_with('}'));
 }
 
 #[test]

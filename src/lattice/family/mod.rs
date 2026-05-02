@@ -7,11 +7,11 @@
 //!
 //! Each family file follows the same shape:
 //!
-//! - `refines(input, container)` — returns `true` iff `input <: container`
+//! - `refines(input, container)` ; returns `true` iff `input <: container`
 //!   under that family's rules. Reflexivity, Bot (`never <: anything`), and
 //!   Top (`anything <: mixed`) are the entry points' responsibility, never
 //!   each family's.
-//! - `overlaps(a, b)` — returns `true` iff `a ∩ b ≠ ∅`. Symmetric.
+//! - `overlaps(a, b)` ; returns `true` iff `a ∩ b ≠ ∅`. Symmetric.
 //!
 //! Stub modules return `false` conservatively until their rules land.
 

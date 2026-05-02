@@ -1,14 +1,14 @@
 //! Short-circuiting deep walkers for boolean queries on a [`TypeId`].
 //!
 //! Where [`crate::transform`] *transforms* a type by applying a closure
-//! at every element position, [`inspect`] *queries* — the closure is a
+//! at every element position, [`inspect`] *queries* ; the closure is a
 //! predicate, the walker stops as soon as the answer is known.
 //!
 //! Two free functions:
 //!
-//! - [`any`] — `true` iff at least one element (at any depth) satisfies
+//! - [`any`] ; `true` iff at least one element (at any depth) satisfies
 //!   the predicate. Stops at the first `true`.
-//! - [`all`] — `true` iff every element (at every depth) satisfies the
+//! - [`all`] ; `true` iff every element (at every depth) satisfies the
 //!   predicate. Stops at the first `false`. Vacuously `true` for the
 //!   empty case (a type with no nested types and no top-level
 //!   elements; in practice, the interner always materialises at least

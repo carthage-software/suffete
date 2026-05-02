@@ -1,4 +1,15 @@
-#![allow(clippy::vec_init_then_push)]
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+    clippy::vec_init_then_push,
+)]
 
 mod combiner_common;
 
@@ -6,10 +17,9 @@ use combiner_common::*;
 use suffete::ElementId;
 use suffete::ElementKind;
 
-/// A reduced atom zoo covering every element family currently exposed by
-/// suffete's combiner. The original mago zoo also carries generic objects,
-/// list/keyed-array shapes, and sealed-list variants; those are skipped
-/// here pending the corresponding helpers / combiner support.
+/// Reduced atom zoo covering every element family currently exposed
+/// by the combiner. Generic objects, list/keyed-array shapes, and
+/// sealed-list variants are pending helper / combiner support.
 fn full_atom_zoo() -> Vec<ElementId> {
     let mut atoms = Vec::new();
 
@@ -23,22 +33,22 @@ fn full_atom_zoo() -> Vec<ElementId> {
     atoms.push(t_negative_int());
     atoms.push(t_non_negative_int());
     atoms.push(t_non_positive_int());
-    for v in [-1000_i64, -100, -10, -1, 0, 1, 10, 100, 1000] {
+    for v in [-1000i64, -100, -10, -1, 0, 1, 10, 100, 1000] {
         atoms.push(t_lit_int(v));
     }
-    for from in [-100_i64, -1, 0, 1, 100] {
+    for from in [-100i64, -1, 0, 1, 100] {
         atoms.push(t_int_from(from));
     }
-    for to in [-100_i64, -1, 0, 1, 100] {
+    for to in [-100i64, -1, 0, 1, 100] {
         atoms.push(t_int_to(to));
     }
-    for (lo, hi) in [(-50_i64, 50), (0, 100), (-100, 0), (-10, 10)] {
+    for (lo, hi) in [(-50i64, 50), (0, 100), (-100, 0), (-10, 10)] {
         atoms.push(t_int_range(lo, hi));
     }
 
     atoms.push(t_float());
     atoms.push(t_unspec_lit_float());
-    for v in [-100.0_f64, -1.0, 0.0, 1.0, 1.5, 100.0] {
+    for v in [-100.0f64, -1.0, 0.0, 1.0, 1.5, 100.0] {
         atoms.push(t_lit_float(v));
     }
 
@@ -109,7 +119,7 @@ fn singleton_passthrough_for_full_zoo() {
 #[test]
 fn self_idempotency_basic() {
     for atom in full_atom_zoo() {
-        for n in [2_usize, 3, 5, 10] {
+        for n in [2usize, 3, 5, 10] {
             let r = combine_default(vec![atom; n]);
             assert_eq!(r.len(), 1, "self-idempotency broke for {atom:?} (n={n})");
             assert_eq!(r[0], atom);

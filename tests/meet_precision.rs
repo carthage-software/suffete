@@ -1,7 +1,14 @@
-//! Directed precision tests for `meet`. Each case is a concrete pair
-//! `(a, b, expected_meet)` where the expected result is what
-//! type-theoretic intersection demands. Cases that currently fail
-//! mark imprecision spots in suffete's family-meet rules.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -17,13 +24,13 @@ fn meet_eq(a: TypeId, b: TypeId, expected: TypeId) {
     let w = empty_world();
     let mut report = LatticeReport::new();
     let result = meet::compute(a, b, &w, LatticeOptions::default(), &mut report);
-    assert_eq!(result, expected, "meet({a}, {b}) = {result}, expected {expected}",);
+    assert_eq!(result, expected, "meet({a}, {b}) = {result}, expected {expected}");
 }
 
 fn meet_eq_with<W: suffete::world::World>(a: TypeId, b: TypeId, expected: TypeId, world: &W) {
     let mut report = LatticeReport::new();
     let result = meet::compute(a, b, world, LatticeOptions::default(), &mut report);
-    assert_eq!(result, expected, "meet({a}, {b}) = {result}, expected {expected}",);
+    assert_eq!(result, expected, "meet({a}, {b}) = {result}, expected {expected}");
 }
 
 #[test]
@@ -391,7 +398,7 @@ fn associativity_array_bool_int_meet_via_arb_failing_case() {
 fn final_class_intersected_with_unrelated_is_uninhabited_in_meet() {
     // PHP `final class Foo` cannot be subclassed, so the only way a
     // value is `Foo & Bar` is if `Foo` itself descends `Bar`. With
-    // `Bar` unrelated, no such value exists — meet collapses to
+    // `Bar` unrelated, no such value exists ; meet collapses to
     // `never`.
     let mut w = MockWorld::new();
     w.with_final("Foo");

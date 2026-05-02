@@ -20,23 +20,31 @@ use crate::prelude::NEVER;
 use crate::prelude::NULL;
 use crate::world::World;
 
-/// `true` iff `a <: b` — every runtime value of type `a` is also a value of
+/// `true` iff `a <: b`: every runtime value of type `a` is also a value of
 /// type `b` (i.e. `a` is a refinement / narrowing of `b`).
 ///
-/// Implements the universal axioms (refl / Bot / Top from spec §4.1, §4.2),
-/// the union dispatch (Union-L / Union-R from §4.3), and the structural
-/// scalar lattice (bool / int / float / string / class-like-string /
-/// resource / array-key / numeric / scalar / object-any). Object hierarchy
-/// queries flow through `world`; callable variance, array shape rules,
-/// mixed-axis refinements, and template machinery layer in family by
-/// family; what isn't implemented returns `false` conservatively.
-pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOptions, report: &mut LatticeReport) -> bool {
-    if a == b && !options.ignore_null && !options.ignore_false {
+/// Implements the universal axioms (refl / Bot / Top), the union
+/// dispatch (Union-L / Union-R), and the structural scalar lattice
+/// (bool / int / float / string / class-like-string / resource /
+/// array-key / numeric / scalar / object-any). Object hierarchy
+/// queries flow through `world`; callable variance, array shape
+/// rules, mixed-axis refinements, and template machinery layer in
+/// family by family; what isn't implemented returns `false`
+/// conservatively.
+#[inline]
+pub fn refines<W: World>(
+    input: TypeId,
+    container: TypeId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    if input == container && !options.ignore_null && !options.ignore_false {
         return true;
     }
 
-    let a = expand_double_negation(a);
-    let b = expand_double_negation(b);
+    let a = expand_double_negation(input);
+    let b = expand_double_negation(container);
 
     let a_type = a.as_ref();
     let b_type = b.as_ref();
@@ -46,12 +54,12 @@ pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOption
     a_type
         .elements
         .iter()
-        .filter(|input| {
-            let skipped = (options.ignore_null && **input == NULL) || (options.ignore_false && **input == FALSE);
+        .filter(|elem| {
+            let skipped = (options.ignore_null && **elem == NULL) || (options.ignore_false && **elem == FALSE);
             !skipped
         })
-        .all(|input| {
-            if b_type.elements.iter().any(|container| element_refines(*input, *container, world, options, report)) {
+        .all(|elem| {
+            if b_type.elements.iter().any(|rhs| element_refines(*elem, *rhs, world, options, report)) {
                 return true;
             }
 
@@ -59,31 +67,31 @@ pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOption
             // several int elements on the rhs (e.g. `int<-∞,0> <: lit(0) |
             // int<-∞,-1>`). Element-by-element refines can't see that, so
             // try the family-level coverage check before giving up.
-            if int_union_covers(*input, b_type.elements) {
+            if int_union_covers(*elem, b_type.elements) {
                 return true;
             }
 
-            if string_union_covers(*input, b_type.elements) {
+            if string_union_covers(*elem, b_type.elements) {
                 return true;
             }
 
-            if bool_union_covers(*input, b_type.elements) {
+            if bool_union_covers(*elem, b_type.elements) {
                 return true;
             }
 
-            if mixed_union_covers(*input, b_type.elements) {
+            if mixed_union_covers(*elem, b_type.elements) {
                 return true;
             }
 
-            if list_union_covers(*input, b_type.elements, world, options, report) {
+            if list_union_covers(*elem, b_type.elements, world, options, report) {
                 return true;
             }
 
-            if array_union_covers(*input, b_type.elements, world, options, report) {
+            if array_union_covers(*elem, b_type.elements, world, options, report) {
                 return true;
             }
 
-            generic_parameter_union_covers(*input, b_type.elements, world, options, report)
+            generic_parameter_union_covers(*elem, b_type.elements, world, options, report)
         })
 }
 
@@ -92,6 +100,7 @@ pub fn refines<W: World>(a: TypeId, b: TypeId, world: &W, options: LatticeOption
 /// the empty-array singleton needs coverage by some non-empty=false
 /// container, and the (key, value) parameters must refine the
 /// pointwise union of the containers' parameters.
+#[inline]
 fn array_union_covers<W: World>(
     input: ElementId,
     containers: &[ElementId],
@@ -153,11 +162,7 @@ fn array_union_covers<W: World>(
 /// elements in `containers`. Empty-list coverage requires some
 /// container with `non_empty=false`; non-empty coverage requires
 /// `E` to refine the union of all container element types.
-///
-/// Needed because element-by-element refines can't see partitions
-/// like `list<int> <: list<int(0)> | non-empty-list<int>` — the
-/// empty-list singleton flows through one branch and the non-empty
-/// element coverage flows through another.
+#[inline]
 fn list_union_covers<W: World>(
     input: ElementId,
     containers: &[ElementId],
@@ -202,21 +207,20 @@ fn list_union_covers<W: World>(
     refines(input_info.element_type, union_ty, world, options, report)
 }
 
-/// Expand `!!X` element shapes inside a union to `X`'s elements. The
-/// element-level intern collapses single-atom double negation, but
-/// multi-atom `T = a|b` survives as a `Negated(Negated(T))` outer
-/// element wrapping a single-atom-typed inner Negated. The lattice
-/// can't see through that without lifting back to the union, so we
-/// flatten here before any structural dispatch.
+/// Expand `!!X` element shapes inside a union to `X`'s elements.
+/// Single-atom `!!T` collapses at intern; multi-atom `T = a|b`
+/// survives as `Negated(Negated(T))` and gets flattened here so
+/// the structural dispatch sees the inner atoms.
+#[inline]
 fn expand_double_negation(t: TypeId) -> TypeId {
     let elements = t.as_ref().elements;
-    if !elements.iter().any(is_double_negation) {
+    if !elements.iter().any(|&e| is_double_negation(e)) {
         return t;
     }
     let i = interner();
     let mut expanded: Vec<ElementId> = Vec::with_capacity(elements.len());
     for &elem in elements {
-        if is_double_negation(&elem) {
+        if is_double_negation(elem) {
             let inner_neg = i.get_negated(elem);
             let inner_elem = inner_neg.inner.as_ref().elements[0];
             let inner_inner = i.get_negated(inner_elem).inner;
@@ -228,12 +232,13 @@ fn expand_double_negation(t: TypeId) -> TypeId {
     i.intern_type(&expanded, FlowFlags::EMPTY)
 }
 
-fn is_double_negation(elem: &ElementId) -> bool {
+#[inline]
+fn is_double_negation(elem: ElementId) -> bool {
     if elem.kind() != ElementKind::Negated {
         return false;
     }
     let i = interner();
-    let inner = i.get_negated(*elem).inner.as_ref().elements;
+    let inner = i.get_negated(elem).inner.as_ref().elements;
     inner.len() == 1 && inner[0].kind() == ElementKind::Negated
 }
 
@@ -241,6 +246,7 @@ fn is_double_negation(elem: &ElementId) -> bool {
 /// by the union of all same-`T` elements on the rhs. Each rhs element
 /// contributes its constraint; if their union covers `X`, the input
 /// is in the rhs (just split across same-template narrowings).
+#[inline]
 fn generic_parameter_union_covers<W: World>(
     input: ElementId,
     containers: &[ElementId],
@@ -282,8 +288,9 @@ fn generic_parameter_union_covers<W: World>(
 /// dominator is excluded because the lattice keeps it as a distinct axis
 /// (`int <: literal-int` is intentionally false). The broad `Unspecified`
 /// `int` input falls back here when the disjuncts collectively cover
-/// the full integer range — this is needed for partition-style
-/// properties like `meet(a,b) ∪ subtract(a,b) ⊇ a`.
+/// the full integer range; required for partition-style properties
+/// like `meet(a,b) ∪ subtract(a,b) ⊇ a`.
+#[inline]
 fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     if input.kind() != ElementKind::Int {
         return false;
@@ -314,9 +321,9 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     }
 
     ranges.sort_by(|a, b| match (a.0, b.0) {
-        (None, None) => std::cmp::Ordering::Equal,
-        (None, _) => std::cmp::Ordering::Less,
-        (_, None) => std::cmp::Ordering::Greater,
+        (None, None) => core::cmp::Ordering::Equal,
+        (None, _) => core::cmp::Ordering::Less,
+        (_, None) => core::cmp::Ordering::Greater,
         (Some(x), Some(y)) => x.cmp(&y),
     });
 
@@ -377,8 +384,8 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
 /// some atom that covers all non-empty strings AND some atom that
 /// covers the empty string. Together that is the empty/non-empty
 /// partition of `string`. Refined inputs (already non-empty,
-/// truthy, etc.) bail — the existing element-wise refines is exact
-/// enough for them.
+/// truthy, etc.) bail; element-wise refines is exact for them.
+#[inline]
 fn string_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     if input.kind() != ElementKind::String {
         return false;
@@ -427,6 +434,7 @@ fn string_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
 
 /// True iff broad `bool` is covered by the union of `true` and `false`
 /// in `containers`. Mirrors `int_union_covers` for the bool axis.
+#[inline]
 fn bool_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     if input.kind() != ElementKind::Bool {
         return false;
@@ -441,6 +449,7 @@ fn bool_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
 /// partition of `mixed` the lattice can recognize directly; deeper
 /// coverage (e.g. `int | string | … = mixed`) needs an exhaustive
 /// case-analysis we don't try here.
+#[inline]
 fn mixed_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     use crate::element::payload::MixedInfo;
     if input.kind() != ElementKind::Mixed {
@@ -456,6 +465,7 @@ fn mixed_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     has_null && has_nonnull
 }
 
+#[inline]
 fn int_bounds_of(elem: ElementId) -> (Option<i64>, Option<i64>) {
     match *interner().get_int(elem) {
         IntInfo::Unspecified | IntInfo::UnspecifiedLiteral => (None, None),
@@ -467,7 +477,7 @@ fn int_bounds_of(elem: ElementId) -> (Option<i64>, Option<i64>) {
     }
 }
 
-/// `true` iff `a :> b` — every value of type `b` is also a value of type `a`
+/// `true` iff `a :> b`: every value of type `b` is also a value of type `a`
 /// (`a` generalizes `b`). Equivalent to `refines(b, a, world, options, report)`.
 #[inline]
 pub fn generalizes<W: World>(
@@ -490,6 +500,7 @@ pub fn generalizes<W: World>(
 /// rejection was a narrowing, not an out-of-family mismatch. `mixed` inputs
 /// additionally record [`CoercionCauses::NESTED_MIXED`]. `object_any`
 /// inputs additionally record [`CoercionCauses::OBJECT_ANY_DOWN`].
+#[inline]
 pub(crate) fn element_refines<W: World>(
     input: ElementId,
     container: ElementId,
@@ -509,16 +520,11 @@ pub(crate) fn element_refines<W: World>(
         return true;
     }
 
-    // Note: we deliberately do *not* short-circuit on
-    // `is_uninhabited(container)` here. An object intersection like
-    // `Foo & Bar` of pairwise-unrelated nominal classes appears
-    // uninhabited under the world's known graph, but PHP's open
-    // world means a common subclass may exist (interfaces, traits,
-    // third-party descendants). The container-intersection rule in
-    // [`family::object::refines`] correctly handles those — if the
-    // input descends every conjunct, refines holds. Only `atom_minus`
-    // in [`crate::subtract`] uses the symmetric uninhabited check,
-    // because subtract has the inverse soundness needs.
+    // Don't short-circuit on `is_uninhabited(container)`: an open-world
+    // `Foo & Bar` can pick up a common subclass via interfaces / traits,
+    // and the container-intersection rule below handles it via per-conjunct
+    // refinement. `atom_minus` uses the symmetric check because subtract
+    // has the inverse soundness needs.
     if (input == crate::prelude::VOID && container == NULL) || (input == NULL && container == crate::prelude::VOID) {
         return true;
     }
@@ -542,6 +548,7 @@ pub(crate) fn element_refines<W: World>(
 
     let result = dispatch_refines(input, container, world, options, report);
 
+    #[allow(clippy::else_if_without_else)]
     if result {
         if input.kind() == ElementKind::Int && container.kind() == ElementKind::Float {
             report.add_cause(CoercionCauses::PHP_RUNTIME_COERCE);
@@ -562,7 +569,8 @@ pub(crate) fn element_refines<W: World>(
 /// narrowing one of these to a concrete sub-form is the standard PHP
 /// "type-coerced" pattern that the lattice records via
 /// [`CoercionCauses::TRUE_UNION_NARROW`].
-fn is_true_union_kind(kind: ElementKind) -> bool {
+#[inline]
+const fn is_true_union_kind(kind: ElementKind) -> bool {
     matches!(
         kind,
         ElementKind::Mixed
@@ -574,6 +582,7 @@ fn is_true_union_kind(kind: ElementKind) -> bool {
     )
 }
 
+#[inline]
 fn dispatch_refines<W: World>(
     input: ElementId,
     container: ElementId,
@@ -620,8 +629,8 @@ fn dispatch_refines<W: World>(
         | ElementKind::Void
         | ElementKind::Placeholder
         | ElementKind::True
-        | ElementKind::False => false,
-        ElementKind::Negated => unreachable!("handled above"),
+        | ElementKind::False
+        | ElementKind::Negated => false,
     }
 }
 
@@ -672,11 +681,13 @@ mod tests {
     use crate::prelude::UPPERCASE_STRING;
     use crate::world::NullWorld;
 
+    #[inline]
     fn check(input: TypeId, container: TypeId) -> bool {
         let mut report = LatticeReport::new();
         refines(input, container, &NullWorld, LatticeOptions::default(), &mut report)
     }
 
+    #[inline]
     fn check_elem(input: ElementId, container: ElementId) -> bool {
         let i = interner();
         let it = i.intern_type(&[input], FlowFlags::EMPTY);
@@ -685,6 +696,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn reflexivity_holds_for_well_known_types() {
         assert!(check(TYPE_INT, TYPE_INT));
         assert!(check(TYPE_NULL, TYPE_NULL));
@@ -694,6 +706,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn bot_axiom_never_refines_anything() {
         assert!(check(TYPE_NEVER, TYPE_INT));
         assert!(check(TYPE_NEVER, TYPE_NULL));
@@ -702,6 +715,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn top_axiom_anything_refines_vanilla_mixed() {
         assert!(check(TYPE_INT, TYPE_MIXED));
         assert!(check(TYPE_NULL, TYPE_MIXED));
@@ -710,6 +724,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn bool_family_refines_bool() {
         assert!(check_elem(TRUE, BOOL));
         assert!(check_elem(FALSE, BOOL));
@@ -720,6 +735,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn resource_family_refines_resource() {
         assert!(check_elem(OPEN_RESOURCE, RESOURCE));
         assert!(check_elem(CLOSED_RESOURCE, RESOURCE));
@@ -729,6 +745,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn int_dominator_absorbs_subforms() {
         assert!(check_elem(POSITIVE_INT, INT));
         assert!(check_elem(NEGATIVE_INT, INT));
@@ -738,6 +755,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn int_literal_in_range() {
         let r = ElementId::int_range(Some(0), Some(10));
         assert!(check_elem(ElementId::int_literal(0), r));
@@ -748,6 +766,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn int_range_in_range() {
         let outer = ElementId::int_range(Some(0), Some(100));
         let inner = ElementId::int_range(Some(10), Some(20));
@@ -756,6 +775,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn int_open_range_subsumes_closed() {
         let from_zero = ElementId::int_range(Some(0), None);
         let bounded = ElementId::int_range(Some(5), Some(10));
@@ -764,6 +784,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn int_unspec_literal_accepts_concrete_literals() {
         assert!(check_elem(ElementId::int_literal(42), LITERAL_INT));
         assert!(check_elem(ElementId::int_literal(-1), LITERAL_INT));
@@ -772,6 +793,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn float_dominator_absorbs_subforms() {
         assert!(check_elem(LITERAL_FLOAT, FLOAT));
         assert!(check_elem(ElementId::float_literal(1.5), FLOAT));
@@ -779,6 +801,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn float_unspec_literal_accepts_concrete_literals() {
         assert!(check_elem(ElementId::float_literal(1.5), LITERAL_FLOAT));
         assert!(check_elem(LITERAL_FLOAT, LITERAL_FLOAT));
@@ -786,6 +809,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn string_dominator_absorbs_subforms() {
         assert!(check_elem(NON_EMPTY_STRING, STRING));
         assert!(check_elem(NUMERIC_STRING, STRING));
@@ -798,6 +822,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn string_literal_satisfies_non_empty() {
         assert!(check_elem(ElementId::string_literal("hi"), NON_EMPTY_STRING));
         assert!(check_elem(ElementId::string_literal("0"), NON_EMPTY_STRING));
@@ -805,6 +830,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn string_literal_satisfies_truthy() {
         assert!(check_elem(ElementId::string_literal("hi"), TRUTHY_STRING));
         assert!(check_elem(ElementId::string_literal("1"), TRUTHY_STRING));
@@ -813,6 +839,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn string_literal_satisfies_numeric() {
         assert!(check_elem(ElementId::string_literal("123"), NUMERIC_STRING));
         assert!(check_elem(ElementId::string_literal("-1"), NUMERIC_STRING));
@@ -822,6 +849,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn string_literal_satisfies_casing() {
         assert!(check_elem(ElementId::string_literal("hello"), LOWERCASE_STRING));
         assert!(!check_elem(ElementId::string_literal("Hello"), LOWERCASE_STRING));
@@ -833,11 +861,13 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn truthy_string_refines_non_empty_string() {
         assert!(check_elem(TRUTHY_STRING, NON_EMPTY_STRING));
     }
 
     #[test]
+    #[inline]
     fn callable_string_does_not_refine_numeric_or_lowercase_by_default() {
         assert!(check_elem(CALLABLE_STRING, STRING));
         assert!(!check_elem(CALLABLE_STRING, NUMERIC_STRING));
@@ -845,6 +875,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn class_like_string_refines_string() {
         assert!(check_elem(CLASS_STRING, STRING));
         assert!(check_elem(INTERFACE_STRING, STRING));
@@ -852,6 +883,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn distinct_class_like_kinds_are_not_subtypes() {
         assert!(!check_elem(CLASS_STRING, INTERFACE_STRING));
         assert!(!check_elem(INTERFACE_STRING, CLASS_STRING));
@@ -859,6 +891,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn array_key_absorbs_int_string_class_string() {
         assert!(check_elem(INT, ARRAY_KEY));
         assert!(check_elem(STRING, ARRAY_KEY));
@@ -868,6 +901,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn array_key_does_not_absorb_float_or_bool() {
         assert!(!check_elem(FLOAT, ARRAY_KEY));
         assert!(!check_elem(BOOL, ARRAY_KEY));
@@ -875,6 +909,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn numeric_absorbs_int_float_and_numeric_string() {
         assert!(check_elem(INT, NUMERIC));
         assert!(check_elem(FLOAT, NUMERIC));
@@ -885,6 +920,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn numeric_does_not_absorb_general_string() {
         assert!(!check_elem(STRING, NUMERIC));
         assert!(!check_elem(ElementId::string_literal("hi"), NUMERIC));
@@ -892,6 +928,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn scalar_absorbs_all_scalar_families() {
         assert!(check_elem(INT, SCALAR));
         assert!(check_elem(FLOAT, SCALAR));
@@ -906,12 +943,14 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn scalar_does_not_absorb_null_or_resource() {
         assert!(!check_elem(NULL, SCALAR));
         assert!(!check_elem(RESOURCE, SCALAR));
     }
 
     #[test]
+    #[inline]
     fn union_left_every_input_element_must_fit_some_container_element() {
         assert!(check(TYPE_INT_OR_STRING, TYPE_MIXED));
         assert!(check(TYPE_INT_OR_FLOAT, TYPE_INT_OR_FLOAT));
@@ -919,6 +958,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn union_right_singleton_input_fits_member_of_union() {
         assert!(check(TYPE_INT, TYPE_INT_OR_STRING));
         assert!(check(TYPE_STRING, TYPE_INT_OR_STRING));
@@ -926,6 +966,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn unrelated_types_do_not_refine() {
         assert!(!check(TYPE_INT, TYPE_STRING));
         assert!(!check(TYPE_FLOAT, TYPE_STRING));
@@ -933,6 +974,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn int_does_not_refine_float() {
         // `int` and `float` are distinct value sets at the runtime
         // type level. PHP's implicit int→float coercion at parameter
@@ -942,6 +984,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn fresh_int_literal_refines_int() {
         let lit = ElementId::int_literal(42);
         let lit_type = interner().intern_type(&[lit], FlowFlags::EMPTY);
@@ -950,6 +993,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn input_int_or_float_fits_int_or_float_via_union_dispatch() {
         let int_or_float = interner().intern_type(&[INT, FLOAT], FlowFlags::EMPTY);
         assert!(check(int_or_float, TYPE_INT_OR_FLOAT));
@@ -959,22 +1003,26 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn int_or_string_refines_array_key() {
         assert!(check(TYPE_INT_OR_STRING, TYPE_ARRAY_KEY));
     }
 
     #[test]
+    #[inline]
     fn int_or_float_refines_numeric() {
         assert!(check(TYPE_INT_OR_FLOAT, TYPE_NUMERIC));
     }
 
     #[test]
+    #[inline]
     fn int_or_string_or_float_or_bool_refines_scalar() {
         let id = interner().intern_type(&[INT, STRING, FLOAT, BOOL], FlowFlags::EMPTY);
         assert!(check(id, TYPE_SCALAR));
     }
 
     #[test]
+    #[inline]
     fn nullable_int_refines_nullable_array_key() {
         let nullable_int = interner().intern_type(&[NULL, INT], FlowFlags::EMPTY);
         let nullable_ak = interner().intern_type(&[NULL, ARRAY_KEY], FlowFlags::EMPTY);
@@ -982,11 +1030,13 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn type_bool_refines_scalar() {
         assert!(check(TYPE_BOOL, TYPE_SCALAR));
     }
 
     #[test]
+    #[inline]
     fn generalizes_is_inverse_of_refines() {
         let mut r = LatticeReport::new();
         assert!(generalizes(TYPE_MIXED, TYPE_INT, &NullWorld, LatticeOptions::default(), &mut r));

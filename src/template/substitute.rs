@@ -1,17 +1,15 @@
 //! Capture-free substitution of template parameters in a [`Type`](crate::Type).
 //!
-//! Implements the substitution operator $\sigma\Theta$ from
-//! `type-system/generics.md` §3 — replacing every free occurrence of a
-//! template parameter inside `ty` with the type the caller's closure
-//! supplies. The structural walk is delegated to [`crate::transform::flat_map`];
-//! this module only owns the per-element decision.
+//! Replaces every free occurrence of a template parameter inside `ty`
+//! with the type the caller's closure supplies. The structural walk is
+//! delegated to [`crate::transform::flat_map`]; this module only owns
+//! the per-element decision.
 //!
 //! The closure is parameterised on [`GenericParameterInfo`] rather
 //! than on `(name, defining_entity)` pairs so the caller can inspect
 //! the constraint or the qualifier when deciding what to substitute.
-//! Returning `None` from the closure leaves the parameter in place
-//! (per §3.1 `SubstMiss`); returning `Some(replacement)` performs the
-//! rewrite.
+//! Returning `None` from the closure leaves the parameter in place;
+//! returning `Some(replacement)` performs the rewrite.
 
 use crate::ElementId;
 use crate::ElementKind;
@@ -27,14 +25,14 @@ use crate::transform;
 /// [`GenericParameter`](ElementKind::GenericParameter) element
 /// encountered during the structural walk:
 ///
-/// - `Some(replacement)` — the parameter is replaced; the
-///   replacement's elements flow into the surrounding union (per
-///   §3.2 distribution).
-/// - `None` — the parameter is left in place. The closure may still
+/// - `Some(replacement)`: the parameter is replaced; the
+///   replacement's elements flow into the surrounding union.
+/// - `None`: the parameter is left in place. The closure may still
 ///   substitute inside the parameter's constraint by recursing if it
 ///   wants to; suffete does not do this automatically.
 ///
 /// Returns the same [`TypeId`] handle when nothing changed.
+#[inline]
 pub fn substitute<F>(ty: TypeId, sub: &F) -> TypeId
 where
     F: Fn(&GenericParameterInfo) -> Option<TypeId>,
@@ -42,6 +40,7 @@ where
     transform::flat_map(ty, |elem| substitute_element(elem, sub))
 }
 
+#[inline]
 fn substitute_element<F>(elem: ElementId, sub: &F) -> Vec<ElementId>
 where
     F: Fn(&GenericParameterInfo) -> Option<TypeId>,
@@ -69,21 +68,25 @@ mod tests {
     use crate::prelude::TYPE_MIXED;
     use crate::prelude::TYPE_STRING;
 
+    #[inline]
     fn class_def(name: &str) -> DefiningEntity {
         DefiningEntity::ClassLike(mago_atom::atom(name))
     }
 
+    #[inline]
     fn ty_of(elem: ElementId) -> TypeId {
         interner().intern_type(&[elem], FlowFlags::EMPTY)
     }
 
     #[test]
+    #[inline]
     fn no_template_no_change() {
         let result = substitute(TYPE_INT, &|_: &GenericParameterInfo| -> Option<TypeId> { None });
         assert_eq!(result, TYPE_INT);
     }
 
     #[test]
+    #[inline]
     fn substitutes_top_level_template() {
         let t = ElementId::generic_parameter("T", class_def("X"), TYPE_MIXED);
         let t_ty = ty_of(t);
@@ -92,6 +95,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn miss_leaves_template_in_place() {
         let t = ElementId::generic_parameter("T", class_def("X"), TYPE_MIXED);
         let t_ty = ty_of(t);
@@ -100,6 +104,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn replacement_with_union_flat_merges_into_parent() {
         let t = ElementId::generic_parameter("T", class_def("X"), TYPE_MIXED);
         let union_t = interner().intern_type(&[t, INT], FlowFlags::EMPTY);
@@ -109,6 +114,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn unchanged_returns_same_handle() {
         let t = ElementId::generic_parameter("T", class_def("Box"), TYPE_MIXED);
         let ty = ty_of(t);
@@ -117,6 +123,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn capture_freeness_qualifier_matters() {
         let outer_t = ElementId::generic_parameter("T", class_def("Outer"), TYPE_MIXED);
         let inner_t = ElementId::generic_parameter("T", class_def("Inner"), TYPE_MIXED);
@@ -136,6 +143,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn distributes_over_union() {
         let t = ElementId::generic_parameter("T", class_def("X"), TYPE_MIXED);
         let union = interner().intern_type(&[t, STRING], FlowFlags::EMPTY);
@@ -146,6 +154,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn substitutes_inside_object_type_args() {
         let t = ElementId::generic_parameter("T", class_def("Container"), TYPE_MIXED);
         let t_ty = ty_of(t);
@@ -174,6 +183,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn substitutes_inside_list_element_type() {
         let t = ElementId::generic_parameter("T", class_def("X"), TYPE_MIXED);
         let list_t = ty_of(ElementId::list(ty_of(t), false));
@@ -184,6 +194,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn substitutes_inside_iterable_key_and_value() {
         let k = ElementId::generic_parameter("K", class_def("Iter"), TYPE_MIXED);
         let v = ElementId::generic_parameter("V", class_def("Iter"), TYPE_MIXED);
@@ -205,6 +216,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn substitutes_inside_keyed_array_value() {
         let t = ElementId::generic_parameter("T", class_def("X"), TYPE_MIXED);
         let arr_t = ty_of(ElementId::keyed_unsealed(TYPE_STRING, ty_of(t), false));
@@ -215,6 +227,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn nested_object_substitution() {
         let t = ElementId::generic_parameter("T", class_def("X"), TYPE_MIXED);
         let list_t_ty = ty_of(ElementId::list(ty_of(t), false));

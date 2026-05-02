@@ -1,8 +1,14 @@
-//! `meet::narrow` and `subtract::narrow` outcome classification tests.
-//! Each variant (`Impossible` / `Redundant` / `Narrowed`) is exercised
-//! against representative inputs so a downstream analyser can rely on
-//! the diagnostics contract: redundant means the assertion adds no
-//! information; impossible means the assertion can never hold.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 
@@ -200,12 +206,6 @@ fn subtract_compute_unwraps_redundant() {
 
 #[test]
 fn meet_narrow_unrelated_final_objects_are_impossible() {
-    // `final class Foo` / `final class Bar` with no shared ancestry
-    // reports Impossible: a final class admits no further
-    // descendants, so no value can be both `Foo` and `Bar`. Without
-    // `final` declarations the lattice stays open-world and would
-    // return `Narrowed(Foo & Bar)` to acknowledge a hypothetical
-    // common subclass.
     let mut w = MockWorld::new();
     w.with_final("Foo");
     w.with_final("Bar");

@@ -4,7 +4,7 @@
 //! Vanilla `mixed` is handled by the universal Top axiom in
 //! [`crate::lattice::refines::element_refines`]; this family fires only
 //! for narrowed mixed containers. The input refines the container iff
-//! every axis the container constrains is implied by the input — either
+//! every axis the container constrains is implied by the input ; either
 //! because the input is a `mixed` carrying at least the same flags, or
 //! because the input's element kind structurally guarantees the property
 //! (e.g. an `int` is non-null, a `Named` object is truthy, `EMPTY_STRING`
@@ -18,6 +18,8 @@ use crate::element::payload::scalar::IntInfo;
 use crate::element::payload::scalar::StringLiteral;
 use crate::interner::interner;
 
+#[inline]
+#[must_use] 
 pub fn refines(input: ElementId, container: ElementId) -> bool {
     if container.kind() != ElementKind::Mixed {
         return false;
@@ -63,6 +65,7 @@ pub fn refines(input: ElementId, container: ElementId) -> bool {
 }
 
 /// `true` iff `input` cannot be `null`.
+#[inline]
 pub(crate) fn is_non_null(input: ElementId) -> bool {
     match input.kind() {
         ElementKind::Null | ElementKind::Void => false,
@@ -81,6 +84,7 @@ pub(crate) fn is_non_null(input: ElementId) -> bool {
 
 /// Best-known truthiness of `input` as a single value. Returns
 /// [`Truthiness::Undetermined`] when both possibilities remain open.
+#[inline]
 pub(crate) fn truthiness_of(input: ElementId) -> Truthiness {
     match input.kind() {
         ElementKind::True => Truthiness::Truthy,
@@ -151,7 +155,7 @@ pub(crate) fn truthiness_of(input: ElementId) -> Truthiness {
             let info = interner().get_generic_parameter(input);
             let constraint = info.constraint.as_ref();
             let mut acc: Option<Truthiness> = None;
-            for &el in constraint.elements.iter() {
+            for &el in constraint.elements {
                 let t = truthiness_of(el);
                 acc = Some(match acc {
                     None => t,

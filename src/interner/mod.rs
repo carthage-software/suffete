@@ -1,3 +1,5 @@
+#![allow(clippy::pub_use)]
+
 //! Process-global, append-only, lock-free-read interning primitives.
 //!
 //! Two building blocks are exposed by this module:

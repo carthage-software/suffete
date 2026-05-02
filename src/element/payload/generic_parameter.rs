@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
@@ -20,10 +20,11 @@ pub struct GenericParameterInfo {
     pub intersections: Option<ElementListId>,
 }
 
-const _: () = assert!(size_of::<GenericParameterInfo>() <= 24);
+const _: () = assert!(size_of::<GenericParameterInfo>() <= 24, "size budget exceeded");
 
-impl std::fmt::Display for GenericParameterInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for GenericParameterInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let entity = crate::interner::interner().get_defining_entity(self.defining_entity);
         let base = format!("'{}.{} extends {}", self.name.as_str(), entity, self.constraint);
         if let Some(id) = self.intersections {

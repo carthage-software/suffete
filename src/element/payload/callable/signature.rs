@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
@@ -53,11 +53,13 @@ impl SignatureFlags {
     const IS_PURE: u8 = 1 << 1;
 
     #[inline]
+    #[must_use] 
     pub const fn is_variadic(self) -> bool {
         self.0 & Self::IS_VARIADIC != 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn is_pure(self) -> bool {
         self.0 & Self::IS_PURE != 0
     }
@@ -86,16 +88,19 @@ impl ParamFlags {
     const VARIADIC: u8 = 1 << 2;
 
     #[inline]
+    #[must_use] 
     pub const fn has_default(self) -> bool {
         self.0 & Self::HAS_DEFAULT != 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn by_reference(self) -> bool {
         self.0 & Self::BY_REFERENCE != 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn variadic(self) -> bool {
         self.0 & Self::VARIADIC != 0
     }
@@ -119,7 +124,7 @@ impl ParamFlags {
     }
 }
 
-const _: () = assert!(size_of::<Signature>() <= 24);
-const _: () = assert!(size_of::<ParamInfo>() <= 24);
-const _: () = assert!(size_of::<SignatureFlags>() == 1);
-const _: () = assert!(size_of::<ParamFlags>() == 1);
+const _: () = assert!(size_of::<Signature>() <= 24, "size budget exceeded");
+const _: () = assert!(size_of::<ParamInfo>() <= 24, "size budget exceeded");
+const _: () = assert!(size_of::<SignatureFlags>() == 1, "size budget exceeded");
+const _: () = assert!(size_of::<ParamFlags>() == 1, "size budget exceeded");

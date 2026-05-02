@@ -19,6 +19,9 @@ use crate::element::payload::scalar::IntRange;
 use crate::interner::Interner;
 use crate::prelude::*;
 
+// The `debug_assert_eq!` calls below pin every well-known constant to the slot
+// it must land in ; the assert message would just restate the comparison.
+#[allow(clippy::missing_assert_message)]
 impl Interner {
     /// Construct a fully-booted interner with every well-known
     /// [`ElementId`](crate::ElementId) and [`TypeId`](crate::TypeId) constant
@@ -28,6 +31,8 @@ impl Interner {
     /// `pub const` constant claims. `debug_assert_eq!` calls verify the
     /// alignment in development builds, so reordering constants without
     /// reordering boot triggers an immediate panic.
+    #[inline]
+    #[must_use] 
     pub fn boot() -> Self {
         let i = Self::new();
         i.boot_atomic_elements();
@@ -37,6 +42,7 @@ impl Interner {
         i
     }
 
+    #[inline]
     fn boot_atomic_elements(&self) {
         self.boot_mixed_family();
         self.boot_int_family();
@@ -48,6 +54,7 @@ impl Interner {
         self.boot_callable();
     }
 
+    #[inline]
     fn boot_mixed_family(&self) {
         debug_assert_eq!(self.intern_mixed(MixedInfo::EMPTY), MIXED);
         debug_assert_eq!(self.intern_mixed(MixedInfo::EMPTY.with_is_non_null(true)), NON_NULL_MIXED);
@@ -56,6 +63,7 @@ impl Interner {
         debug_assert_eq!(self.intern_mixed(MixedInfo::EMPTY.with_is_isset_from_loop(true)), ISSET_FROM_LOOP,);
     }
 
+    #[inline]
     fn boot_int_family(&self) {
         debug_assert_eq!(self.intern_int(IntInfo::Unspecified), INT);
         debug_assert_eq!(self.intern_int(self.range_int(Some(1), None)), POSITIVE_INT);
@@ -68,15 +76,18 @@ impl Interner {
         debug_assert_eq!(self.intern_int(IntInfo::Literal(-1)), INT_MINUS_ONE);
     }
 
+    #[inline]
     fn range_int(&self, lower: Option<i64>, upper: Option<i64>) -> IntInfo {
         IntInfo::Range(self.intern_int_range(IntRange::new(lower, upper)))
     }
 
+    #[inline]
     fn boot_float_family(&self) {
         debug_assert_eq!(self.intern_float(FloatInfo::Unspecified), FLOAT);
         debug_assert_eq!(self.intern_float(FloatInfo::UnspecifiedLiteral), LITERAL_FLOAT);
     }
 
+    #[inline]
     fn boot_string_family(&self) {
         let plain = StringInfo {
             literal: StringLiteral::None,
@@ -122,6 +133,7 @@ impl Interner {
         debug_assert_eq!(self.intern_string(empty_literal), EMPTY_STRING);
     }
 
+    #[inline]
     fn boot_class_like_string_family(&self) {
         let make = |kind: ClassLikeKind| ClassLikeStringInfo { kind, specifier: ClassLikeStringSpecifier::Any };
         debug_assert_eq!(self.intern_class_like_string(make(ClassLikeKind::Class)), CLASS_STRING);
@@ -130,22 +142,26 @@ impl Interner {
         debug_assert_eq!(self.intern_class_like_string(make(ClassLikeKind::Trait)), TRAIT_STRING);
     }
 
+    #[inline]
     fn boot_resource_family(&self) {
         debug_assert_eq!(self.intern_resource(ResourceInfo::Any), RESOURCE);
         debug_assert_eq!(self.intern_resource(ResourceInfo::Open), OPEN_RESOURCE);
         debug_assert_eq!(self.intern_resource(ResourceInfo::Closed), CLOSED_RESOURCE);
     }
 
+    #[inline]
     fn boot_empty_array(&self) {
         let empty =
             KeyedArrayInfo { key_param: None, value_param: None, known_items: None, flags: KeyedArrayFlags::default() };
         debug_assert_eq!(self.intern_array(empty), EMPTY_ARRAY);
     }
 
+    #[inline]
     fn boot_callable(&self) {
         debug_assert_eq!(self.intern_callable(CallableInfo::Any), CALLABLE);
     }
 
+    #[inline]
     fn boot_singleton_types(&self) {
         debug_assert_eq!(self.intern_type(&[NULL], FlowFlags::EMPTY), TYPE_NULL);
         debug_assert_eq!(self.intern_type(&[NEVER], FlowFlags::EMPTY), TYPE_NEVER);
@@ -164,6 +180,7 @@ impl Interner {
         debug_assert_eq!(self.intern_type(&[CALLABLE], FlowFlags::EMPTY), TYPE_CALLABLE);
     }
 
+    #[inline]
     fn boot_typed_elements(&self) {
         let iterable_mixed_mixed = IterableInfo { key_type: TYPE_MIXED, value_type: TYPE_MIXED, intersections: None };
         debug_assert_eq!(self.intern_iterable(iterable_mixed_mixed), ITERABLE_MIXED_MIXED);
@@ -177,6 +194,7 @@ impl Interner {
         debug_assert_eq!(self.intern_array(array_key_mixed), ARRAY_KEY_MIXED);
     }
 
+    #[inline]
     fn boot_pre_canonicalized_unions(&self) {
         debug_assert_eq!(self.intern_type(&[INT, FLOAT], FlowFlags::EMPTY), TYPE_INT_OR_FLOAT);
         debug_assert_eq!(self.intern_type(&[INT, STRING], FlowFlags::EMPTY), TYPE_INT_OR_STRING);
@@ -198,6 +216,7 @@ mod tests {
     use crate::interner::interner;
 
     #[test]
+    #[inline]
     fn type_int_resolves_to_singleton_int_union() {
         let t = TYPE_INT.as_ref();
         assert_eq!(t.elements, &[INT]);
@@ -205,6 +224,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn type_null_or_string_elements_are_in_canonical_order() {
         let t = TYPE_NULL_OR_STRING.as_ref();
         assert_eq!(t.elements.len(), 2);
@@ -213,12 +233,14 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn type_minus_one_zero_one_elements_are_sorted_by_int_slot() {
         let t = TYPE_MINUS_ONE_ZERO_ONE.as_ref();
         assert_eq!(t.elements, &[INT_ZERO, INT_ONE, INT_MINUS_ONE]);
     }
 
     #[test]
+    #[inline]
     fn well_known_int_payloads_resolve_correctly() {
         let i = interner();
         assert_eq!(i.get_int(INT), &IntInfo::Unspecified);
@@ -229,6 +251,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn well_known_resource_payloads_resolve_correctly() {
         let i = interner();
         assert_eq!(i.get_resource(RESOURCE), &ResourceInfo::Any);
@@ -237,6 +260,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn well_known_class_like_string_payloads_resolve_correctly() {
         let i = interner();
         assert_eq!(i.get_class_like_string(CLASS_STRING).kind, ClassLikeKind::Class);
@@ -246,6 +270,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn empty_array_resolves_to_sealed_no_known_items() {
         let info = interner().get_array(EMPTY_ARRAY);
         assert!(info.is_sealed());
@@ -253,6 +278,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn array_key_mixed_uses_well_known_type_ids() {
         let info = interner().get_array(ARRAY_KEY_MIXED);
         assert_eq!(info.key_param, Some(TYPE_ARRAY_KEY));
@@ -260,6 +286,7 @@ mod tests {
     }
 
     #[test]
+    #[inline]
     fn iterable_mixed_mixed_uses_well_known_type_ids() {
         let info = interner().get_iterable(ITERABLE_MIXED_MIXED);
         assert_eq!(info.key_type, TYPE_MIXED);

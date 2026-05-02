@@ -1,7 +1,7 @@
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::mem::size_of;
+use core::fmt::Display;
+use core::fmt::Formatter;
+use core::fmt::Result as FmtResult;
+use core::mem::size_of;
 
 /// PHP `resource`, optionally narrowed to open or closed state.
 ///
@@ -19,9 +19,10 @@ pub enum ResourceInfo {
     Closed,
 }
 
-const _: () = assert!(size_of::<ResourceInfo>() == 1);
+const _: () = assert!(size_of::<ResourceInfo>() == 1, "size budget exceeded");
 
 impl Display for ResourceInfo {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str(match self {
             ResourceInfo::Any => "resource",

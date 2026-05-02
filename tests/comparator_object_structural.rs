@@ -1,5 +1,14 @@
-//! Structural narrowings for the object family (comparison.md §1.4.6):
-//! `HasMethod(m)`, `HasProperty(p)`, and `object{...}` shapes.
+#![allow(
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::tests_outside_test_module,
+    clippy::missing_assert_message,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+)]
 
 mod comparator_common;
 

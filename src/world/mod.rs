@@ -1,3 +1,5 @@
+#![allow(clippy::pub_use)]
+
 //! The boundary between suffete's pure type system and the analyzer's
 //! view of the world being analyzed.
 //!
@@ -101,9 +103,7 @@ pub trait World {
     /// against a nominal class). Backing maps can typically answer
     /// this with a `contains_key` instead of a value clone, which is
     /// what the default impl falls back to.
-    fn class_has_property(&self, class: Atom, property: Atom) -> bool {
-        self.class_property_type(class, property).is_some()
-    }
+    fn class_has_property(&self, class: Atom, property: Atom) -> bool;
 
     /// What kind of enum `enum_name` is.
     ///
@@ -121,11 +121,8 @@ pub trait World {
     fn class_like_kind(&self, name: Atom) -> Option<ClassLikeKind>;
 
     /// `true` iff `name` cannot be extended (PHP `final class`
-    /// declaration, or any enum — enums are implicitly final).
-    fn is_final(&self, name: Atom) -> bool {
-        let _ = name;
-        false
-    }
+    /// declaration, or any enum ; enums are implicitly final).
+    fn is_final(&self, name: Atom) -> bool;
 
     /// The recorded body of `class::alias` (a `@type` alias declared on
     /// the class), or `None` when the alias is unknown. Used by
@@ -184,62 +181,87 @@ pub enum EnumBacking {
 pub struct NullWorld;
 
 impl World for NullWorld {
+    #[inline]
     fn descends_from(&self, _child: Atom, _ancestor: Atom) -> bool {
         false
     }
 
+    #[inline]
     fn uses_trait(&self, _class: Atom, _trait_: Atom) -> bool {
         false
     }
 
+    #[inline]
     fn template_parameter_arity(&self, _class: Atom) -> usize {
         0
     }
 
+    #[inline]
     fn template_parameter_at(&self, _class: Atom, _position: usize) -> Option<TemplateParameter> {
         None
     }
 
+    #[inline]
     fn template_parameter_index(&self, _class: Atom, _name: Atom) -> Option<usize> {
         None
     }
 
+    #[inline]
     fn inherited_template_argument(&self, _child: Atom, _ancestor: Atom, _position: usize) -> Option<TypeId> {
         None
     }
 
+    #[inline]
     fn class_has_method(&self, _class: Atom, _method: Atom) -> bool {
         false
     }
 
+    #[inline]
     fn class_property_type(&self, _class: Atom, _property: Atom) -> Option<TypeId> {
         None
     }
 
+    #[inline]
+    fn class_has_property(&self, _class: Atom, _property: Atom) -> bool {
+        false
+    }
+
+    #[inline]
     fn enum_backing(&self, _enum_name: Atom) -> Option<EnumBacking> {
         None
     }
 
+    #[inline]
     fn class_like_kind(&self, _name: Atom) -> Option<ClassLikeKind> {
         None
     }
 
+    #[inline]
+    fn is_final(&self, _name: Atom) -> bool {
+        false
+    }
+
+    #[inline]
     fn alias_body(&self, _class: Atom, _alias: Atom) -> Option<TypeId> {
         None
     }
 
+    #[inline]
     fn class_constant_type(&self, _class: Atom, _constant: Atom) -> Option<TypeId> {
         None
     }
 
+    #[inline]
     fn global_constant_type(&self, _name: Atom) -> Option<TypeId> {
         None
     }
 
+    #[inline]
     fn class_property_count(&self, _class: Atom) -> usize {
         0
     }
 
+    #[inline]
     fn class_property_at(&self, _class: Atom, _position: usize) -> Option<ClassProperty> {
         None
     }

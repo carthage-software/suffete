@@ -1,7 +1,9 @@
-//! PHP cast semantics (report §20).
+#![allow(clippy::arithmetic_side_effects)]
+
+//! PHP cast semantics.
 //!
-//! [`cast`] computes the result type of an explicit PHP cast operator —
-//! `(int)`, `(float)`, `(string)`, `(bool)`, `(array)`, `(object)` —
+//! [`cast`] computes the result type of an explicit PHP cast operator ;
+//! `(int)`, `(float)`, `(string)`, `(bool)`, `(array)`, `(object)` ;
 //! applied to an arbitrary input [`TypeId`]. The result is a
 //! [`CastResult`] pairing the post-cast type with [`CastFlags`] that
 //! record whether the cast lost information ([`CastFlags::LOSSY`]) or
@@ -18,7 +20,7 @@
 //! and the falsy literals (`0`, `0.0`, `""`, `"0"`, `null`) collapse to
 //! `false` under `(bool)`. Float-to-int truncation, complex
 //! `(array)`/`(object)` shape construction, and `__toString`-aware
-//! object-to-string casts are intentionally coarse — the analyzer can
+//! object-to-string casts are intentionally coarse ; the analyzer can
 //! still validate the operator sites; precision improvements land later.
 
 use crate::ElementId;
@@ -62,16 +64,19 @@ pub struct CastResult {
 
 impl CastResult {
     #[inline]
+    #[must_use] 
     pub const fn lossless(ty: TypeId) -> Self {
         Self { ty, flags: CastFlags::NONE }
     }
 
     #[inline]
+    #[must_use] 
     pub const fn lossy(ty: TypeId) -> Self {
         Self { ty, flags: CastFlags::LOSSY }
     }
 
     #[inline]
+    #[must_use] 
     pub const fn may_throw(ty: TypeId) -> Self {
         Self { ty, flags: CastFlags::MAY_THROW }
     }
@@ -91,27 +96,31 @@ impl CastFlags {
     pub const MAY_THROW: Self = Self(1 << 1);
 
     #[inline]
+    #[must_use] 
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
 
     #[inline]
+    #[must_use] 
     pub const fn lossy(self) -> bool {
         self.contains(Self::LOSSY)
     }
 
     #[inline]
+    #[must_use] 
     pub const fn may_throw(self) -> bool {
         self.contains(Self::MAY_THROW)
     }
 
     #[inline]
-    pub fn insert(&mut self, other: Self) {
+    pub const fn insert(&mut self, other: Self) {
         self.0 |= other.0;
     }
 
@@ -125,6 +134,7 @@ impl CastFlags {
 /// Cast `input` to `target`. Distributes over the input union: each
 /// element is cast individually, the resulting types are unioned, and
 /// the per-element flags are bit-or'd into a single [`CastFlags`].
+#[inline]
 pub fn cast<W: World>(input: TypeId, target: CastTarget, world: &W) -> CastResult {
     let elements = input.as_ref().elements;
     let mut combined: Vec<ElementId> = Vec::new();
@@ -137,6 +147,7 @@ pub fn cast<W: World>(input: TypeId, target: CastTarget, world: &W) -> CastResul
     CastResult { ty: TypeId::union(&combined), flags }
 }
 
+#[inline]
 fn cast_element<W: World>(elem: ElementId, target: CastTarget, world: &W) -> CastResult {
     match target {
         CastTarget::Int => cast_to_int(elem),
@@ -148,6 +159,7 @@ fn cast_element<W: World>(elem: ElementId, target: CastTarget, world: &W) -> Cas
     }
 }
 
+#[inline]
 fn cast_to_int(elem: ElementId) -> CastResult {
     let i = interner();
     match elem.kind() {
@@ -185,6 +197,7 @@ fn cast_to_int(elem: ElementId) -> CastResult {
     }
 }
 
+#[inline]
 fn cast_to_float(elem: ElementId) -> CastResult {
     let i = interner();
     match elem.kind() {
@@ -217,6 +230,7 @@ fn cast_to_float(elem: ElementId) -> CastResult {
     }
 }
 
+#[inline]
 fn cast_to_string<W: World>(elem: ElementId, _world: &W) -> CastResult {
     let i = interner();
     match elem.kind() {
@@ -246,6 +260,7 @@ fn cast_to_string<W: World>(elem: ElementId, _world: &W) -> CastResult {
     }
 }
 
+#[inline]
 fn cast_to_bool(elem: ElementId) -> CastResult {
     let i = interner();
     match elem.kind() {
@@ -287,6 +302,7 @@ fn cast_to_bool(elem: ElementId) -> CastResult {
     }
 }
 
+#[inline]
 fn cast_to_array(elem: ElementId) -> CastResult {
     match elem.kind() {
         ElementKind::Array | ElementKind::List => CastResult::lossless(singleton(elem)),
@@ -309,6 +325,7 @@ fn cast_to_array(elem: ElementId) -> CastResult {
     }
 }
 
+#[inline]
 fn cast_to_object(elem: ElementId) -> CastResult {
     match elem.kind() {
         ElementKind::Object
@@ -321,13 +338,15 @@ fn cast_to_object(elem: ElementId) -> CastResult {
     }
 }
 
+#[inline]
 fn singleton(elem: ElementId) -> TypeId {
     interner().intern_type(&[elem], crate::FlowFlags::EMPTY)
 }
 
-/// `array<array-key, mixed>` — the broadest expressible array type.
+/// `array<array-key, mixed>` ; the broadest expressible array type.
 /// Used as the conservative fallback for `(array)` casts whose input
 /// shape isn't precise enough to construct a more specific result.
+#[inline]
 fn generic_array_type() -> TypeId {
     use crate::element::payload::KeyedArrayFlags;
     use crate::element::payload::KeyedArrayInfo;
@@ -342,6 +361,7 @@ fn generic_array_type() -> TypeId {
     singleton(i.intern_array(info))
 }
 
+#[inline]
 fn stdclass_type() -> TypeId {
     use crate::element::payload::ObjectFlags;
     use crate::element::payload::ObjectInfo;
@@ -359,6 +379,7 @@ fn stdclass_type() -> TypeId {
 /// optional sign + decimal digits, stopping at the first non-digit.
 /// Returns `None` when no leading-decimal prefix exists; `Some(0)` is
 /// reserved for the explicit literal "0".
+#[inline]
 fn parse_php_int(s: &str) -> Option<i64> {
     let trimmed = s.trim_start();
     let bytes = trimmed.as_bytes();
@@ -376,6 +397,7 @@ fn parse_php_int(s: &str) -> Option<i64> {
     trimmed[..i].parse::<i64>().ok()
 }
 
+#[inline]
 fn parse_php_float(s: &str) -> Option<f64> {
     let trimmed = s.trim();
     if trimmed.is_empty() {
@@ -384,6 +406,7 @@ fn parse_php_float(s: &str) -> Option<f64> {
     trimmed.parse::<f64>().ok()
 }
 
+#[inline]
 fn format_php_float(value: f64) -> String {
     if value == value.trunc() && value.is_finite() { format!("{}", value as i64) } else { format!("{value}") }
 }

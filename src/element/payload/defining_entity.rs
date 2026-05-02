@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use mago_atom::Atom;
 
@@ -29,10 +29,11 @@ pub enum DefiningEntity {
     Function(Atom),
 }
 
-const _: () = assert!(size_of::<DefiningEntity>() <= 24);
+const _: () = assert!(size_of::<DefiningEntity>() <= 24, "size budget exceeded");
 
-impl std::fmt::Display for DefiningEntity {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for DefiningEntity {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             DefiningEntity::ClassLike(name) => f.write_str(name.as_str()),
             DefiningEntity::Method { class, method } => write!(f, "{}::{}", class.as_str(), method.as_str()),

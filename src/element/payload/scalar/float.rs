@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use ordered_float::OrderedFloat;
 
@@ -22,21 +22,24 @@ pub struct LiteralFloat(pub OrderedFloat<f64>);
 
 impl LiteralFloat {
     #[inline]
+    #[must_use] 
     pub const fn new(value: f64) -> Self {
         Self(OrderedFloat(value))
     }
 
     #[inline]
+    #[must_use] 
     pub const fn value(self) -> f64 {
         self.0.0
     }
 }
 
-const _: () = assert!(size_of::<FloatInfo>() <= 16);
-const _: () = assert!(size_of::<LiteralFloat>() == 8);
+const _: () = assert!(size_of::<FloatInfo>() <= 16, "size budget exceeded");
+const _: () = assert!(size_of::<LiteralFloat>() == 8, "size budget exceeded");
 
-impl std::fmt::Display for FloatInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for FloatInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             FloatInfo::Unspecified => f.write_str("float"),
             FloatInfo::UnspecifiedLiteral => f.write_str("literal-float"),

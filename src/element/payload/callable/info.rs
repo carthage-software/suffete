@@ -1,6 +1,9 @@
-use std::mem::size_of;
+#![allow(clippy::arithmetic_side_effects)]
+
+use core::mem::size_of;
 
 use super::CallableAliasId;
+use super::ParamInfo;
 use super::SignatureId;
 
 /// `callable`, `Closure(int): string`, `callable(int, string=): void`,
@@ -32,29 +35,31 @@ pub enum CallableInfo {
     Alias(CallableAliasId),
 }
 
-const _: () = assert!(size_of::<CallableInfo>() <= 8);
+const _: () = assert!(size_of::<CallableInfo>() <= 8, "size budget exceeded");
 
-impl std::fmt::Display for CallableInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for CallableInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let i = crate::interner::interner();
         match self {
             CallableInfo::Any => f.write_str("callable"),
             CallableInfo::Signature(sid) => render_signature(i.get_signature(*sid), false, f),
             CallableInfo::Closure(sid) => render_signature(i.get_signature(*sid), true, f),
-            CallableInfo::Alias(aid) => std::fmt::Display::fmt(i.get_callable_alias(*aid), f),
+            CallableInfo::Alias(aid) => core::fmt::Display::fmt(i.get_callable_alias(*aid), f),
         }
     }
 }
 
 impl CallableInfo {
-    pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
+    #[inline]
+    pub(crate) fn pretty_with_indent(self, indent: usize) -> String {
         use crate::typed::Typed;
         let i = crate::interner::interner();
         match self {
             CallableInfo::Signature(sid) | CallableInfo::Closure(sid) => {
-                let sig = i.get_signature(*sid);
+                let sig = i.get_signature(sid);
                 let is_closure = matches!(self, CallableInfo::Closure(_));
-                let params = sig.parameters.map(|pid| i.get_param_list(pid)).unwrap_or(&[] as _);
+                let params: &[ParamInfo] = sig.parameters.map_or(&[], |pid| i.get_param_list(pid));
                 if params.len() <= 2 {
                     return self.to_string();
                 }
@@ -90,7 +95,8 @@ impl CallableInfo {
     }
 }
 
-fn render_signature(sig: &super::Signature, is_closure: bool, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+#[inline]
+fn render_signature(sig: &super::Signature, is_closure: bool, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let i = crate::interner::interner();
     f.write_str("(")?;
     if sig.flags.is_pure() {
@@ -105,7 +111,7 @@ fn render_signature(sig: &super::Signature, is_closure: bool, f: &mut std::fmt::
             if p.flags.variadic() {
                 f.write_str("...")?;
             }
-            std::fmt::Display::fmt(&p.type_, f)?;
+            core::fmt::Display::fmt(&p.type_, f)?;
             if p.flags.has_default() {
                 f.write_str("=")?;
             }

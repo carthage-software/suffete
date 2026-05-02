@@ -1,5 +1,7 @@
-use std::mem::size_of;
-use std::num::NonZeroU32;
+#![allow(clippy::arithmetic_side_effects)]
+
+use core::mem::size_of;
+use core::num::NonZeroU32;
 
 use mago_atom::Atom;
 
@@ -65,6 +67,7 @@ pub struct KeyedArrayInfo {
 impl KeyedArrayInfo {
     /// `true` iff this shape admits no entries beyond its known items.
     #[inline]
+    #[must_use] 
     pub const fn is_sealed(&self) -> bool {
         self.key_param.is_none() && self.value_param.is_none()
     }
@@ -77,6 +80,7 @@ impl KeyedArrayFlags {
     const NON_EMPTY: u8 = 1 << 0;
 
     #[inline]
+    #[must_use] 
     pub const fn non_empty(self) -> bool {
         self.0 & Self::NON_EMPTY != 0
     }
@@ -104,6 +108,7 @@ impl ListFlags {
     const NON_EMPTY: u8 = 1 << 0;
 
     #[inline]
+    #[must_use] 
     pub const fn non_empty(self) -> bool {
         self.0 & Self::NON_EMPTY != 0
     }
@@ -115,14 +120,15 @@ impl ListFlags {
     }
 }
 
-const _: () = assert!(size_of::<KeyedArrayInfo>() <= 32);
-const _: () = assert!(size_of::<ListInfo>() <= 24);
-const _: () = assert!(size_of::<ArrayKey>() <= 24);
-const _: () = assert!(size_of::<KnownItemEntry>() <= 40);
-const _: () = assert!(size_of::<KnownElementEntry>() <= 24);
+const _: () = assert!(size_of::<KeyedArrayInfo>() <= 32, "size budget exceeded");
+const _: () = assert!(size_of::<ListInfo>() <= 24, "size budget exceeded");
+const _: () = assert!(size_of::<ArrayKey>() <= 24, "size budget exceeded");
+const _: () = assert!(size_of::<KnownItemEntry>() <= 40, "size budget exceeded");
+const _: () = assert!(size_of::<KnownElementEntry>() <= 24, "size budget exceeded");
 
-impl std::fmt::Display for ArrayKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ArrayKey {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             ArrayKey::Int(n) => write!(f, "{n}"),
             ArrayKey::String(a) => write!(f, "'{}'", a.as_str()),
@@ -131,8 +137,9 @@ impl std::fmt::Display for ArrayKey {
     }
 }
 
-impl std::fmt::Display for KeyedArrayInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for KeyedArrayInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let i = crate::interner::interner();
         if let Some(known_id) = self.known_items {
             f.write_str("array{")?;
@@ -142,12 +149,12 @@ impl std::fmt::Display for KeyedArrayInfo {
                     f.write_str(", ")?;
                 }
                 first = false;
-                std::fmt::Display::fmt(&entry.key, f)?;
+                core::fmt::Display::fmt(&entry.key, f)?;
                 if entry.optional {
                     f.write_str("?")?;
                 }
                 f.write_str(": ")?;
-                std::fmt::Display::fmt(&entry.value, f)?;
+                core::fmt::Display::fmt(&entry.value, f)?;
             }
             if let (Some(k), Some(v)) = (self.key_param, self.value_param) {
                 if !first {
@@ -166,6 +173,7 @@ impl std::fmt::Display for KeyedArrayInfo {
 }
 
 impl KeyedArrayInfo {
+    #[inline]
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
         use crate::typed::Typed;
         let i = crate::interner::interner();
@@ -237,8 +245,9 @@ impl KeyedArrayInfo {
     }
 }
 
-impl std::fmt::Display for ListInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ListInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let i = crate::interner::interner();
         if let Some(known_id) = self.known_elements {
             f.write_str("list{")?;
@@ -263,6 +272,7 @@ impl std::fmt::Display for ListInfo {
 }
 
 impl ListInfo {
+    #[inline]
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
         use crate::typed::Typed;
         let i = crate::interner::interner();

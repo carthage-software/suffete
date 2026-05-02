@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use core::mem::size_of;
 
 use crate::TypeId;
 use crate::TypeListId;
@@ -54,10 +54,12 @@ pub enum Visibility {
     Private,
 }
 
-const _: () = assert!(size_of::<DerivedInfo>() <= 32);
-const _: () = assert!(size_of::<Visibility>() == 1);
+const _: () = assert!(size_of::<DerivedInfo>() <= 32, "size budget exceeded");
+const _: () = assert!(size_of::<Visibility>() == 1, "size budget exceeded");
 
 impl Visibility {
+    #[inline]
+    #[must_use] 
     pub const fn as_str(self) -> &'static str {
         match self {
             Visibility::Public => "public",
@@ -67,14 +69,16 @@ impl Visibility {
     }
 }
 
-impl std::fmt::Display for Visibility {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Visibility {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.as_str())
     }
 }
 
-impl std::fmt::Display for DerivedInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for DerivedInfo {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             DerivedInfo::KeyOf(t) => write!(f, "key-of<{t}>"),
             DerivedInfo::ValueOf(t) => write!(f, "value-of<{t}>"),
@@ -90,7 +94,7 @@ impl std::fmt::Display for DerivedInfo {
                     if idx > 0 {
                         f.write_str(", ")?;
                     }
-                    std::fmt::Display::fmt(&t, f)?;
+                    core::fmt::Display::fmt(&t, f)?;
                 }
                 f.write_str(">")
             }
@@ -104,6 +108,7 @@ impl std::fmt::Display for DerivedInfo {
 }
 
 impl DerivedInfo {
+    #[inline]
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
         let _ = indent;
         self.to_string()
