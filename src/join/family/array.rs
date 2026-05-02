@@ -93,6 +93,7 @@ pub(in crate::join) fn apply_array_shape_collapse(elements: &mut Vec<ElementId>,
         key_param: Some(TYPE_ARRAY_KEY),
         value_param: Some(TYPE_MIXED),
         known_items: None,
+        intersections: None,
         flags: KeyedArrayFlags::default(),
     });
 
@@ -155,6 +156,7 @@ pub(in crate::join) fn apply_rewrite_int_keyed_to_list(elements: &mut [ElementId
             element_type: info.value_param.unwrap_or(TYPE_NEVER),
             known_elements: Some(i.intern_known_elements(&known_elements)),
             known_count,
+            intersections: None,
             flags: ListFlags::default().with_non_empty(info.flags.non_empty()),
         };
         *el = i.intern_list(list_info);

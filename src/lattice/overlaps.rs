@@ -123,6 +123,60 @@ fn element_overlaps<W: World>(
         return surviving != crate::prelude::TYPE_NEVER;
     }
 
+    // List / Array intersection-conjunct rule: `(H & C₁ & ... & Cₙ)`
+    // overlaps `X` iff `H` overlaps `X` AND each `Cᵢ` overlaps `X`.
+    // Necessary condition only ; conservative (returns `true` more
+    // freely than the precise answer), but matches the policy used for
+    // Object intersections elsewhere in this module.
+    if let Some((stripped, conjuncts_id)) = list_array_intersections(a) {
+        let i = interner();
+        if !overlaps(
+            i.intern_type(&[stripped], FlowFlags::EMPTY),
+            i.intern_type(&[b], FlowFlags::EMPTY),
+            world,
+            options,
+            report,
+        ) {
+            return false;
+        }
+        for &conjunct in i.get_element_list(conjuncts_id) {
+            if !overlaps(
+                i.intern_type(&[conjunct], FlowFlags::EMPTY),
+                i.intern_type(&[b], FlowFlags::EMPTY),
+                world,
+                options,
+                report,
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if let Some((stripped, conjuncts_id)) = list_array_intersections(b) {
+        let i = interner();
+        if !overlaps(
+            i.intern_type(&[a], FlowFlags::EMPTY),
+            i.intern_type(&[stripped], FlowFlags::EMPTY),
+            world,
+            options,
+            report,
+        ) {
+            return false;
+        }
+        for &conjunct in i.get_element_list(conjuncts_id) {
+            if !overlaps(
+                i.intern_type(&[a], FlowFlags::EMPTY),
+                i.intern_type(&[conjunct], FlowFlags::EMPTY),
+                world,
+                options,
+                report,
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     if a.kind() == ElementKind::Object && b.kind() == ElementKind::Object {
         return object_overlap(a, b, world, options, report);
     }
@@ -506,16 +560,25 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
     match elem.kind() {
         ElementKind::List => {
             let info = *i.get_list(elem);
-            info.flags.non_empty() && type_is_value_never(info.element_type, world)
+            if info.flags.non_empty() && type_is_value_never(info.element_type, world) {
+                return true;
+            }
+            // `non-empty-list<X> & Negated(list<Y>)` is uninhabited when
+            // `list<Y>` already contains every value of `list<X>` ; i.e.
+            // when the head refines the negated inner. Same logic as
+            // the object/named-class case above.
+            list_array_intersections_uninhabited(elem, info.intersections, world)
         }
         ElementKind::Array => {
             let info = *i.get_array(elem);
-            if !info.flags.non_empty() {
-                return false;
+            if info.flags.non_empty() {
+                let key_empty = info.key_param.is_some_and(|t| type_is_value_never(t, world));
+                let value_empty = info.value_param.is_some_and(|t| type_is_value_never(t, world));
+                if key_empty || value_empty {
+                    return true;
+                }
             }
-            let key_empty = info.key_param.is_some_and(|t| type_is_value_never(t, world));
-            let value_empty = info.value_param.is_some_and(|t| type_is_value_never(t, world));
-            key_empty || value_empty
+            list_array_intersections_uninhabited(elem, info.intersections, world)
         }
         ElementKind::Object => {
             let info = *i.get_object(elem);
@@ -646,6 +709,70 @@ fn string_overlap<W: World>(
 ) -> bool {
     let _ = (world, options, report);
     crate::meet::family::string::string_meet(a, b).is_some()
+}
+
+/// `true` iff `elem` (a List or Array) carries an intersection chain
+/// containing a `Negated(T)` whose inner `T` already contains the
+/// stripped head ; in that case the whole intersection is empty.
+/// Mirrors the negated-class arm of [`is_uninhabited`] for objects.
+#[inline]
+fn list_array_intersections_uninhabited<W: World>(
+    elem: ElementId,
+    intersections: Option<crate::ElementListId>,
+    world: &W,
+) -> bool {
+    let Some(intersections_id) = intersections else { return false };
+    let i = interner();
+    // Stripped head: re-intern without conjuncts so refinement checks see
+    // just the structural shape, not the conjunct chain (which would
+    // otherwise re-enter is_uninhabited and recurse forever).
+    let stripped = match elem.kind() {
+        ElementKind::List => {
+            let info = *i.get_list(elem);
+            i.intern_list(crate::element::payload::ListInfo { intersections: None, ..info })
+        }
+        ElementKind::Array => {
+            let info = *i.get_array(elem);
+            i.intern_array(crate::element::payload::KeyedArrayInfo { intersections: None, ..info })
+        }
+        _ => return false,
+    };
+    let stripped_t = i.intern_type(&[stripped], FlowFlags::EMPTY);
+    let opts = crate::lattice::LatticeOptions::default();
+    for &conjunct in i.get_element_list(intersections_id) {
+        if conjunct.kind() == ElementKind::Negated {
+            let neg_inner = i.get_negated(conjunct).inner;
+            let mut report = crate::lattice::LatticeReport::new();
+            if crate::lattice::refines(stripped_t, neg_inner, world, opts, &mut report) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// If `elem` is a List or Array carrying intersection conjuncts, return
+/// `(stripped_head, conjuncts_id)` where `stripped_head` is the same
+/// element with its conjunct list cleared. Used by `element_overlaps`
+/// to fold the conjunct chain into pairwise overlaps.
+#[inline]
+fn list_array_intersections(elem: ElementId) -> Option<(ElementId, crate::ElementListId)> {
+    let i = interner();
+    match elem.kind() {
+        ElementKind::List => {
+            let info = *i.get_list(elem);
+            let conjuncts_id = info.intersections?;
+            let stripped = i.intern_list(crate::element::payload::ListInfo { intersections: None, ..info });
+            Some((stripped, conjuncts_id))
+        }
+        ElementKind::Array => {
+            let info = *i.get_array(elem);
+            let conjuncts_id = info.intersections?;
+            let stripped = i.intern_array(crate::element::payload::KeyedArrayInfo { intersections: None, ..info });
+            Some((stripped, conjuncts_id))
+        }
+        _ => None,
+    }
 }
 
 /// `list<X> ∩ list<Y>` shares the empty list `[]` only when neither

@@ -599,6 +599,7 @@ fn eval_properties_of<W: World>(
         key_param: None,
         value_param: None,
         known_items: Some(i.intern_known_items(&entries)),
+        intersections: None,
         flags: KeyedArrayFlags::default(),
     };
 

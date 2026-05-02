@@ -275,6 +275,7 @@ impl ElementId {
             element_type,
             known_elements: None,
             known_count: None,
+            intersections: None,
             flags: ListFlags::default().with_non_empty(non_empty),
         };
         interner().intern_list(info)
@@ -291,6 +292,7 @@ impl ElementId {
             element_type: TYPE_NEVER,
             known_elements: Some(i.intern_known_elements(elements)),
             known_count,
+            intersections: None,
             flags: ListFlags::default().with_non_empty(non_empty),
         };
         i.intern_list(info)
@@ -305,6 +307,7 @@ impl ElementId {
             key_param: Some(key_type),
             value_param: Some(value_type),
             known_items: None,
+            intersections: None,
             flags: KeyedArrayFlags::default().with_non_empty(non_empty),
         };
         interner().intern_array(info)
@@ -321,6 +324,7 @@ impl ElementId {
             key_param: None,
             value_param: None,
             known_items: Some(known),
+            intersections: None,
             flags: KeyedArrayFlags::default().with_non_empty(non_empty),
         };
         i.intern_array(info)
@@ -389,7 +393,7 @@ impl ElementId {
     ///
     /// Element kinds that support intersections: `Object`, `Iterable`,
     /// `ObjectShape`, `HasMethod`, `HasProperty`, `GenericParameter`,
-    /// `Reference`. Everything else returns `&[]`.
+    /// `Reference`, `List`, `Array`. Everything else returns `&[]`.
     #[inline]
     #[must_use]
     pub fn intersection_types(self) -> &'static [ElementId] {
@@ -402,6 +406,8 @@ impl ElementId {
             ElementKind::HasProperty => i.get_has_property(self).intersections,
             ElementKind::GenericParameter => i.get_generic_parameter(self).intersections,
             ElementKind::Reference => i.get_reference(self).intersections,
+            ElementKind::List => i.get_list(self).intersections,
+            ElementKind::Array => i.get_array(self).intersections,
             _ => return &[],
         };
 
@@ -426,6 +432,8 @@ impl ElementId {
         matches!(
             self.kind(),
             ElementKind::Object
+                | ElementKind::List
+                | ElementKind::Array
                 | ElementKind::Iterable
                 | ElementKind::ObjectShape
                 | ElementKind::HasMethod

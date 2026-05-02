@@ -356,6 +356,7 @@ fn generic_array_type() -> TypeId {
         key_param: Some(TYPE_ARRAY_KEY),
         value_param: Some(TYPE_MIXED),
         known_items: None,
+        intersections: None,
         flags: KeyedArrayFlags::default(),
     };
     singleton(i.intern_array(info))

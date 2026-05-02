@@ -230,8 +230,13 @@ impl Interner {
 
     #[inline]
     fn boot_empty_array(&self) {
-        let empty =
-            KeyedArrayInfo { key_param: None, value_param: None, known_items: None, flags: KeyedArrayFlags::default() };
+        let empty = KeyedArrayInfo {
+            key_param: None,
+            value_param: None,
+            known_items: None,
+            intersections: None,
+            flags: KeyedArrayFlags::default(),
+        };
 
         let booted = self.intern_array(empty);
         debug_assert_eq!(booted, EMPTY_ARRAY);
@@ -301,6 +306,7 @@ impl Interner {
             key_param: Some(TYPE_ARRAY_KEY),
             value_param: Some(TYPE_MIXED),
             known_items: None,
+            intersections: None,
             flags: KeyedArrayFlags::default(),
         };
 

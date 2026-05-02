@@ -54,11 +54,81 @@ pub fn refines<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
+    // Container-intersection rule: `H & C₁ & … & Cₙ` is refined iff input
+    // refines `H` AND each `Cᵢ`. Strip the conjuncts, recurse for the
+    // head, then iterate. Mirrors the object-family pattern.
+    if let Some(intersections_id) = container_intersections(container) {
+        let stripped_container = strip_container_intersections(container);
+        if !type_refines(single_type(input), single_type(stripped_container), world, options, report) {
+            return false;
+        }
+        let i = interner();
+        for &conjunct in i.get_element_list(intersections_id) {
+            if !type_refines(single_type(input), single_type(conjunct), world, options, report) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Input-intersection rule: `I & C₁ & … & Cₙ` refines a non-intersected
+    // container iff `I` refines it OR some `Cᵢ` refines it. Symmetrical.
+    if let Some(intersections_id) = input_intersections(input) {
+        let stripped_input = strip_input_intersections(input);
+        if type_refines(single_type(stripped_input), single_type(container), world, options, report) {
+            return true;
+        }
+        let i = interner();
+        for &conjunct in i.get_element_list(intersections_id) {
+            if type_refines(single_type(conjunct), single_type(container), world, options, report) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     match container.kind() {
         ElementKind::List => refines_list(input, container, world, options, report),
         ElementKind::Array => refines_keyed(input, container, world, options, report),
         _ => false,
     }
+}
+
+/// Pull the intersection-conjunct list off a List/Array element.
+#[inline]
+fn container_intersections(elem: ElementId) -> Option<crate::ElementListId> {
+    match elem.kind() {
+        ElementKind::List => interner().get_list(elem).intersections,
+        ElementKind::Array => interner().get_array(elem).intersections,
+        _ => None,
+    }
+}
+
+#[inline]
+fn input_intersections(elem: ElementId) -> Option<crate::ElementListId> {
+    container_intersections(elem)
+}
+
+/// Re-intern `elem` (a List/Array) without its intersection conjuncts.
+#[inline]
+fn strip_container_intersections(elem: ElementId) -> ElementId {
+    let i = interner();
+    match elem.kind() {
+        ElementKind::List => {
+            let info = *i.get_list(elem);
+            i.intern_list(ListInfo { intersections: None, ..info })
+        }
+        ElementKind::Array => {
+            let info = *i.get_array(elem);
+            i.intern_array(KeyedArrayInfo { intersections: None, ..info })
+        }
+        _ => elem,
+    }
+}
+
+#[inline]
+fn strip_input_intersections(elem: ElementId) -> ElementId {
+    strip_container_intersections(elem)
 }
 
 #[inline]

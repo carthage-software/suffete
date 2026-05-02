@@ -161,11 +161,13 @@ pub enum SerializableElement {
         key_param: Option<Box<SerializableType>>,
         value_param: Option<Box<SerializableType>>,
         known_items: Vec<SerializableKnownItem>,
+        intersections: Option<Vec<SerializableElement>>,
         non_empty: bool,
     },
     List {
         element_type: Box<SerializableType>,
         known_elements: Vec<SerializableKnownElement>,
+        intersections: Option<Vec<SerializableElement>>,
         known_count: Option<u32>,
         non_empty: bool,
     },
@@ -586,6 +588,9 @@ fn encode_element(elem: ElementId) -> SerializableElement {
                 key_param: info.key_param.map(|t| Box::new(encode_type(t))),
                 value_param: info.value_param.map(|t| Box::new(encode_type(t))),
                 known_items,
+                intersections: info
+                    .intersections
+                    .map(|id| i.get_element_list(id).iter().map(|&e| encode_element(e)).collect()),
                 non_empty: info.flags.non_empty(),
             }
         }
@@ -607,6 +612,9 @@ fn encode_element(elem: ElementId) -> SerializableElement {
             SerializableElement::List {
                 element_type: Box::new(encode_type(info.element_type)),
                 known_elements,
+                intersections: info
+                    .intersections
+                    .map(|id| i.get_element_list(id).iter().map(|&e| encode_element(e)).collect()),
                 known_count: info.known_count.map(core::num::NonZeroU32::get),
                 non_empty: info.flags.non_empty(),
             }
@@ -955,7 +963,7 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
             property_name: *property_name,
             intersections: decode_intersections(intersections.as_deref()),
         }),
-        SerializableElement::Array { key_param, value_param, known_items, non_empty } => {
+        SerializableElement::Array { key_param, value_param, known_items, intersections, non_empty } => {
             let known_id = if known_items.is_empty() {
                 None
             } else {
@@ -973,10 +981,11 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
                 key_param: key_param.as_ref().map(|t| decode_type(t)),
                 value_param: value_param.as_ref().map(|t| decode_type(t)),
                 known_items: known_id,
+                intersections: decode_intersections(intersections.as_deref()),
                 flags: KeyedArrayFlags::default().with_non_empty(*non_empty),
             })
         }
-        SerializableElement::List { element_type, known_elements, known_count, non_empty } => {
+        SerializableElement::List { element_type, known_elements, intersections, known_count, non_empty } => {
             let known_id = if known_elements.is_empty() {
                 None
             } else {
@@ -990,6 +999,7 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
                 element_type: decode_type(element_type),
                 known_elements: known_id,
                 known_count: known_count.and_then(core::num::NonZeroU32::new),
+                intersections: decode_intersections(intersections.as_deref()),
                 flags: ListFlags::default().with_non_empty(*non_empty),
             })
         }

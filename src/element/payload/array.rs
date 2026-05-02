@@ -5,6 +5,7 @@ use core::num::NonZeroU32;
 
 use mago_atom::Atom;
 
+use crate::ElementListId;
 use crate::TypeId;
 use crate::handle::define_handle;
 
@@ -56,11 +57,19 @@ pub struct KnownElementEntry {
 /// "Sealed" is the absence of a rest type: `key_param` and `value_param` both
 /// `None` means the shape admits no extra entries beyond `known_items`. There
 /// is intentionally no separate `sealed` flag.
+///
+/// `intersections` carries `&conjunct` narrowings the way
+/// [`ObjectInfo`](super::ObjectInfo) does. Subtract-driven complement
+/// narrowing of the form "this array except the values of `array<K2,
+/// V2>`" is expressed as a [`Negated`](crate::element::payload::NegatedInfo)
+/// conjunct here ; refines/overlaps/meet walk the chain just as they
+/// do for objects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct KeyedArrayInfo {
     pub key_param: Option<TypeId>,
     pub value_param: Option<TypeId>,
     pub known_items: Option<KnownItemsId>,
+    pub intersections: Option<ElementListId>,
     pub flags: KeyedArrayFlags,
 }
 
@@ -93,10 +102,18 @@ impl KeyedArrayFlags {
 }
 
 /// `list<T>`, `non-empty-list<T>`, `list{0: int, 1: string, ...}`.
+///
+/// `intersections` carries `&conjunct` narrowings the way
+/// [`ObjectInfo`](super::ObjectInfo) does. Subtract-driven complement
+/// narrowing of the form "this list except the values of `list<S>`"
+/// is expressed as a [`Negated`](crate::element::payload::NegatedInfo)
+/// conjunct here ; refines/overlaps/meet walk the chain just as they
+/// do for objects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ListInfo {
     pub element_type: TypeId,
     pub known_elements: Option<KnownElementsId>,
+    pub intersections: Option<ElementListId>,
     pub known_count: Option<NonZeroU32>,
     pub flags: ListFlags,
 }
@@ -120,8 +137,11 @@ impl ListFlags {
     }
 }
 
+// Adding `intersections: Option<ElementListId>` (4 bytes) to both
+// pushes them up by 8 bytes after alignment. The budgets reflect the
+// new ceilings; both still fit within their natural cache lines.
 const _: () = assert!(size_of::<KeyedArrayInfo>() <= 32, "size budget exceeded");
-const _: () = assert!(size_of::<ListInfo>() <= 24, "size budget exceeded");
+const _: () = assert!(size_of::<ListInfo>() <= 32, "size budget exceeded");
 const _: () = assert!(size_of::<ArrayKey>() <= 24, "size budget exceeded");
 const _: () = assert!(size_of::<KnownItemEntry>() <= 40, "size budget exceeded");
 const _: () = assert!(size_of::<KnownElementEntry>() <= 24, "size budget exceeded");
@@ -148,27 +168,32 @@ impl core::fmt::Display for KeyedArrayInfo {
                 if !first {
                     f.write_str(", ")?;
                 }
+
                 first = false;
                 core::fmt::Display::fmt(&entry.key, f)?;
                 if entry.optional {
                     f.write_str("?")?;
                 }
+
                 f.write_str(": ")?;
                 core::fmt::Display::fmt(&entry.value, f)?;
             }
+
             if let (Some(k), Some(v)) = (self.key_param, self.value_param) {
                 if !first {
                     f.write_str(", ")?;
                 }
                 write!(f, "...<{}, {}>", k, v)?;
             }
-            f.write_str("}")
+            f.write_str("}")?;
         } else if let (Some(k), Some(v)) = (self.key_param, self.value_param) {
             let head = if self.flags.non_empty() { "non-empty-array" } else { "array" };
-            write!(f, "{head}<{k}, {v}>")
+            write!(f, "{head}<{k}, {v}>")?;
         } else {
-            f.write_str("array{}")
+            f.write_str("array{}")?;
         }
+
+        super::object::render_intersection_chain(self.intersections, f)
     }
 }
 
@@ -223,25 +248,29 @@ impl KeyedArrayInfo {
             }
             out.push_str(&" ".repeat(indent));
             out.push('}');
+            append_intersection_chain_pretty(self.intersections, indent, &mut out);
             return out;
         }
 
-        if let (Some(k), Some(v)) = (self.key_param, self.value_param) {
+        let mut out = if let (Some(k), Some(v)) = (self.key_param, self.value_param) {
             let head = if self.flags.non_empty() { "non-empty-array" } else { "array" };
             if k.is_complex() || v.is_complex() {
                 let inner = indent + 2;
                 let pad = " ".repeat(inner);
-                return format!(
+                format!(
                     "{head}<\n{pad}{},\n{pad}{},\n{}>",
                     k.pretty_with_indent(inner),
                     v.pretty_with_indent(inner),
                     " ".repeat(indent),
-                );
+                )
+            } else {
+                format!("{head}<{}, {}>", k.pretty_with_indent(indent), v.pretty_with_indent(indent))
             }
-            return format!("{head}<{}, {}>", k.pretty_with_indent(indent), v.pretty_with_indent(indent));
-        }
-
-        String::from("array{}")
+        } else {
+            String::from("array{}")
+        };
+        append_intersection_chain_pretty(self.intersections, indent, &mut out);
+        out
     }
 }
 
@@ -263,11 +292,12 @@ impl core::fmt::Display for ListInfo {
                 }
                 write!(f, ": {}", entry.value)?;
             }
-            f.write_str("}")
+            f.write_str("}")?;
         } else {
             let head = if self.flags.non_empty() { "non-empty-list" } else { "list" };
-            write!(f, "{head}<{}>", self.element_type)
+            write!(f, "{head}<{}>", self.element_type)?;
         }
+        super::object::render_intersection_chain(self.intersections, f)
     }
 }
 
@@ -321,19 +351,43 @@ impl ListInfo {
             }
             out.push_str(&" ".repeat(indent));
             out.push('}');
+            append_intersection_chain_pretty(self.intersections, indent, &mut out);
             return out;
         }
 
         let head = if self.flags.non_empty() { "non-empty-list" } else { "list" };
-        if self.element_type.is_complex() {
+        let mut out = if self.element_type.is_complex() {
             let inner = indent + 2;
-            return format!(
+            format!(
                 "{head}<\n{}{},\n{}>",
                 " ".repeat(inner),
                 self.element_type.pretty_with_indent(inner),
                 " ".repeat(indent),
-            );
+            )
+        } else {
+            format!("{head}<{}>", self.element_type.pretty_with_indent(indent))
+        };
+        append_intersection_chain_pretty(self.intersections, indent, &mut out);
+        out
+    }
+}
+
+/// Pretty-form companion to [`super::object::render_intersection_chain`]:
+/// append the `&conjunct` chain from `intersections` to `out`, wrapping
+/// each conjunct in `()` when it itself carries intersection types.
+#[inline]
+fn append_intersection_chain_pretty(intersections: Option<ElementListId>, indent: usize, out: &mut String) {
+    use crate::typed::Typed;
+    let Some(id) = intersections else { return };
+    for &conjunct in crate::interner::interner().get_element_list(id) {
+        let s = conjunct.pretty_with_indent(indent);
+        if conjunct.has_intersection_types() {
+            out.push_str("&(");
+            out.push_str(&s);
+            out.push(')');
+        } else {
+            out.push('&');
+            out.push_str(&s);
         }
-        format!("{head}<{}>", self.element_type.pretty_with_indent(indent))
     }
 }

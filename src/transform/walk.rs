@@ -177,12 +177,15 @@ fn walk_list<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Opti
         }
     });
 
-    if new_elem_t == info.element_type && new_known.is_none() {
+    let new_intersections = walk_intersections(info.intersections, f);
+
+    if new_elem_t == info.element_type && new_known.is_none() && new_intersections.is_none() {
         return None;
     }
     Some(i.intern_list(ListInfo {
         element_type: new_elem_t,
         known_elements: new_known.or(info.known_elements),
+        intersections: new_intersections.or(info.intersections),
         ..info
     }))
 }
@@ -205,15 +208,18 @@ fn walk_keyed_array<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) 
         }
     });
 
+    let new_intersections = walk_intersections(info.intersections, f);
+
     let key_changed = new_key != info.key_param;
     let value_changed = new_value != info.value_param;
-    if !key_changed && !value_changed && new_known.is_none() {
+    if !key_changed && !value_changed && new_known.is_none() && new_intersections.is_none() {
         return None;
     }
     Some(i.intern_array(KeyedArrayInfo {
         key_param: new_key,
         value_param: new_value,
         known_items: new_known.or(info.known_items),
+        intersections: new_intersections.or(info.intersections),
         ..info
     }))
 }
