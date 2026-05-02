@@ -107,6 +107,78 @@ serde = { version = "1", features = ["derive"], optional = true }
 name = "id"
 harness = false
 
+[[bench]]
+name = "element"
+harness = false
+
+[[bench]]
+name = "ty"
+harness = false
+
+[[bench]]
+name = "builder"
+harness = false
+
+[[bench]]
+name = "interner"
+harness = false
+
+[[bench]]
+name = "predicates"
+harness = false
+
+[[bench]]
+name = "inspect"
+harness = false
+
+[[bench]]
+name = "transform"
+harness = false
+
+[[bench]]
+name = "join"
+harness = false
+
+[[bench]]
+name = "meet"
+harness = false
+
+[[bench]]
+name = "subtract"
+harness = false
+
+[[bench]]
+name = "lattice"
+harness = false
+
+[[bench]]
+name = "cast"
+harness = false
+
+[[bench]]
+name = "compatibility"
+harness = false
+
+[[bench]]
+name = "expand"
+harness = false
+
+[[bench]]
+name = "hierarchy"
+harness = false
+
+[[bench]]
+name = "template"
+harness = false
+
+[[bench]]
+name = "widen"
+harness = false
+
+[[bench]]
+name = "serialize"
+harness = false
+
 [profile.release]
 opt-level = 3
 debug = false

@@ -1,4 +1,14 @@
-#![allow(clippy::absolute_paths, clippy::missing_docs_in_private_items, clippy::significant_drop_tightening)]
+#![allow(
+    clippy::significant_drop_tightening,
+    clippy::wildcard_imports,
+    clippy::missing_const_for_fn,
+    clippy::separated_literal_suffix,
+    clippy::doc_markdown,
+    clippy::redundant_closure,
+    clippy::arithmetic_side_effects,
+    clippy::absolute_paths,
+    clippy::missing_docs_in_private_items
+)]
 
 use core::hint::black_box;
 use criterion::Criterion;
