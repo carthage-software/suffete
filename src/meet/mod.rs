@@ -108,17 +108,21 @@ pub fn narrow<W: World>(
     let input_type = input.as_ref();
     let narrowing_type = narrowing.as_ref();
 
-    let mut atoms: Vec<ElementId> = Vec::new();
+    let mut atoms: Vec<ElementId> =
+        Vec::with_capacity(input_type.elements.len().saturating_mul(narrowing_type.elements.len()));
+
     for &x in input_type.elements {
         for &y in narrowing_type.elements {
             if x.kind() == ElementKind::Negated || y.kind() == ElementKind::Negated {
                 atoms.extend(negated_atom_meet_multi(x, y, world, options, report));
                 continue;
             }
+
             if let Some(pieces) = cross_dominator_meet(x, y) {
                 atoms.extend(pieces);
                 continue;
             }
+
             if let Some(m) = atom_meet(x, y, world, options, report) {
                 atoms.push(m);
             }
@@ -195,11 +199,13 @@ fn atom_meet<W: World>(
     let i = interner();
     let a_t = i.intern_type(&[a], FlowFlags::EMPTY);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
+
     if refines(a_t, b_t, world, options, report) {
-        return if crate::lattice::overlaps::is_uninhabited(a, world) { None } else { Some(a) };
+        return Some(a);
     }
+
     if refines(b_t, a_t, world, options, report) {
-        return if crate::lattice::overlaps::is_uninhabited(b, world) { None } else { Some(b) };
+        return Some(b);
     }
 
     if a.kind() == ElementKind::GenericParameter || b.kind() == ElementKind::GenericParameter {
