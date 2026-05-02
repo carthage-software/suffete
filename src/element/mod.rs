@@ -4,6 +4,7 @@
 
 mod id;
 mod kind;
+pub(crate) mod simd;
 mod value;
 
 pub mod payload;
@@ -11,4 +12,7 @@ pub mod payload;
 pub use self::id::ElementId;
 pub use self::id::ElementListId;
 pub use self::kind::ElementKind;
+pub use self::simd::any_of_kind;
+pub use self::simd::contains;
+pub use self::simd::count_of_kind;
 pub use self::value::Element;

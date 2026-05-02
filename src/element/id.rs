@@ -55,7 +55,7 @@ pub struct ElementId(NonZeroU32);
 
 impl ElementId {
     const KIND_BITS: u32 = 6;
-    const SLOT_BITS: u32 = u32::BITS - Self::KIND_BITS;
+    pub(super) const SLOT_BITS: u32 = u32::BITS - Self::KIND_BITS;
     const SLOT_MASK: u32 = (1u32 << Self::SLOT_BITS) - 1;
 
     /// Maximum addressable slot per kind. Each per-kind arena tops out here.
@@ -86,6 +86,17 @@ impl ElementId {
     #[must_use]
     pub const fn slot(self) -> u32 {
         self.0.get() & Self::SLOT_MASK
+    }
+
+    /// Raw 32-bit handle value. The high [`Self::KIND_BITS`] carry the
+    /// kind tag and the low [`Self::SLOT_BITS`] carry the per-kind
+    /// arena slot. `pub(crate)` because the bit layout is an interner
+    /// internal that downstream code is not stable against.
+    #[inline]
+    #[must_use]
+    #[allow(dead_code)]
+    pub(crate) const fn raw(self) -> u32 {
+        self.0.get()
     }
 
     /// Resolve this handle to a borrowed [`Element`](crate::Element) view via

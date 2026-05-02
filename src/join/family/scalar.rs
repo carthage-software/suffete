@@ -14,10 +14,11 @@ use crate::prelude::STRING;
 /// refinements, class-like-strings) remain independent and are left
 /// to subtype absorption.
 pub(in crate::join) fn apply_scalar_synthesis(elements: &mut Vec<ElementId>) {
-    let has_int = elements.contains(&INT);
-    let has_string = elements.contains(&STRING);
-    let has_float = elements.contains(&FLOAT);
-    let has_bool = elements.contains(&BOOL);
+    use crate::element::simd::contains;
+    let has_int = contains(elements, INT);
+    let has_string = contains(elements, STRING);
+    let has_float = contains(elements, FLOAT);
+    let has_bool = contains(elements, BOOL);
     if !(has_int && has_string && has_float && has_bool) {
         return;
     }

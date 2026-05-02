@@ -147,7 +147,7 @@ fn str_is_numeric(s: &str) -> bool {
 /// Drop string literals and add the broad `string` form when the
 /// literal count exceeds `threshold`.
 pub(in crate::join) fn apply_string_literal_collapse(elements: &mut Vec<ElementId>, threshold: u16) {
-    if elements.contains(&STRING) {
+    if crate::element::simd::contains(elements, STRING) {
         return;
     }
     let i = interner();

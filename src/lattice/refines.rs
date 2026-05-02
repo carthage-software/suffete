@@ -439,8 +439,8 @@ fn bool_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     if input.kind() != ElementKind::Bool {
         return false;
     }
-    let has_true = containers.iter().any(|c| c.kind() == ElementKind::True);
-    let has_false = containers.iter().any(|c| c.kind() == ElementKind::False);
+    let has_true = crate::element::simd::any_of_kind(containers, ElementKind::True);
+    let has_false = crate::element::simd::any_of_kind(containers, ElementKind::False);
     has_true && has_false
 }
 
@@ -460,8 +460,12 @@ fn mixed_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     if info != MixedInfo::EMPTY {
         return false;
     }
-    let has_null = containers.contains(&NULL);
-    let has_nonnull = containers.iter().any(|c| c.kind() == ElementKind::Mixed && i.get_mixed(*c).is_non_null());
+    let has_null = crate::element::simd::contains(containers, NULL);
+    // Mixed-kind containers are rare in practice ; the SIMD prefilter
+    // picks them out cheaply, and only matched lanes pay the
+    // `is_non_null` payload check.
+    let has_nonnull = crate::element::simd::any_of_kind(containers, ElementKind::Mixed)
+        && containers.iter().any(|c| c.kind() == ElementKind::Mixed && i.get_mixed(*c).is_non_null());
     has_null && has_nonnull
 }
 

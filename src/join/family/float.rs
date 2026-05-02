@@ -9,7 +9,7 @@ use crate::prelude::FLOAT;
 /// Drop float literals and add the broad `float` form when the
 /// literal count exceeds `threshold`.
 pub(in crate::join) fn apply_float_literal_collapse(elements: &mut Vec<ElementId>, threshold: u16) {
-    if elements.contains(&FLOAT) {
+    if crate::element::simd::contains(elements, FLOAT) {
         return;
     }
 
