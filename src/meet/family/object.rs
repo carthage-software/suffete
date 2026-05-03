@@ -135,6 +135,10 @@ fn negation_excludes_class<W: World>(negated_atom: ElementId, class_name: mago_a
     let i = interner();
     let neg_info = *i.get_negated(negated_atom);
     let elements = neg_info.inner.as_ref().elements;
+    if !crate::element::simd::any_of_kind(elements, ElementKind::Object) {
+        return false;
+    }
+
     elements.iter().any(|&inner| {
         if inner.kind() != ElementKind::Object {
             return false;
@@ -327,31 +331,36 @@ fn finalize_object_composition<W: World>(merged: Vec<ElementId>, world: &W) -> O
         return None;
     }
 
-    for &neg in other_parts.iter().filter(|e| e.kind() == ElementKind::Negated) {
-        for &obj in &object_parts {
-            if negation_excludes_class(neg, i.get_object(obj).name, world) {
-                return None;
+    let has_negated = crate::element::simd::any_of_kind(&other_parts, ElementKind::Negated);
+    if has_negated {
+        for &neg in other_parts.iter().filter(|e| e.kind() == ElementKind::Negated) {
+            for &obj in &object_parts {
+                if negation_excludes_class(neg, i.get_object(obj).name, world) {
+                    return None;
+                }
+            }
+
+            // `(X & !X)` shape: a `Negated` whose inner accepts another
+            // conjunct in the same intersection is contradictory.
+            let neg_inner = i.get_negated(neg).inner;
+            for &positive in &other_parts {
+                if positive == neg {
+                    continue;
+                }
+
+                let pos_t = i.intern_type(&[positive], FlowFlags::EMPTY);
+                if crate::lattice::refines(
+                    pos_t,
+                    neg_inner,
+                    world,
+                    crate::lattice::LatticeOptions::default(),
+                    &mut crate::lattice::LatticeReport::new(),
+                ) {
+                    return None;
+                }
             }
         }
-        // `(X & !X)` shape: a `Negated` whose inner accepts another
-        // conjunct in the same intersection is contradictory.
-        let neg_inner = i.get_negated(neg).inner;
-        for &positive in &other_parts {
-            if positive == neg {
-                continue;
-            }
-            let pos_t = i.intern_type(&[positive], FlowFlags::EMPTY);
-            if crate::lattice::refines(
-                pos_t,
-                neg_inner,
-                world,
-                crate::lattice::LatticeOptions::default(),
-                &mut crate::lattice::LatticeReport::new(),
-            ) {
-                return None;
-            }
-        }
-    }
+    } // end has_negated guard
 
     object_parts.sort();
     object_parts.dedup();

@@ -59,6 +59,10 @@ pub fn refines<W: World>(
             !skipped
         })
         .all(|elem| {
+            if crate::element::simd::contains(b_type.elements, *elem) {
+                return true;
+            }
+
             if b_type.elements.iter().any(|rhs| element_refines(*elem, *rhs, world, options, report)) {
                 return true;
             }
@@ -114,21 +118,28 @@ fn negation_partition_covers<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
+    if !crate::element::simd::any_of_kind(containers, ElementKind::Negated) {
+        return false;
+    }
+
     let i = interner();
     for &c in containers {
         if c.kind() != ElementKind::Negated {
             continue;
         }
+
         let inner = i.get_negated(c).inner;
         let others: Vec<ElementId> = containers.iter().copied().filter(|&e| e != c).collect();
         if others.is_empty() {
             continue;
         }
+
         let others_t = i.intern_type(&others, FlowFlags::EMPTY);
         if refines(inner, others_t, world, options, report) {
             return true;
         }
     }
+
     false
 }
 
@@ -147,11 +158,16 @@ fn intersected_partition_covers<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
+    if !crate::element::simd::any_of_kind(containers, ElementKind::Intersected) {
+        return false;
+    }
+
     let i = interner();
     for (idx, &c) in containers.iter().enumerate() {
         if c.kind() != ElementKind::Intersected {
             continue;
         }
+
         let info = *i.get_intersected(c);
         let conjuncts = i.get_element_list(info.conjuncts);
         let mut all_negated = true;
@@ -161,19 +177,23 @@ fn intersected_partition_covers<W: World>(
                 all_negated = false;
                 break;
             }
+
             for &ie in i.get_negated(cj).inner.as_ref().elements {
                 if !containers.iter().enumerate().any(|(j, &other)| j != idx && other == ie) {
                     all_inners_present = false;
                     break;
                 }
             }
+
             if !all_inners_present {
                 break;
             }
         }
+
         if !all_negated || !all_inners_present {
             continue;
         }
+
         let mut reduced: Vec<ElementId> = containers.to_vec();
         reduced[idx] = info.head;
         let input_t = i.intern_type(&[input], FlowFlags::EMPTY);
@@ -182,6 +202,7 @@ fn intersected_partition_covers<W: World>(
             return true;
         }
     }
+
     false
 }
 
@@ -201,14 +222,23 @@ fn array_union_covers<W: World>(
     if input.kind() != ElementKind::Array {
         return false;
     }
+
+    if !crate::element::simd::any_of_kind(containers, ElementKind::Array)
+        && !crate::element::simd::any_of_kind(containers, ElementKind::Intersected)
+    {
+        return false;
+    }
+
     let i = interner();
     let input_info = *i.get_array(input);
     if input_info.known_items.is_some() {
         return false;
     }
+
     let (Some(input_key), Some(input_value)) = (input_info.key_param, input_info.value_param) else {
         return false;
     };
+
     let mut key_types: Vec<TypeId> = Vec::new();
     let mut value_types: Vec<TypeId> = Vec::new();
     let mut covers_empty = false;
@@ -220,34 +250,43 @@ fn array_union_covers<W: World>(
         } else {
             continue;
         };
+
         let c_info = *i.get_array(head);
         if c_info.known_items.is_some() {
             continue;
         }
+
         let (Some(k), Some(v)) = (c_info.key_param, c_info.value_param) else {
             continue;
         };
+
         if !c_info.flags.non_empty() {
             covers_empty = true;
         }
+
         key_types.push(k);
         value_types.push(v);
     }
+
     if key_types.is_empty() {
         return false;
     }
+
     if !input_info.flags.non_empty() && !covers_empty {
         return false;
     }
+
     let mut key_union: Vec<ElementId> = Vec::new();
     for t in &key_types {
         key_union.extend_from_slice(t.as_ref().elements);
     }
+
     let key_t = i.intern_type(&key_union, FlowFlags::EMPTY);
     let mut value_union: Vec<ElementId> = Vec::new();
     for t in &value_types {
         value_union.extend_from_slice(t.as_ref().elements);
     }
+
     let value_t = i.intern_type(&value_union, FlowFlags::EMPTY);
     refines(input_key, key_t, world, options, report) && refines(input_value, value_t, world, options, report)
 }
@@ -267,11 +306,19 @@ fn list_union_covers<W: World>(
     if input.kind() != ElementKind::List {
         return false;
     }
+
+    if !crate::element::simd::any_of_kind(containers, ElementKind::List)
+        && !crate::element::simd::any_of_kind(containers, ElementKind::Intersected)
+    {
+        return false;
+    }
+
     let i = interner();
     let input_info = *i.get_list(input);
     if input_info.known_elements.is_some() {
         return false;
     }
+
     let mut element_types: Vec<TypeId> = Vec::new();
     let mut covers_empty = false;
     for &c in containers {
@@ -282,25 +329,32 @@ fn list_union_covers<W: World>(
         } else {
             continue;
         };
+
         let c_info = *i.get_list(head);
         if c_info.known_elements.is_some() {
             continue;
         }
+
         if !c_info.flags.non_empty() {
             covers_empty = true;
         }
+
         element_types.push(c_info.element_type);
     }
+
     if element_types.is_empty() {
         return false;
     }
+
     if !input_info.flags.non_empty() && !covers_empty {
         return false;
     }
+
     let mut union_elems: Vec<ElementId> = Vec::new();
     for t in &element_types {
         union_elems.extend_from_slice(t.as_ref().elements);
     }
+
     let union_ty = i.intern_type(&union_elems, FlowFlags::EMPTY);
     refines(input_info.element_type, union_ty, world, options, report)
 }
@@ -315,6 +369,7 @@ fn expand_double_negation(t: TypeId) -> TypeId {
     if !elements.iter().any(|&e| is_double_negation(e)) {
         return t;
     }
+
     let i = interner();
     let mut expanded: Vec<ElementId> = Vec::with_capacity(elements.len());
     for &elem in elements {
@@ -327,6 +382,7 @@ fn expand_double_negation(t: TypeId) -> TypeId {
             expanded.push(elem);
         }
     }
+
     i.intern_type(&expanded, FlowFlags::EMPTY)
 }
 
@@ -391,6 +447,10 @@ fn generic_parameter_union_covers<W: World>(
 #[inline]
 fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     if input.kind() != ElementKind::Int {
+        return false;
+    }
+
+    if !crate::element::simd::any_of_kind(containers, ElementKind::Int) {
         return false;
     }
 
@@ -486,6 +546,10 @@ fn int_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
 #[inline]
 fn string_union_covers(input: ElementId, containers: &[ElementId]) -> bool {
     if input.kind() != ElementKind::String {
+        return false;
+    }
+
+    if !crate::element::simd::any_of_kind(containers, ElementKind::String) {
         return false;
     }
 

@@ -131,10 +131,11 @@ impl TypeBuilder {
     /// Remove the first occurrence of `element`. No-op when absent.
     #[inline]
     pub fn remove(&mut self, element: ElementId) -> &mut Self {
-        if let Some(idx) = self.elements.iter().position(|e| *e == element) {
+        if let Some(idx) = crate::element::simd::position_of(&self.elements, element) {
             self.elements.remove(idx);
             self.dirty = true;
         }
+
         self
     }
 
@@ -166,7 +167,7 @@ impl TypeBuilder {
     /// `old` is absent.
     #[inline]
     pub fn replace(&mut self, old: ElementId, new: ElementId) -> &mut Self {
-        if let Some(idx) = self.elements.iter().position(|e| *e == old)
+        if let Some(idx) = crate::element::simd::position_of(&self.elements, old)
             && self.elements[idx] != new
         {
             self.elements[idx] = new;
