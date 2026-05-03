@@ -199,6 +199,10 @@ impl Interner {
         } else if elements.len() == 1 {
             // Already len-1 ; sort + dedup are no-ops, skip the alloc.
             self.element_list.intern(elements)
+        } else if crate::element::simd::is_sorted_strict(elements) {
+            // Already canonical (sorted + unique). Most join / lattice
+            // results land here; skip the to_vec + sort + dedup.
+            self.element_list.intern(elements)
         } else {
             let mut sorted: Vec<ElementId> = elements.to_vec();
             sorted.sort_unstable();

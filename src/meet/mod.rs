@@ -111,9 +111,14 @@ pub fn narrow<W: World>(
     let mut atoms: Vec<ElementId> =
         Vec::with_capacity(input_type.elements.len().saturating_mul(narrowing_type.elements.len()));
 
+    let any_negated = crate::element::simd::any_of_kind(input_type.elements, ElementKind::Negated)
+        || crate::element::simd::any_of_kind(narrowing_type.elements, ElementKind::Negated);
+    let any_mixed = crate::element::simd::any_of_kind(input_type.elements, ElementKind::Mixed)
+        || crate::element::simd::any_of_kind(narrowing_type.elements, ElementKind::Mixed);
+
     for &x in input_type.elements {
         for &y in narrowing_type.elements {
-            if x.kind() == ElementKind::Negated || y.kind() == ElementKind::Negated {
+            if any_negated && (x.kind() == ElementKind::Negated || y.kind() == ElementKind::Negated) {
                 atoms.extend(negated_atom_meet_multi(x, y, world, options, report));
                 continue;
             }
@@ -123,7 +128,7 @@ pub fn narrow<W: World>(
                 continue;
             }
 
-            if let Some(pieces) = narrowed_mixed_meet_multi(x, y) {
+            if any_mixed && let Some(pieces) = narrowed_mixed_meet_multi(x, y) {
                 atoms.extend(pieces);
                 continue;
             }

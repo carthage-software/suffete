@@ -59,6 +59,12 @@ pub fn is_union(ty: TypeId) -> bool {
 
 /// Generates an `is_X` predicate over a top-level element-kind set.
 macro_rules! is_kind {
+    ($name:ident, $kind:path) => {
+        #[inline]
+        pub fn $name(ty: TypeId) -> bool {
+            crate::element::simd::all_of_kind(ty.as_ref().elements, $kind)
+        }
+    };
     ($name:ident, $($kind:pat),+ $(,)?) => {
         #[inline]
         pub fn $name(ty: TypeId) -> bool {
@@ -107,6 +113,12 @@ is_kind!(is_numeric, ElementKind::Numeric | ElementKind::Int | ElementKind::Floa
 
 /// Generates a `contains_X` predicate over a top-level element-kind set.
 macro_rules! contains_kind {
+    ($name:ident, $kind:path) => {
+        #[inline]
+        pub fn $name(ty: TypeId) -> bool {
+            crate::element::simd::any_of_kind(ty.as_ref().elements, $kind)
+        }
+    };
     ($name:ident, $($kind:pat),+ $(,)?) => {
         #[inline]
         pub fn $name(ty: TypeId) -> bool {

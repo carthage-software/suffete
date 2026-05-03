@@ -4,8 +4,9 @@
 
 mod id;
 mod kind;
-pub(crate) mod simd;
 mod value;
+
+pub(crate) mod simd;
 
 pub mod payload;
 

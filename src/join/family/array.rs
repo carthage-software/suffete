@@ -104,6 +104,12 @@ pub(in crate::join) fn apply_array_shape_collapse(elements: &mut Vec<ElementId>,
 /// Drop `EMPTY_ARRAY` from the union when another `Array` or `List`
 /// atom is present.
 pub(in crate::join) fn apply_overwrite_empty_array(elements: &mut Vec<ElementId>) {
+    if !crate::element::simd::any_of_kind(elements, ElementKind::Array)
+        && !crate::element::simd::any_of_kind(elements, ElementKind::List)
+    {
+        return;
+    }
+
     let has_other_array =
         elements.iter().any(|e| *e != EMPTY_ARRAY && matches!(e.kind(), ElementKind::Array | ElementKind::List));
     if has_other_array {
