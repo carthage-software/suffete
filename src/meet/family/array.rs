@@ -124,6 +124,10 @@ pub(in crate::meet) fn keyed_array_meet<W: World>(
     let b_info = *i.get_array(b);
 
     let (Some(a_known_id), Some(b_known_id)) = (a_info.known_items, b_info.known_items) else {
+        if a_info.known_items.is_some() || b_info.known_items.is_some() {
+            return sealed_unsealed_array_meet(a_info, b_info, world, options, report);
+        }
+
         return unsealed_keyed_array_meet(a_info, b_info, world, options, report);
     };
 
@@ -158,6 +162,61 @@ pub(in crate::meet) fn keyed_array_meet<W: World>(
     };
 
     let result = i.intern_array(merged_info);
+
+    if crate::lattice::overlaps::is_uninhabited(result, world) { None } else { Some(result) }
+}
+
+/// `array{...} ∧ array<K, V>`: each known item's value gets met
+/// against `V`, the key is checked against `K` (a key outside `K`
+/// makes that item's value `never`, dropping or contradicting the
+/// item depending on `optional`).
+#[inline]
+fn sealed_unsealed_array_meet<W: World>(
+    a_info: KeyedArrayInfo,
+    b_info: KeyedArrayInfo,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<ElementId> {
+    let (sealed, unsealed) = if a_info.known_items.is_some() { (a_info, b_info) } else { (b_info, a_info) };
+    let i = interner();
+    let key_param = unsealed.key_param;
+    let value_param = unsealed.value_param;
+    let entries = i.get_known_items(sealed.known_items?);
+    let mut merged: Vec<KnownItemEntry> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let key_elem = match entry.key {
+            ArrayKey::Int(n) => ElementId::int_literal(n),
+            ArrayKey::String(s) => ElementId::string_literal(s.as_str()),
+            ArrayKey::Const { .. } => crate::prelude::ARRAY_KEY,
+        };
+        let key_t = i.intern_type(&[key_elem], crate::FlowFlags::EMPTY);
+        let key_compatible = key_param.is_none_or(|k| crate::lattice::refines(key_t, k, world, options, report));
+        let value = if let Some(vp) = value_param {
+            crate::meet::compute(entry.value, vp, world, options, report)
+        } else {
+            entry.value
+        };
+
+        if !key_compatible || value == crate::prelude::TYPE_NEVER {
+            if entry.optional {
+                continue;
+            }
+            return None;
+        }
+
+        merged.push(KnownItemEntry { value, ..*entry });
+    }
+
+    let known_items = if merged.is_empty() { None } else { Some(i.intern_known_items(&merged)) };
+    let non_empty = sealed.flags.non_empty() || unsealed.flags.non_empty();
+    let result = i.intern_array(KeyedArrayInfo {
+        key_param: None,
+        value_param: None,
+        known_items,
+        intersections: merge_intersections(a_info.intersections, b_info.intersections),
+        flags: KeyedArrayFlags::default().with_non_empty(non_empty),
+    });
 
     if crate::lattice::overlaps::is_uninhabited(result, world) { None } else { Some(result) }
 }
