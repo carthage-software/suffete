@@ -213,10 +213,14 @@ fn array_union_covers<W: World>(
     let mut value_types: Vec<TypeId> = Vec::new();
     let mut covers_empty = false;
     for &c in containers {
-        if c.kind() != ElementKind::Array {
+        let head = if c.kind() == ElementKind::Array {
+            c
+        } else if c.kind() == ElementKind::Intersected && i.get_intersected(c).head.kind() == ElementKind::Array {
+            i.get_intersected(c).head
+        } else {
             continue;
-        }
-        let c_info = *i.get_array(c);
+        };
+        let c_info = *i.get_array(head);
         if c_info.known_items.is_some() {
             continue;
         }

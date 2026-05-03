@@ -376,5 +376,21 @@ fn family_atom_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
         return family::array::array_minus_iterable(a, b);
     }
 
+    if a.kind() == ElementKind::Iterable && b.kind() == ElementKind::Iterable {
+        return family::iterable::iterable_minus(a, b);
+    }
+
+    if a.kind() == ElementKind::Callable && b.kind() == ElementKind::Callable {
+        return family::callable::callable_minus(a, b);
+    }
+
+    if a.kind() == ElementKind::HasMethod && b.kind() == ElementKind::HasMethod {
+        return family::has_member::has_method_minus(a, b);
+    }
+
+    if a.kind() == ElementKind::HasProperty && b.kind() == ElementKind::HasProperty {
+        return family::has_member::has_property_minus(a, b);
+    }
+
     None
 }

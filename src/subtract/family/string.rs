@@ -1,6 +1,7 @@
 //! `String \ String` axis-narrowing rules.
 
 use crate::ElementId;
+use crate::FlowFlags;
 use crate::element::payload::scalar::StringCasing;
 use crate::element::payload::scalar::StringLiteral;
 use crate::element::payload::scalar::StringRefinementFlags;
@@ -38,6 +39,15 @@ pub(in crate::subtract) fn string_minus(a: ElementId, b: ElementId) -> Option<Ve
     let b_requires_non_empty = b_info.flags.is_non_empty() || b_info.flags.is_truthy();
     if a_is_general && b_is_broad && b_requires_non_empty {
         return Some(vec![ElementId::string_literal("")]);
+    }
+
+    // `general-string \ broad-numeric-string` keeps the non-numeric
+    // strings: any string that doesn't parse as a number, plus the
+    // empty string (numeric requires non-empty in PHP).
+    if a_is_general && b_is_broad && b_info.flags.is_numeric() {
+        let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
+        let neg = ElementId::negated(b_t);
+        return Some(vec![ElementId::intersected(a, &[neg])]);
     }
 
     None

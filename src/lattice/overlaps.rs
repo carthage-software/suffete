@@ -594,10 +594,13 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
             if info.flags.non_empty() && type_is_value_never(info.element_type, world) {
                 return true;
             }
-            // `non-empty-list<X> & Negated(list<Y>)` is uninhabited when
-            // `list<Y>` already contains every value of `list<X>` ; i.e.
-            // when the head refines the negated inner. Same logic as
-            // the object/named-class case above.
+            if let Some(known_id) = info.known_elements {
+                for entry in i.get_known_elements(known_id) {
+                    if !entry.optional && type_is_value_never(entry.value, world) {
+                        return true;
+                    }
+                }
+            }
             list_array_intersections_uninhabited(elem, info.intersections, world)
         }
         ElementKind::Array => {
@@ -607,6 +610,13 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                 let value_empty = info.value_param.is_some_and(|t| type_is_value_never(t, world));
                 if key_empty || value_empty {
                     return true;
+                }
+            }
+            if let Some(known_id) = info.known_items {
+                for entry in i.get_known_items(known_id) {
+                    if !entry.optional && type_is_value_never(entry.value, world) {
+                        return true;
+                    }
                 }
             }
             list_array_intersections_uninhabited(elem, info.intersections, world)
