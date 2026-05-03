@@ -71,14 +71,6 @@ fn descend_object<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut 
         }
     }
 
-    if let Some(intersections_id) = info.intersections {
-        for &conjunct in i.get_element_list(intersections_id) {
-            if visit(conjunct, predicate) {
-                return true;
-            }
-        }
-    }
-
     false
 }
 
@@ -132,10 +124,7 @@ fn descend_keyed_array<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: 
 fn descend_iterable<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
     let i = interner();
     let info = *i.get_iterable(elem);
-    if any(info.key_type, predicate) || any(info.value_type, predicate) {
-        return true;
-    }
-    descend_intersections(info.intersections, predicate)
+    any(info.key_type, predicate) || any(info.value_type, predicate)
 }
 
 #[inline]
@@ -149,30 +138,16 @@ fn descend_object_shape<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate:
             }
         }
     }
-    descend_intersections(info.intersections, predicate)
+    false
 }
 
 #[inline]
-fn descend_has_method<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
-    descend_intersections(interner().get_has_method(elem).intersections, predicate)
+const fn descend_has_method<F: FnMut(ElementId) -> bool>(_elem: ElementId, _predicate: &mut F) -> bool {
+    false
 }
 
 #[inline]
-fn descend_has_property<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
-    descend_intersections(interner().get_has_property(elem).intersections, predicate)
-}
-
-#[inline]
-fn descend_intersections<F: FnMut(ElementId) -> bool>(
-    intersections: Option<crate::ElementListId>,
-    predicate: &mut F,
-) -> bool {
-    let Some(id) = intersections else { return false };
-    for &conjunct in interner().get_element_list(id) {
-        if visit(conjunct, predicate) {
-            return true;
-        }
-    }
+const fn descend_has_property<F: FnMut(ElementId) -> bool>(_elem: ElementId, _predicate: &mut F) -> bool {
     false
 }
 
@@ -201,14 +176,6 @@ fn descend_reference<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &m
     if let Some(args_id) = info.type_args {
         for &arg in i.get_type_list(args_id) {
             if any(arg, predicate) {
-                return true;
-            }
-        }
-    }
-
-    if let Some(intersections_id) = info.intersections {
-        for &conjunct in i.get_element_list(intersections_id) {
-            if visit(conjunct, predicate) {
                 return true;
             }
         }

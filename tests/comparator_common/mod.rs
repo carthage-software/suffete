@@ -760,12 +760,8 @@ pub fn t_generic_named(name: &str, args: Vec<TypeId>) -> ElementId {
     use suffete::element::payload::ObjectFlags;
     use suffete::element::payload::ObjectInfo;
     let i = interner();
-    let info = ObjectInfo {
-        name: atom(name),
-        type_args: Some(i.intern_type_list(&args)),
-        intersections: None,
-        flags: ObjectFlags::default(),
-    };
+    let info =
+        ObjectInfo { name: atom(name), type_args: Some(i.intern_type_list(&args)), flags: ObjectFlags::default() };
     i.intern_object(info)
 }
 
@@ -774,13 +770,9 @@ pub fn t_named_intersected(head: &str, conjuncts: &[ElementId]) -> ElementId {
     use suffete::element::payload::ObjectFlags;
     use suffete::element::payload::ObjectInfo;
     let i = interner();
-    let info = ObjectInfo {
-        name: atom(head),
-        type_args: None,
-        intersections: Some(i.intern_element_list(conjuncts)),
-        flags: ObjectFlags::default(),
-    };
-    i.intern_object(info)
+    let info = ObjectInfo { name: atom(head), type_args: None, flags: ObjectFlags::default() };
+    let head_elem = i.intern_object(info);
+    ElementId::intersected(head_elem, conjuncts)
 }
 
 /// Named object marked `static<C>` (late-static-bound modality).
@@ -788,23 +780,18 @@ pub fn t_named_static(name: &str) -> ElementId {
     use suffete::element::payload::ObjectFlags;
     use suffete::element::payload::ObjectInfo;
     let i = interner();
-    let info = ObjectInfo {
-        name: atom(name),
-        type_args: None,
-        intersections: None,
-        flags: ObjectFlags::default().with_is_static(true),
-    };
+    let info = ObjectInfo { name: atom(name), type_args: None, flags: ObjectFlags::default().with_is_static(true) };
     i.intern_object(info)
 }
 
 pub fn t_has_method(name: &str) -> ElementId {
     use suffete::element::payload::HasMethodInfo;
-    interner().intern_has_method(HasMethodInfo { method_name: atom(name), intersections: None })
+    interner().intern_has_method(HasMethodInfo { method_name: atom(name) })
 }
 
 pub fn t_has_property(name: &str) -> ElementId {
     use suffete::element::payload::HasPropertyInfo;
-    interner().intern_has_property(HasPropertyInfo { property_name: atom(name), intersections: None })
+    interner().intern_has_property(HasPropertyInfo { property_name: atom(name) })
 }
 
 /// `object{p1: T1, p2?: T2, ...}` element. Each entry is `(name, type, optional)`.
@@ -816,11 +803,7 @@ pub fn t_object_shape(props: &[(&str, TypeId, bool)], sealed: bool) -> ElementId
     let entries: Vec<KnownPropertyEntry> =
         props.iter().map(|(n, t, opt)| KnownPropertyEntry { name: atom(n), value: *t, optional: *opt }).collect();
     let known = if entries.is_empty() { None } else { Some(i.intern_known_properties(&entries)) };
-    let info = ObjectShapeInfo {
-        known_properties: known,
-        intersections: None,
-        flags: ObjectShapeFlags::default().with_sealed(sealed),
-    };
+    let info = ObjectShapeInfo { known_properties: known, flags: ObjectShapeFlags::default().with_sealed(sealed) };
     i.intern_object_shape(info)
 }
 
@@ -832,7 +815,6 @@ pub fn t_named_this(name: &str) -> ElementId {
     let info = ObjectInfo {
         name: atom(name),
         type_args: None,
-        intersections: None,
         flags: ObjectFlags::default().with_is_static(true).with_is_this(true),
     };
     i.intern_object(info)

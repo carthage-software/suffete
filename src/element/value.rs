@@ -217,8 +217,8 @@ impl Typed for Element {
             | Element::List(_)
             | Element::Callable(_)
             | Element::Intersected(_) => true,
-            Element::Object(info) => info.type_args.is_some() || info.intersections.is_some(),
-            Element::Reference(info) => info.type_args.is_some() || info.intersections.is_some(),
+            Element::Object(info) => info.type_args.is_some(),
+            Element::Reference(info) => info.type_args.is_some(),
             Element::Iterable(_) => true,
             _ => false,
         }

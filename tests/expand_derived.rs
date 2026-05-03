@@ -72,7 +72,6 @@ fn t_sealed_list(elements: &[TypeId]) -> ElementId {
         element_type: prelude::TYPE_NEVER,
         known_elements: Some(known),
         known_count: NonZeroU32::new(elements.len() as u32),
-        intersections: None,
         flags: ListFlags::default().with_non_empty(!elements.is_empty()),
     };
     i.intern_list(info)

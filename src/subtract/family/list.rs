@@ -37,8 +37,8 @@ pub(in crate::subtract) fn list_minus(a: ElementId, b: ElementId) -> Option<Vec<
     if a_info.element_type != b_info.element_type {
         let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
         let neg = ElementId::negated(b_t);
-        pieces
-            .push(i.intern_list(ListInfo { intersections: Some(i.intern_element_list(&[neg])), ..non_empty_residue }));
+        let head = i.intern_list(non_empty_residue);
+        pieces.push(ElementId::intersected(head, &[neg]));
     } else if a_allows_empty == b_allows_empty {
         pieces.push(i.intern_list(non_empty_residue));
     } else {
@@ -56,7 +56,6 @@ fn empty_list(i: &crate::interner::Interner) -> ElementId {
         element_type: TYPE_NEVER,
         known_elements: None,
         known_count: None,
-        intersections: None,
         flags: ListFlags::default(),
     })
 }
@@ -72,12 +71,14 @@ pub(in crate::subtract) fn list_minus_iterable(a: ElementId, b: ElementId) -> Op
     if a_info.flags.non_empty() {
         return None;
     }
+
     if a_info.known_elements.is_some() {
         return None;
     }
-    let mut new_info = ListInfo { flags: a_info.flags.with_non_empty(true), ..a_info };
+
+    let new_info = ListInfo { flags: a_info.flags.with_non_empty(true), ..a_info };
+    let head = i.intern_list(new_info);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
     let neg = ElementId::negated(b_t);
-    new_info.intersections = Some(i.intern_element_list(&[neg]));
-    Some(vec![i.intern_list(new_info)])
+    Some(vec![ElementId::intersected(head, &[neg])])
 }

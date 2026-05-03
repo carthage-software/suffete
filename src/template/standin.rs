@@ -49,6 +49,7 @@ use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
 use crate::element::payload::DefiningEntityId;
+use crate::element::payload::IterableInfo;
 use crate::interner::interner;
 use crate::world::Variance;
 use crate::world::World;
@@ -741,11 +742,7 @@ fn walk_iterable<W: World>(
     if new_key == p_info.key_type && new_value == p_info.value_type {
         return Walk::Unchanged;
     }
-    Walk::Single(i.intern_iterable(crate::element::payload::IterableInfo {
-        key_type: new_key,
-        value_type: new_value,
-        ..p_info
-    }))
+    Walk::Single(i.intern_iterable(IterableInfo { key_type: new_key, value_type: new_value }))
 }
 
 /// `Keyed(τ_K, τ_V, {k → τ})` against a keyed-array argument: walk

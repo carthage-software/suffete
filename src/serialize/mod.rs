@@ -135,7 +135,6 @@ pub enum SerializableElement {
     Object {
         name: Atom,
         type_args: Option<Vec<SerializableType>>,
-        intersections: Option<Vec<SerializableElement>>,
         is_static: bool,
         is_this: bool,
         remapped_parameters: bool,
@@ -146,35 +145,29 @@ pub enum SerializableElement {
     },
     ObjectShape {
         known_properties: Vec<SerializableKnownProperty>,
-        intersections: Option<Vec<SerializableElement>>,
         sealed: bool,
     },
     HasMethod {
         method_name: Atom,
-        intersections: Option<Vec<SerializableElement>>,
     },
     HasProperty {
         property_name: Atom,
-        intersections: Option<Vec<SerializableElement>>,
     },
     Array {
         key_param: Option<Box<SerializableType>>,
         value_param: Option<Box<SerializableType>>,
         known_items: Vec<SerializableKnownItem>,
-        intersections: Option<Vec<SerializableElement>>,
         non_empty: bool,
     },
     List {
         element_type: Box<SerializableType>,
         known_elements: Vec<SerializableKnownElement>,
-        intersections: Option<Vec<SerializableElement>>,
         known_count: Option<u32>,
         non_empty: bool,
     },
     Iterable {
         key_type: Box<SerializableType>,
         value_type: Box<SerializableType>,
-        intersections: Option<Vec<SerializableElement>>,
     },
     Callable(SerializableCallable),
     Resource(SerializableResource),
@@ -189,7 +182,6 @@ pub enum SerializableElement {
     Reference {
         name: Atom,
         type_args: Option<Vec<SerializableType>>,
-        intersections: Option<Vec<SerializableElement>>,
     },
     MemberReference {
         class_like_name: Atom,
@@ -526,9 +518,6 @@ fn encode_element(elem: ElementId) -> SerializableElement {
             SerializableElement::Object {
                 name: info.name,
                 type_args: info.type_args.map(|id| i.get_type_list(id).iter().map(|&t| encode_type(t)).collect()),
-                intersections: info
-                    .intersections
-                    .map(|id| i.get_element_list(id).iter().map(|&e| encode_element(e)).collect()),
                 is_static: info.flags.is_static(),
                 is_this: info.flags.is_this(),
                 remapped_parameters: info.flags.remapped_parameters(),
@@ -553,25 +542,15 @@ fn encode_element(elem: ElementId) -> SerializableElement {
                         .collect()
                 })
                 .unwrap_or_default();
-            SerializableElement::ObjectShape {
-                known_properties: known,
-                intersections: encode_intersections(info.intersections),
-                sealed: info.flags.sealed(),
-            }
+            SerializableElement::ObjectShape { known_properties: known, sealed: info.flags.sealed() }
         }
         ElementKind::HasMethod => {
             let info = i.get_has_method(elem);
-            SerializableElement::HasMethod {
-                method_name: info.method_name,
-                intersections: encode_intersections(info.intersections),
-            }
+            SerializableElement::HasMethod { method_name: info.method_name }
         }
         ElementKind::HasProperty => {
             let info = i.get_has_property(elem);
-            SerializableElement::HasProperty {
-                property_name: info.property_name,
-                intersections: encode_intersections(info.intersections),
-            }
+            SerializableElement::HasProperty { property_name: info.property_name }
         }
         ElementKind::Array => {
             let info = *i.get_array(elem);
@@ -592,9 +571,6 @@ fn encode_element(elem: ElementId) -> SerializableElement {
                 key_param: info.key_param.map(|t| Box::new(encode_type(t))),
                 value_param: info.value_param.map(|t| Box::new(encode_type(t))),
                 known_items,
-                intersections: info
-                    .intersections
-                    .map(|id| i.get_element_list(id).iter().map(|&e| encode_element(e)).collect()),
                 non_empty: info.flags.non_empty(),
             }
         }
@@ -616,9 +592,6 @@ fn encode_element(elem: ElementId) -> SerializableElement {
             SerializableElement::List {
                 element_type: Box::new(encode_type(info.element_type)),
                 known_elements,
-                intersections: info
-                    .intersections
-                    .map(|id| i.get_element_list(id).iter().map(|&e| encode_element(e)).collect()),
                 known_count: info.known_count.map(core::num::NonZeroU32::get),
                 non_empty: info.flags.non_empty(),
             }
@@ -628,9 +601,6 @@ fn encode_element(elem: ElementId) -> SerializableElement {
             SerializableElement::Iterable {
                 key_type: Box::new(encode_type(info.key_type)),
                 value_type: Box::new(encode_type(info.value_type)),
-                intersections: info
-                    .intersections
-                    .map(|id| i.get_element_list(id).iter().map(|&e| encode_element(e)).collect()),
             }
         }
         ElementKind::Callable => SerializableElement::Callable(encode_callable(*i.get_callable(elem))),
@@ -649,9 +619,6 @@ fn encode_element(elem: ElementId) -> SerializableElement {
             SerializableElement::Reference {
                 name: info.name,
                 type_args: info.type_args.map(|id| i.get_type_list(id).iter().map(|&t| encode_type(t)).collect()),
-                intersections: info
-                    .intersections
-                    .map(|id| i.get_element_list(id).iter().map(|&e| encode_element(e)).collect()),
             }
         }
         ElementKind::MemberReference => {
@@ -692,19 +659,6 @@ fn encode_element(elem: ElementId) -> SerializableElement {
             }
         }
     }
-}
-
-#[inline]
-fn encode_intersections(intersections: Option<crate::ElementListId>) -> Option<Vec<SerializableElement>> {
-    intersections.map(|id| interner().get_element_list(id).iter().map(|&e| encode_element(e)).collect())
-}
-
-#[inline]
-fn decode_intersections(intersections: Option<&[SerializableElement]>) -> Option<crate::ElementListId> {
-    intersections.map(|conjuncts| {
-        let elements: Vec<ElementId> = conjuncts.iter().map(decode_element).collect();
-        interner().intern_element_list(&elements)
-    })
 }
 
 #[inline]
@@ -937,20 +891,17 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
             kind: decode_class_like_kind(*kind),
             specifier: decode_class_like_specifier(specifier),
         }),
-        SerializableElement::Object { name, type_args, intersections, is_static, is_this, remapped_parameters } => {
+        SerializableElement::Object { name, type_args, is_static, is_this, remapped_parameters } => {
             let type_args_id =
                 type_args.as_ref().map(|args| i.intern_type_list(&args.iter().map(decode_type).collect::<Vec<_>>()));
-            let intersections_id = intersections
-                .as_ref()
-                .map(|conjuncts| i.intern_element_list(&conjuncts.iter().map(decode_element).collect::<Vec<_>>()));
             let flags = ObjectFlags::default()
                 .with_is_static(*is_static)
                 .with_is_this(*is_this)
                 .with_remapped_parameters(*remapped_parameters);
-            i.intern_object(ObjectInfo { name: *name, type_args: type_args_id, intersections: intersections_id, flags })
+            i.intern_object(ObjectInfo { name: *name, type_args: type_args_id, flags })
         }
         SerializableElement::Enum { name, case } => i.intern_enum(EnumInfo { name: *name, case: *case }),
-        SerializableElement::ObjectShape { known_properties, intersections, sealed } => {
+        SerializableElement::ObjectShape { known_properties, sealed } => {
             let known_id = if known_properties.is_empty() {
                 None
             } else {
@@ -962,19 +913,16 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
             };
             i.intern_object_shape(ObjectShapeInfo {
                 known_properties: known_id,
-                intersections: decode_intersections(intersections.as_deref()),
                 flags: ObjectShapeFlags::default().with_sealed(*sealed),
             })
         }
-        SerializableElement::HasMethod { method_name, intersections } => i.intern_has_method(HasMethodInfo {
-            method_name: *method_name,
-            intersections: decode_intersections(intersections.as_deref()),
-        }),
-        SerializableElement::HasProperty { property_name, intersections } => i.intern_has_property(HasPropertyInfo {
-            property_name: *property_name,
-            intersections: decode_intersections(intersections.as_deref()),
-        }),
-        SerializableElement::Array { key_param, value_param, known_items, intersections, non_empty } => {
+        SerializableElement::HasMethod { method_name } => {
+            i.intern_has_method(HasMethodInfo { method_name: *method_name })
+        }
+        SerializableElement::HasProperty { property_name } => {
+            i.intern_has_property(HasPropertyInfo { property_name: *property_name })
+        }
+        SerializableElement::Array { key_param, value_param, known_items, non_empty } => {
             let known_id = if known_items.is_empty() {
                 None
             } else {
@@ -992,11 +940,10 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
                 key_param: key_param.as_ref().map(|t| decode_type(t)),
                 value_param: value_param.as_ref().map(|t| decode_type(t)),
                 known_items: known_id,
-                intersections: decode_intersections(intersections.as_deref()),
                 flags: KeyedArrayFlags::default().with_non_empty(*non_empty),
             })
         }
-        SerializableElement::List { element_type, known_elements, intersections, known_count, non_empty } => {
+        SerializableElement::List { element_type, known_elements, known_count, non_empty } => {
             let known_id = if known_elements.is_empty() {
                 None
             } else {
@@ -1010,19 +957,11 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
                 element_type: decode_type(element_type),
                 known_elements: known_id,
                 known_count: known_count.and_then(core::num::NonZeroU32::new),
-                intersections: decode_intersections(intersections.as_deref()),
                 flags: ListFlags::default().with_non_empty(*non_empty),
             })
         }
-        SerializableElement::Iterable { key_type, value_type, intersections } => {
-            let intersections_id = intersections
-                .as_ref()
-                .map(|conjuncts| i.intern_element_list(&conjuncts.iter().map(decode_element).collect::<Vec<_>>()));
-            i.intern_iterable(IterableInfo {
-                key_type: decode_type(key_type),
-                value_type: decode_type(value_type),
-                intersections: intersections_id,
-            })
+        SerializableElement::Iterable { key_type, value_type } => {
+            i.intern_iterable(IterableInfo { key_type: decode_type(key_type), value_type: decode_type(value_type) })
         }
         SerializableElement::Callable(c) => i.intern_callable(decode_callable(c)),
         SerializableElement::Resource(r) => i.intern_resource(decode_resource(*r)),
@@ -1032,21 +971,13 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
                 name: *name,
                 defining_entity: entity_id,
                 constraint: decode_type(constraint),
-                intersections: None,
             })
         }
         SerializableElement::Variable { name } => i.intern_variable(VariableInfo { name: *name }),
-        SerializableElement::Reference { name, type_args, intersections } => {
+        SerializableElement::Reference { name, type_args } => {
             let type_args_id =
                 type_args.as_ref().map(|args| i.intern_type_list(&args.iter().map(decode_type).collect::<Vec<_>>()));
-            let intersections_id = intersections
-                .as_ref()
-                .map(|conjuncts| i.intern_element_list(&conjuncts.iter().map(decode_element).collect::<Vec<_>>()));
-            i.intern_reference(SymbolReference {
-                name: *name,
-                type_args: type_args_id,
-                intersections: intersections_id,
-            })
+            i.intern_reference(SymbolReference { name: *name, type_args: type_args_id })
         }
         SerializableElement::MemberReference { class_like_name, selector } => {
             i.intern_member_reference(reference::MemberReference {

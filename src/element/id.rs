@@ -208,18 +208,13 @@ impl ElementId {
         interner().intern_string(info)
     }
 
-    /// Intern a named object element with no type arguments, no
-    /// intersections, and default flags (`is_static = false`,
-    /// `is_this = false`, `remapped_parameters = false`).
+    /// Intern a named object element with no type arguments and default
+    /// flags (`is_static = false`, `is_this = false`,
+    /// `remapped_parameters = false`).
     #[inline]
     #[must_use]
     pub fn object_named(name: &str) -> Self {
-        let info = ObjectInfo {
-            name: mago_atom::atom(name),
-            type_args: None,
-            intersections: None,
-            flags: ObjectFlags::default(),
-        };
+        let info = ObjectInfo { name: mago_atom::atom(name), type_args: None, flags: ObjectFlags::default() };
         interner().intern_object(info)
     }
 
@@ -305,11 +300,11 @@ impl ElementId {
         interner().intern_class_like_string(info)
     }
 
-    /// Intern an `iterable<key, value>` element with no intersections.
+    /// Intern an `iterable<key, value>` element.
     #[inline]
     #[must_use]
     pub fn iterable(key_type: TypeId, value_type: TypeId) -> Self {
-        let info = IterableInfo { key_type, value_type, intersections: None };
+        let info = IterableInfo { key_type, value_type };
         interner().intern_iterable(info)
     }
 
@@ -322,7 +317,6 @@ impl ElementId {
             element_type,
             known_elements: None,
             known_count: None,
-            intersections: None,
             flags: ListFlags::default().with_non_empty(non_empty),
         };
         interner().intern_list(info)
@@ -339,9 +333,9 @@ impl ElementId {
             element_type: TYPE_NEVER,
             known_elements: Some(i.intern_known_elements(elements)),
             known_count,
-            intersections: None,
             flags: ListFlags::default().with_non_empty(non_empty),
         };
+
         i.intern_list(info)
     }
 
@@ -354,7 +348,6 @@ impl ElementId {
             key_param: Some(key_type),
             value_param: Some(value_type),
             known_items: None,
-            intersections: None,
             flags: KeyedArrayFlags::default().with_non_empty(non_empty),
         };
         interner().intern_array(info)
@@ -371,7 +364,6 @@ impl ElementId {
             key_param: None,
             value_param: None,
             known_items: Some(known),
-            intersections: None,
             flags: KeyedArrayFlags::default().with_non_empty(non_empty),
         };
         i.intern_array(info)
@@ -424,20 +416,14 @@ impl ElementId {
     pub fn generic_parameter(name: &str, defining_entity: DefiningEntity, constraint: TypeId) -> Self {
         let i = interner();
         let entity_id = i.intern_defining_entity(defining_entity);
-        let info = GenericParameterInfo {
-            name: mago_atom::atom(name),
-            defining_entity: entity_id,
-            constraint,
-            intersections: None,
-        };
+        let info = GenericParameterInfo { name: mago_atom::atom(name), defining_entity: entity_id, constraint };
 
         i.intern_generic_parameter(info)
     }
 
     /// `&` conjuncts this element is intersected with. Returns an empty
     /// slice unless this is an [`Intersected`](ElementKind::Intersected)
-    /// wrapper. Legacy kinds with a per-payload intersections field are
-    /// normalized to the wrapper at intern time.
+    /// wrapper.
     #[inline]
     #[must_use]
     pub fn intersection_types(self) -> &'static [ElementId] {
@@ -455,70 +441,14 @@ impl ElementId {
         !self.intersection_types().is_empty()
     }
 
-    /// `true` iff this element can carry conjuncts via the
-    /// [`Intersected`](ElementKind::Intersected) wrapper. False only
-    /// for the wrapper itself (which flattens on re-wrap).
+    /// `true` iff this element can be wrapped by an
+    /// [`Intersected`](ElementKind::Intersected). False only for the
+    /// wrapper itself (which flattens on re-wrap).
     #[inline]
     #[must_use]
     pub const fn can_be_intersected(self) -> bool {
         !matches!(self.kind(), ElementKind::Intersected)
     }
-}
-
-/// Re-attach `conjuncts` to a legacy kind's per-payload `intersections`
-/// field. `None` for kinds without that field.
-#[inline]
-#[must_use]
-pub fn reconstruct_with_intersections(head: ElementId, conjuncts: ElementListId) -> Option<ElementId> {
-    let i = interner();
-    Some(match head.kind() {
-        ElementKind::Object => {
-            let info = *i.get_object(head);
-            i.intern_object_raw(crate::element::payload::ObjectInfo { intersections: Some(conjuncts), ..info })
-        }
-        ElementKind::List => {
-            let info = *i.get_list(head);
-            i.intern_list_raw(crate::element::payload::ListInfo { intersections: Some(conjuncts), ..info })
-        }
-        ElementKind::Array => {
-            let info = *i.get_array(head);
-            i.intern_array_raw(crate::element::payload::KeyedArrayInfo { intersections: Some(conjuncts), ..info })
-        }
-        ElementKind::Iterable => {
-            let info = *i.get_iterable(head);
-            i.intern_iterable_raw(crate::element::payload::IterableInfo { intersections: Some(conjuncts), ..info })
-        }
-        ElementKind::ObjectShape => {
-            let info = *i.get_object_shape(head);
-            i.intern_object_shape_raw(crate::element::payload::ObjectShapeInfo {
-                intersections: Some(conjuncts),
-                ..info
-            })
-        }
-        ElementKind::HasMethod => {
-            let info = *i.get_has_method(head);
-            i.intern_has_method_raw(crate::element::payload::HasMethodInfo { intersections: Some(conjuncts), ..info })
-        }
-        ElementKind::HasProperty => {
-            let info = *i.get_has_property(head);
-            i.intern_has_property_raw(crate::element::payload::HasPropertyInfo {
-                intersections: Some(conjuncts),
-                ..info
-            })
-        }
-        ElementKind::GenericParameter => {
-            let info = *i.get_generic_parameter(head);
-            i.intern_generic_parameter_raw(crate::element::payload::GenericParameterInfo {
-                intersections: Some(conjuncts),
-                ..info
-            })
-        }
-        ElementKind::Reference => {
-            let info = *i.get_reference(head);
-            i.intern_reference_raw(crate::element::payload::SymbolReference { intersections: Some(conjuncts), ..info })
-        }
-        _ => return None,
-    })
 }
 
 define_handle! {

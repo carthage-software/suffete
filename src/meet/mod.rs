@@ -348,38 +348,27 @@ fn intersected_atom_meet<W: World>(
     report: &mut LatticeReport,
 ) -> Option<ElementId> {
     let i = interner();
-    let a_re = if a.kind() == ElementKind::Intersected {
-        let info = *i.get_intersected(a);
-        crate::element::reconstruct_with_intersections(info.head, info.conjuncts).unwrap_or(a)
-    } else {
-        a
-    };
 
-    let b_re = if b.kind() == ElementKind::Intersected {
-        let info = *i.get_intersected(b);
-        crate::element::reconstruct_with_intersections(info.head, info.conjuncts).unwrap_or(b)
-    } else {
-        b
-    };
-
-    if a_re != a || b_re != b {
-        return atom_meet(a_re, b_re, world, options, report);
-    }
-
-    if a.kind() == ElementKind::Intersected && b.kind() == ElementKind::Intersected {
+    let result = if a.kind() == ElementKind::Intersected && b.kind() == ElementKind::Intersected {
         let a_info = *i.get_intersected(a);
         let b_info = *i.get_intersected(b);
         let head = atom_meet(a_info.head, b_info.head, world, options, report)?;
         let mut all_conjuncts: Vec<ElementId> = i.get_element_list(a_info.conjuncts).to_vec();
         all_conjuncts.extend_from_slice(i.get_element_list(b_info.conjuncts));
-        return Some(ElementId::intersected(head, &all_conjuncts));
+        ElementId::intersected(head, &all_conjuncts)
+    } else {
+        let (wrapped, other) = if a.kind() == ElementKind::Intersected { (a, b) } else { (b, a) };
+        let info = *i.get_intersected(wrapped);
+        let head = atom_meet(info.head, other, world, options, report)?;
+        let conjuncts: Vec<ElementId> = i.get_element_list(info.conjuncts).to_vec();
+        ElementId::intersected(head, &conjuncts)
+    };
+
+    if crate::lattice::overlaps::is_uninhabited(result, world) {
+        return None;
     }
 
-    let (wrapped, other) = if a.kind() == ElementKind::Intersected { (a, b) } else { (b, a) };
-    let info = *i.get_intersected(wrapped);
-    let head = atom_meet(info.head, other, world, options, report)?;
-    let conjuncts: Vec<ElementId> = i.get_element_list(info.conjuncts).to_vec();
-    Some(ElementId::intersected(head, &conjuncts))
+    Some(result)
 }
 
 /// `meet(narrowed-mixed, X)` where `narrowed-mixed` is `truthy-mixed`,
@@ -524,7 +513,6 @@ fn falsy_collection(elem: ElementId) -> Option<ElementId> {
                 element_type: crate::prelude::TYPE_NEVER,
                 known_elements: None,
                 known_count: None,
-                intersections: None,
                 flags: crate::element::payload::ListFlags::default(),
             }))
         }

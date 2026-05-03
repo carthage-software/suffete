@@ -135,13 +135,7 @@ fn nominal_classes(elem: ElementId) -> Vec<Atom> {
     match elem.kind() {
         ElementKind::Object => {
             let info = i.get_object(elem);
-            let mut out = vec![info.name];
-            if let Some(id) = info.intersections {
-                for &conjunct in i.get_element_list(id) {
-                    out.extend(nominal_classes(conjunct));
-                }
-            }
-            out
+            vec![info.name]
         }
         ElementKind::Enum => vec![i.get_enum(elem).name],
         ElementKind::Intersected => {

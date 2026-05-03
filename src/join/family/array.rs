@@ -93,7 +93,6 @@ pub(in crate::join) fn apply_array_shape_collapse(elements: &mut Vec<ElementId>,
         key_param: Some(TYPE_ARRAY_KEY),
         value_param: Some(TYPE_MIXED),
         known_items: None,
-        intersections: None,
         flags: KeyedArrayFlags::default(),
     });
 
@@ -162,9 +161,9 @@ pub(in crate::join) fn apply_rewrite_int_keyed_to_list(elements: &mut [ElementId
             element_type: info.value_param.unwrap_or(TYPE_NEVER),
             known_elements: Some(i.intern_known_elements(&known_elements)),
             known_count,
-            intersections: None,
             flags: ListFlags::default().with_non_empty(info.flags.non_empty()),
         };
+
         *el = i.intern_list(list_info);
     }
 }
@@ -198,6 +197,7 @@ pub(in crate::join) fn apply_merge_array_shapes(elements: &mut Vec<ElementId>) {
         if other.key_param != head_info.key_param || other.value_param != head_info.value_param {
             continue;
         }
+
         let Some(other_known_id) = other.known_items else { continue };
         let other_entries = i.get_known_items(other_known_id);
         let shares_key = other_entries.iter().any(|o| new_known.iter().any(|e| e.key == o.key));
@@ -215,6 +215,7 @@ pub(in crate::join) fn apply_merge_array_shapes(elements: &mut Vec<ElementId>) {
                 new_known.push(*o_entry);
             }
         }
+
         accumulated_non_empty = accumulated_non_empty || other.flags.non_empty();
         absorbed.push(shape_idx);
     }
@@ -229,6 +230,7 @@ pub(in crate::join) fn apply_merge_array_shapes(elements: &mut Vec<ElementId>) {
         flags: KeyedArrayFlags::default().with_non_empty(accumulated_non_empty),
         ..head_info
     };
+
     elements[head_idx] = i.intern_array(merged_info);
 
     let mut absorbed_set: alloc::collections::BTreeSet<usize> = absorbed.into_iter().collect();

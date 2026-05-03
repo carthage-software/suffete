@@ -30,7 +30,6 @@ fn t_object_with_flags(name: &str, is_static: bool, is_this: bool) -> ElementId 
     interner().intern_object(ObjectInfo {
         name: atom(name),
         type_args: None,
-        intersections: None,
         flags: ObjectFlags::default().with_is_static(is_static).with_is_this(is_this),
     })
 }

@@ -15,9 +15,9 @@ mod comparator_common;
 use comparator_common::*;
 
 use mago_atom::atom;
+use suffete::ElementId;
 use suffete::ElementKind;
 use suffete::element::payload::HasMethodInfo;
-use suffete::element::payload::HasPropertyInfo;
 use suffete::element::payload::KnownPropertyEntry;
 use suffete::element::payload::ObjectFlags;
 use suffete::element::payload::ObjectInfo;
@@ -28,7 +28,7 @@ use suffete::interner::interner;
 #[test]
 fn primitive_kinds_have_no_intersections_by_default() {
     for elem in [t_int(), t_string(), t_lit_int(42), null(), t_true(), t_false()] {
-        assert_eq!(elem.intersection_types(), &[] as &[suffete::ElementId]);
+        assert_eq!(elem.intersection_types(), &[] as &[ElementId]);
         assert!(!elem.has_intersection_types());
         assert!(elem.can_be_intersected());
     }
@@ -52,11 +52,10 @@ fn object_with_intersections_returns_them() {
 }
 
 #[test]
-fn has_method_supports_intersections() {
-    let i = interner();
+fn has_method_intersection_via_wrapper() {
+    let head = t_has_method("foo");
     let other = t_has_method("bar");
-    let conjuncts = i.intern_element_list(&[other]);
-    let chained = i.intern_has_method(HasMethodInfo { method_name: atom("foo"), intersections: Some(conjuncts) });
+    let chained = ElementId::intersected(head, &[other]);
 
     assert_eq!(chained.kind(), ElementKind::Intersected);
     assert!(chained.has_intersection_types());
@@ -64,11 +63,10 @@ fn has_method_supports_intersections() {
 }
 
 #[test]
-fn has_property_supports_intersections() {
-    let i = interner();
+fn has_property_intersection_via_wrapper() {
+    let head = t_has_property("x");
     let other = t_has_property("y");
-    let conjuncts = i.intern_element_list(&[other]);
-    let chained = i.intern_has_property(HasPropertyInfo { property_name: atom("x"), intersections: Some(conjuncts) });
+    let chained = ElementId::intersected(head, &[other]);
 
     assert_eq!(chained.kind(), ElementKind::Intersected);
     assert!(chained.has_intersection_types());
@@ -76,20 +74,19 @@ fn has_property_supports_intersections() {
 }
 
 #[test]
-fn object_shape_supports_intersections() {
+fn object_shape_intersection_via_wrapper() {
     let i = interner();
     let entries = vec![KnownPropertyEntry { name: atom("a"), value: u(t_int()), optional: false }];
     let known = i.intern_known_properties(&entries);
-    let other = t_has_method("doStuff");
-    let conjuncts = i.intern_element_list(&[other]);
-    let shape = i.intern_object_shape(ObjectShapeInfo {
+    let head = i.intern_object_shape(ObjectShapeInfo {
         known_properties: Some(known),
-        intersections: Some(conjuncts),
         flags: ObjectShapeFlags::default().with_sealed(true),
     });
+    let other = t_has_method("doStuff");
+    let chained = ElementId::intersected(head, &[other]);
 
-    assert_eq!(shape.kind(), ElementKind::Intersected);
-    assert_eq!(shape.intersection_types(), &[other]);
+    assert_eq!(chained.kind(), ElementKind::Intersected);
+    assert_eq!(chained.intersection_types(), &[other]);
 }
 
 #[test]
@@ -97,31 +94,34 @@ fn intersection_types_descend_via_inspect() {
     use suffete::inspect;
 
     let i = interner();
-    let inner_int_lit = suffete::ElementId::int_literal(42);
+    let inner_int_lit = ElementId::int_literal(42);
     let inner_obj = i.intern_object(ObjectInfo {
         name: atom("Marker"),
         type_args: Some(i.intern_type_list(&[u(inner_int_lit)])),
-        intersections: None,
         flags: ObjectFlags::default(),
     });
-    let conjuncts = i.intern_element_list(&[inner_obj]);
-    let chained = i.intern_has_method(HasMethodInfo { method_name: atom("foo"), intersections: Some(conjuncts) });
+    let head = i.intern_has_method(HasMethodInfo { method_name: atom("foo") });
+    let chained = ElementId::intersected(head, &[inner_obj]);
 
     let ty = u(chained);
     assert!(
         inspect::any(ty, |e| e == inner_int_lit),
-        "inspect::any should reach into HasMethod's intersection conjuncts"
+        "inspect::any should reach into the Intersected wrapper's conjuncts"
     );
 }
 
 #[test]
 fn intersection_round_trips_through_serializable() {
-    let i = interner();
+    let head = i_has_method("foo");
     let conjunct = t_has_method("bar");
-    let conjuncts = i.intern_element_list(&[conjunct]);
-    let original = i.intern_has_method(HasMethodInfo { method_name: atom("foo"), intersections: Some(conjuncts) });
+    let original = ElementId::intersected(head, &[conjunct]);
 
     let restored = original.to_serializable().intern();
     assert_eq!(original, restored);
     assert_eq!(restored.intersection_types(), &[conjunct]);
+}
+
+#[inline]
+fn i_has_method(name: &str) -> ElementId {
+    interner().intern_has_method(HasMethodInfo { method_name: atom(name) })
 }

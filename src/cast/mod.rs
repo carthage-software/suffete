@@ -356,7 +356,6 @@ fn generic_array_type() -> TypeId {
         key_param: Some(TYPE_ARRAY_KEY),
         value_param: Some(TYPE_MIXED),
         known_items: None,
-        intersections: None,
         flags: KeyedArrayFlags::default(),
     };
     singleton(i.intern_array(info))
@@ -367,12 +366,7 @@ fn stdclass_type() -> TypeId {
     use crate::element::payload::ObjectFlags;
     use crate::element::payload::ObjectInfo;
     let i = interner();
-    let info = ObjectInfo {
-        name: mago_atom::atom("stdClass"),
-        type_args: None,
-        intersections: None,
-        flags: ObjectFlags::default(),
-    };
+    let info = ObjectInfo { name: mago_atom::atom("stdClass"), type_args: None, flags: ObjectFlags::default() };
     singleton(i.intern_object(info))
 }
 

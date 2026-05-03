@@ -37,9 +37,8 @@ pub(in crate::subtract) fn array_minus(a: ElementId, b: ElementId) -> Option<Vec
     if a_info.key_param != b_info.key_param || a_info.value_param != b_info.value_param {
         let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
         let neg = ElementId::negated(b_t);
-        pieces.push(
-            i.intern_array(KeyedArrayInfo { intersections: Some(i.intern_element_list(&[neg])), ..non_empty_residue }),
-        );
+        let head = i.intern_array(non_empty_residue);
+        pieces.push(ElementId::intersected(head, &[neg]));
     } else if a_allows_empty == b_allows_empty {
         pieces.push(i.intern_array(non_empty_residue));
     } else {
@@ -57,7 +56,6 @@ fn empty_array(i: &crate::interner::Interner) -> ElementId {
         key_param: Some(TYPE_NEVER),
         value_param: Some(TYPE_NEVER),
         known_items: None,
-        intersections: None,
         flags: KeyedArrayFlags::default(),
     })
 }
@@ -70,12 +68,14 @@ pub(in crate::subtract) fn array_minus_iterable(a: ElementId, b: ElementId) -> O
     if a_info.flags.non_empty() {
         return None;
     }
+
     if a_info.known_items.is_some() {
         return None;
     }
-    let mut new_info = KeyedArrayInfo { flags: a_info.flags.with_non_empty(true), ..a_info };
+
+    let new_info = KeyedArrayInfo { flags: a_info.flags.with_non_empty(true), ..a_info };
+    let head = i.intern_array(new_info);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
     let neg = ElementId::negated(b_t);
-    new_info.intersections = Some(i.intern_element_list(&[neg]));
-    Some(vec![i.intern_array(new_info)])
+    Some(vec![ElementId::intersected(head, &[neg])])
 }

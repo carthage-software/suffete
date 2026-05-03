@@ -80,141 +80,6 @@ pub fn refines<W: World>(
 ) -> bool {
     let i = interner();
 
-    // Container-intersection rule fires first: input fits `H & C₁ & … &
-    // Cₙ` iff input fits the head AND each conjunct. Running this before
-    // stripping input's intersections is what lets `D&B&A<int> <: B&D`
-    // succeed via a per-conjunct check (each container conjunct is
-    // matched by some input conjunct), instead of short-circuiting on
-    // "no single input conjunct refines the whole container".
-    if container.kind() == ElementKind::Object {
-        let container_info = *i.get_object(container);
-        if let Some(intersections_id) = container_info.intersections {
-            let head = i.intern_object(ObjectInfo { intersections: None, ..container_info });
-            if !element_refines_via_type(input, head, world, options, report) {
-                return false;
-            }
-            for &conjunct in i.get_element_list(intersections_id) {
-                if !element_refines_via_type(input, conjunct, world, options, report) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
-
-    // Container-intersection rule for HasMethod / HasProperty: every
-    // conjunct (including the head) must match.
-    if container.kind() == ElementKind::HasMethod {
-        let container_info = *i.get_has_method(container);
-        if let Some(intersections_id) = container_info.intersections {
-            let head = i.intern_has_method(crate::element::payload::HasMethodInfo {
-                method_name: container_info.method_name,
-                intersections: None,
-            });
-            if !element_refines_via_type(input, head, world, options, report) {
-                return false;
-            }
-            for &conjunct in i.get_element_list(intersections_id) {
-                if !element_refines_via_type(input, conjunct, world, options, report) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
-    if container.kind() == ElementKind::HasProperty {
-        let container_info = *i.get_has_property(container);
-        if let Some(intersections_id) = container_info.intersections {
-            let head = i.intern_has_property(crate::element::payload::HasPropertyInfo {
-                property_name: container_info.property_name,
-                intersections: None,
-            });
-            if !element_refines_via_type(input, head, world, options, report) {
-                return false;
-            }
-            for &conjunct in i.get_element_list(intersections_id) {
-                if !element_refines_via_type(input, conjunct, world, options, report) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
-
-    if input.kind() == ElementKind::Object {
-        let input_info = *i.get_object(input);
-        if let Some(intersections_id) = input_info.intersections {
-            let head = i.intern_object(ObjectInfo { intersections: None, ..input_info });
-            if element_refines_via_type(head, container, world, options, report) {
-                return true;
-            }
-
-            for &conjunct in i.get_element_list(intersections_id) {
-                if element_refines_via_type(conjunct, container, world, options, report) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-
-    // Input-intersection rule for HasMethod / HasProperty: any conjunct
-    // refining the container suffices.
-    if input.kind() == ElementKind::HasMethod {
-        let input_info = *i.get_has_method(input);
-        if let Some(intersections_id) = input_info.intersections {
-            let head = i.intern_has_method(crate::element::payload::HasMethodInfo {
-                method_name: input_info.method_name,
-                intersections: None,
-            });
-            if element_refines_via_type(head, container, world, options, report) {
-                return true;
-            }
-            for &conjunct in i.get_element_list(intersections_id) {
-                if element_refines_via_type(conjunct, container, world, options, report) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-    if input.kind() == ElementKind::HasProperty {
-        let input_info = *i.get_has_property(input);
-        if let Some(intersections_id) = input_info.intersections {
-            let head = i.intern_has_property(crate::element::payload::HasPropertyInfo {
-                property_name: input_info.property_name,
-                intersections: None,
-            });
-            if element_refines_via_type(head, container, world, options, report) {
-                return true;
-            }
-            for &conjunct in i.get_element_list(intersections_id) {
-                if element_refines_via_type(conjunct, container, world, options, report) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-
-    if input.kind() == ElementKind::ObjectShape {
-        let input_info = *i.get_object_shape(input);
-        if let Some(intersections_id) = input_info.intersections {
-            let head = i.intern_object_shape(ObjectShapeInfo { intersections: None, ..input_info });
-            if element_refines_via_type(head, container, world, options, report) {
-                return true;
-            }
-
-            for &conjunct in i.get_element_list(intersections_id) {
-                if element_refines_via_type(conjunct, container, world, options, report) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    }
-
     match (input.kind(), container.kind()) {
         (ElementKind::Object, ElementKind::Object) => {
             let input_info = *i.get_object(input);
@@ -344,7 +209,6 @@ fn build_enum_shape<W: World>(info: EnumInfo, world: &W) -> Option<ObjectShapeIn
 
     Some(ObjectShapeInfo {
         known_properties: Some(i.intern_known_properties(&props)),
-        intersections: None,
         flags: ObjectShapeFlags::default().with_sealed(true),
     })
 }
@@ -430,20 +294,6 @@ fn named_refines_shape<W: World>(
     }
 
     true
-}
-
-#[inline]
-fn element_refines_via_type<W: World>(
-    input: ElementId,
-    container: ElementId,
-    world: &W,
-    options: LatticeOptions,
-    report: &mut LatticeReport,
-) -> bool {
-    let i = interner();
-    let it = i.intern_type(&[input], FlowFlags::EMPTY);
-    let ct = i.intern_type(&[container], FlowFlags::EMPTY);
-    type_refines(it, ct, world, options, report)
 }
 
 #[inline]

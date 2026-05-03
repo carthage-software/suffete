@@ -2,22 +2,15 @@ use core::mem::size_of;
 
 use mago_atom::Atom;
 
-use crate::ElementListId;
-
 /// "Some object that has a method named `M`", produced by `method_exists`
 /// narrowing.
 ///
 /// Subtype of [`ObjectInfo`](super::ObjectInfo) `Any`; subtype of a
 /// specific [`ObjectInfo`](super::ObjectInfo) iff the world confirms that
 /// class has the method.
-///
-/// Carries an optional intersection list so structural narrowings can chain
-/// (`HasMethod(foo) & HasMethod(bar)`) without needing an outer
-/// [`ObjectInfo`](super::ObjectInfo) wrapper.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HasMethodInfo {
     pub method_name: Atom,
-    pub intersections: Option<ElementListId>,
 }
 
 const _: () = assert!(size_of::<HasMethodInfo>() <= 16, "size budget exceeded");
@@ -25,7 +18,6 @@ const _: () = assert!(size_of::<HasMethodInfo>() <= 16, "size budget exceeded");
 impl core::fmt::Display for HasMethodInfo {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "has-method<'{}'>", self.method_name.as_str())?;
-        super::render_intersection_chain(self.intersections, f)
+        write!(f, "has-method<'{}'>", self.method_name.as_str())
     }
 }

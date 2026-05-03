@@ -17,7 +17,6 @@ use crate::TypeListId;
 use crate::element::payload::DefiningEntity;
 use crate::element::payload::GenericParameterInfo;
 use crate::element::payload::ObjectInfo;
-use crate::element::payload::ObjectShapeInfo;
 use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
@@ -33,21 +32,7 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> Option<ElementId> {
-    let i = interner();
-    let a_info = *i.get_object(a);
-    let b_info = *i.get_object(b);
-
-    let mut participants: Vec<ElementId> = Vec::new();
-    participants.push(i.intern_object(ObjectInfo { intersections: None, ..a_info }));
-    if let Some(id) = a_info.intersections {
-        participants.extend_from_slice(i.get_element_list(id));
-    }
-
-    participants.push(i.intern_object(ObjectInfo { intersections: None, ..b_info }));
-    if let Some(id) = b_info.intersections {
-        participants.extend_from_slice(i.get_element_list(id));
-    }
-
+    let participants: Vec<ElementId> = vec![a, b];
     let same_class_merged = merge_same_class_participants(participants, world, options, report)?;
     let reconciled = reconcile_descendant_participants(same_class_merged, world, options, report)?;
 
@@ -63,7 +48,7 @@ pub(in crate::meet) fn compose_object_intersection<W: World>(
 /// and we drop it from the merged list.
 #[inline]
 fn reconcile_descendant_participants<W: World>(
-    mut merged: Vec<ElementId>,
+    merged: Vec<ElementId>,
     world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
@@ -94,30 +79,6 @@ fn reconcile_descendant_participants<W: World>(
             if !descendant_args_satisfy_ancestor(descendant_info, ancestor_info, world, options, report) {
                 return None;
             }
-            // Splice the ancestor's `Negated` conjuncts into the
-            // descendant before dropping the ancestor. A negation
-            // that covers the descendant's class collapses the
-            // meet to `None`.
-            if let Some(ancestor_intersections) = ancestor_info.intersections {
-                let mut new_conjuncts: Vec<ElementId> =
-                    descendant_info.intersections.map(|id| i.get_element_list(id).to_vec()).unwrap_or_default();
-                for &conjunct in i.get_element_list(ancestor_intersections) {
-                    if conjunct.kind() == ElementKind::Negated
-                        && negation_excludes_class(conjunct, descendant_info.name, world)
-                    {
-                        return None;
-                    }
-                    if !new_conjuncts.contains(&conjunct) {
-                        new_conjuncts.push(conjunct);
-                    }
-                }
-                new_conjuncts.sort();
-                let new_id = i.intern_element_list(&new_conjuncts);
-                if Some(new_id) != descendant_info.intersections {
-                    merged[descendant_idx] =
-                        i.intern_object(ObjectInfo { intersections: Some(new_id), ..descendant_info });
-                }
-            }
             keep[ancestor_idx] = false;
         }
     }
@@ -126,10 +87,9 @@ fn reconcile_descendant_participants<W: World>(
 }
 
 /// `true` iff `negated_atom` (a `Negated` conjunct) excludes every
-/// instance of class `class_name`. Today this fires for negations
-/// of a bare-named ancestor of `class_name`: every instance of
-/// `class_name` is also an instance of the ancestor, so the
-/// negation rules them all out.
+/// instance of class `class_name`. Fires for negations of a bare-named
+/// ancestor of `class_name`: every instance of `class_name` is also an
+/// instance of the ancestor, so the negation rules them all out.
 #[inline]
 fn negation_excludes_class<W: World>(negated_atom: ElementId, class_name: mago_atom::Atom, world: &W) -> bool {
     let i = interner();
@@ -144,9 +104,6 @@ fn negation_excludes_class<W: World>(negated_atom: ElementId, class_name: mago_a
             return false;
         }
         let inner_info = *i.get_object(inner);
-        if inner_info.intersections.is_some() {
-            return false;
-        }
         world.descends_from(class_name, inner_info.name)
     })
 }
@@ -216,21 +173,11 @@ fn descendant_args_satisfy_ancestor<W: World>(
 /// `object{...} ∩ has-method<m>` (or `has-property<p>` /
 /// `ObjectShape`): the shape never guarantees the structural,
 /// and its known properties may be optional or the shape unsealed,
-/// so the intersection adds the structural to the shape's
-/// `intersections` list rather than dropping it.
+/// so the intersection composes through the
+/// [`Intersected`](crate::ElementKind::Intersected) wrapper rather
+/// than dropping the structural.
 pub(in crate::meet) fn compose_shape_with_structural(shape: ElementId, structural: ElementId) -> Option<ElementId> {
-    let i = interner();
-    let shape_info = *i.get_object_shape(shape);
-    let mut conjuncts: Vec<ElementId> =
-        shape_info.intersections.map(|id| i.get_element_list(id).to_vec()).unwrap_or_default();
-
-    if !conjuncts.contains(&structural) {
-        conjuncts.push(structural);
-    }
-
-    conjuncts.sort();
-    let intersections = Some(i.intern_element_list(&conjuncts));
-    Some(i.intern_object_shape(ObjectShapeInfo { intersections, ..shape_info }))
+    Some(ElementId::intersected(shape, &[structural]))
 }
 
 /// Compose a nominal object atom with a structural conjunct
@@ -248,34 +195,17 @@ pub(in crate::meet) fn compose_object_with_structural<W: World>(
     let i = interner();
     let object_info = *i.get_object(object);
 
-    let mut nominal_classes: Vec<mago_atom::Atom> = vec![object_info.name];
-    if let Some(id) = object_info.intersections {
-        for &conjunct in i.get_element_list(id) {
-            if conjunct.kind() == ElementKind::Object {
-                nominal_classes.push(i.get_object(conjunct).name);
-            }
-        }
-    }
-
-    if structural_uninhabited_under_finality(&nominal_classes, structural, world) {
+    if structural_uninhabited_under_finality(&[object_info.name], structural, world) {
         return None;
     }
 
     let drop_as_redundant = matches!(structural.kind(), ElementKind::HasMethod | ElementKind::HasProperty)
-        && nominal_classes.iter().any(|&c| class_satisfies_structural(c, structural, world));
+        && class_satisfies_structural(object_info.name, structural, world);
     if drop_as_redundant {
         return Some(object);
     }
 
-    let mut participants: Vec<ElementId> = Vec::new();
-    participants.push(i.intern_object(ObjectInfo { intersections: None, ..object_info }));
-    if let Some(id) = object_info.intersections {
-        participants.extend_from_slice(i.get_element_list(id));
-    }
-
-    participants.push(structural);
-
-    finalize_object_composition(participants, world)
+    finalize_object_composition(vec![object, structural], world)
 }
 
 /// `final C & HasMethod(m)` is uninhabited when `C` is final and the
@@ -295,22 +225,11 @@ fn structural_uninhabited_under_finality<W: World>(
 #[inline]
 fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: ElementId, world: &W) -> bool {
     let i = interner();
-    let mut conjuncts: Vec<ElementId> = vec![structural];
-    let nested = match structural.kind() {
-        ElementKind::HasMethod => i.get_has_method(structural).intersections,
-        ElementKind::HasProperty => i.get_has_property(structural).intersections,
-        _ => None,
-    };
-
-    if let Some(id) = nested {
-        conjuncts.extend_from_slice(i.get_element_list(id));
-    }
-
-    conjuncts.iter().all(|&c| match c.kind() {
-        ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(c).method_name),
-        ElementKind::HasProperty => world.class_has_property(class, i.get_has_property(c).property_name),
+    match structural.kind() {
+        ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(structural).method_name),
+        ElementKind::HasProperty => world.class_has_property(class, i.get_has_property(structural).property_name),
         _ => true,
-    })
+    }
 }
 
 #[inline]
@@ -368,12 +287,9 @@ fn finalize_object_composition<W: World>(merged: Vec<ElementId>, world: &W) -> O
     other_parts.dedup();
 
     let head_elem = object_parts.remove(0);
-    let head_info = *i.get_object(head_elem);
     let mut conjuncts = object_parts;
     conjuncts.extend(other_parts);
-    let intersections = if conjuncts.is_empty() { None } else { Some(i.intern_element_list(&conjuncts)) };
-    let result = i.intern_object(ObjectInfo { intersections, ..head_info });
-    Some(result)
+    Some(ElementId::intersected(head_elem, &conjuncts))
 }
 
 /// `Foo & Bar & …` is inhabitable when no finality witness rules it
@@ -432,12 +348,7 @@ fn merge_same_class_participants<W: World>(
             }
 
             let merged_args = merge_args(existing, info, world, options, report)?;
-            *slot = i.intern_object(ObjectInfo {
-                name: info.name,
-                type_args: merged_args,
-                intersections: None,
-                flags: info.flags,
-            });
+            *slot = i.intern_object(ObjectInfo { name: info.name, type_args: merged_args, flags: info.flags });
             absorbed = true;
             break;
         }

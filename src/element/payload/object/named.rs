@@ -4,22 +4,17 @@ use core::mem::size_of;
 
 use mago_atom::Atom;
 
-use crate::ElementListId;
 use crate::TypeListId;
+use crate::typed::Typed;
 
-/// `Foo`, `Foo<int>`, `Foo&Bar`, `static`, `$this`.
+/// `Foo`, `Foo<int>`, `static`, `$this`.
 ///
-/// `type_args` and `intersections` are interned slice handles so two
-/// object elements with the same nominal class + same generic args
-/// share storage. Post-subtract narrowing of the form "Foo except
-/// instances of D" is expressed as a `Negated(D)` conjunct inside
-/// `intersections`, not via a dedicated `excluded` field ; see
-/// [`crate::element::payload::NegatedInfo`].
+/// `type_args` is an interned slice handle so two object elements with the
+/// same nominal class + same generic args share storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ObjectInfo {
     pub name: Atom,
     pub type_args: Option<TypeListId>,
-    pub intersections: Option<ElementListId>,
     pub flags: ObjectFlags,
 }
 
@@ -90,7 +85,6 @@ impl core::fmt::Display for ObjectInfo {
             }
             f.write_str(">")?;
         }
-        super::render_intersection_chain(self.intersections, f)?;
         #[allow(clippy::else_if_without_else)]
         if self.flags.is_this() {
             f.write_str(")")?;
@@ -104,16 +98,16 @@ impl core::fmt::Display for ObjectInfo {
 impl ObjectInfo {
     #[inline]
     pub(crate) fn pretty_with_indent(&self, indent: usize) -> String {
-        use crate::typed::Typed;
         let i = crate::interner::interner();
         let mut out = String::new();
         if self.flags.is_this() {
             out.push_str("$this(");
         }
+
         out.push_str(self.name.as_str());
         if let Some(args_id) = self.type_args {
             let args = i.get_type_list(args_id);
-            let any_complex = args.iter().any(crate::typed::Typed::is_complex);
+            let any_complex = args.iter().any(Typed::is_complex);
             if any_complex {
                 let inner_indent = indent + 2;
                 let inner_pad = " ".repeat(inner_indent);
@@ -125,6 +119,7 @@ impl ObjectInfo {
                     out.push_str(&inner_pad);
                     out.push_str(&arg.pretty_with_indent(inner_indent));
                 }
+
                 out.push_str(",\n");
                 out.push_str(&" ".repeat(indent));
                 out.push('>');
@@ -136,29 +131,18 @@ impl ObjectInfo {
                     }
                     out.push_str(&arg.pretty_with_indent(indent));
                 }
+
                 out.push('>');
             }
         }
-        // Intersections rendered the same as compact for now.
-        if let Some(id) = self.intersections {
-            for &conjunct in i.get_element_list(id) {
-                let s = conjunct.pretty_with_indent(indent);
-                if conjunct.has_intersection_types() {
-                    out.push_str("&(");
-                    out.push_str(&s);
-                    out.push(')');
-                } else {
-                    out.push('&');
-                    out.push_str(&s);
-                }
-            }
-        }
+
         #[allow(clippy::else_if_without_else)]
         if self.flags.is_this() {
             out.push(')');
         } else if self.flags.is_static() {
             out.push_str("&static");
         }
+
         out
     }
 }

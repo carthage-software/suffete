@@ -377,13 +377,16 @@ fn does_overlap(a: TypeId, b: TypeId, w: &MockWorld) -> bool {
 /// unrelated branches of the inheritance graph (`A & D` when neither
 /// descends the other), so no runtime instance can be both at once.
 fn element_is_value_never(elem: suffete::ElementId, w: &MockWorld) -> bool {
-    if elem.kind() != suffete::ElementKind::Object {
+    if elem.kind() != suffete::ElementKind::Intersected {
         return false;
     }
-    let info = interner().get_object(elem);
-    let Some(intersections_id) = info.intersections else { return false };
-    let mut classes: Vec<mago_atom::Atom> = vec![info.name];
-    for &conjunct in interner().get_element_list(intersections_id) {
+    let info = *interner().get_intersected(elem);
+    if info.head.kind() != suffete::ElementKind::Object {
+        return false;
+    }
+    let head_info = interner().get_object(info.head);
+    let mut classes: Vec<mago_atom::Atom> = vec![head_info.name];
+    for &conjunct in interner().get_element_list(info.conjuncts) {
         if conjunct.kind() == suffete::ElementKind::Object {
             classes.push(interner().get_object(conjunct).name);
         }

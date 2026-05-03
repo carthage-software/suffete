@@ -35,7 +35,6 @@ fn t_array_with_items(items: &[(ArrayKey, TypeId)]) -> ElementId {
         key_param: None,
         value_param: None,
         known_items: Some(i.intern_known_items(&entries)),
-        intersections: None,
         flags: KeyedArrayFlags::default(),
     })
 }
@@ -46,7 +45,6 @@ fn t_array_with_params(key: TypeId, value: TypeId) -> ElementId {
         key_param: Some(key),
         value_param: Some(value),
         known_items: None,
-        intersections: None,
         flags: KeyedArrayFlags::default(),
     })
 }

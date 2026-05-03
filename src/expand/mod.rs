@@ -118,12 +118,7 @@ fn resolve_reference<W: World>(elem: ElementId, world: &W, ctx: &ExpansionContex
     let i = interner();
     let info = *i.get_reference(elem);
     let resolved_name = resolve_keyword_name(info.name, ObjectFlags::default(), ctx).unwrap_or(info.name);
-    let mut object = ObjectInfo {
-        name: resolved_name,
-        type_args: info.type_args,
-        intersections: info.intersections,
-        flags: ObjectFlags::default(),
-    };
+    let mut object = ObjectInfo { name: resolved_name, type_args: info.type_args, flags: ObjectFlags::default() };
 
     if ctx.fill_template_defaults && object.type_args.is_none() {
         let arity = world.template_parameter_arity(object.name);
@@ -599,7 +594,6 @@ fn eval_properties_of<W: World>(
         key_param: None,
         value_param: None,
         known_items: Some(i.intern_known_items(&entries)),
-        intersections: None,
         flags: KeyedArrayFlags::default(),
     };
 
@@ -618,17 +612,12 @@ fn eval_new<W: World>(target: TypeId, world: &W) -> Option<TypeId> {
     let arity = world.template_parameter_arity(class);
     let i = interner();
     let info = if arity == 0 {
-        ObjectInfo { name: class, type_args: None, intersections: None, flags: ObjectFlags::default() }
+        ObjectInfo { name: class, type_args: None, flags: ObjectFlags::default() }
     } else {
         let args: Vec<TypeId> = (0..arity)
             .map(|p| world.template_parameter_at(class, p).and_then(|t| t.upper_bound).unwrap_or(TYPE_MIXED))
             .collect();
-        ObjectInfo {
-            name: class,
-            type_args: Some(i.intern_type_list(&args)),
-            intersections: None,
-            flags: ObjectFlags::default(),
-        }
+        ObjectInfo { name: class, type_args: Some(i.intern_type_list(&args)), flags: ObjectFlags::default() }
     };
     Some(TypeId::union(&[i.intern_object(info)]))
 }

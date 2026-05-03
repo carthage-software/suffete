@@ -237,21 +237,12 @@ pub(in crate::subtract) fn atom_minus<W: World>(
 
     if a.kind() == ElementKind::Intersected {
         let info = *interner().get_intersected(a);
-        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
-            return atom_minus(reconstructed, b, world, options, report);
-        }
-
         let head_pieces = atom_minus(info.head, b, world, options, report);
         let conjuncts: Vec<ElementId> = interner().get_element_list(info.conjuncts).to_vec();
         return head_pieces.into_iter().map(|h| ElementId::intersected(h, &conjuncts)).collect();
     }
 
     if b.kind() == ElementKind::Intersected {
-        let info = *interner().get_intersected(b);
-        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
-            return atom_minus(a, reconstructed, world, options, report);
-        }
-
         return vec![a];
     }
 

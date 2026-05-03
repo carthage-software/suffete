@@ -391,7 +391,6 @@ fn sealed_list_with_required_never_is_uninhabited() {
         element_type: prelude::TYPE_NEVER,
         known_elements: Some(known),
         known_count: core::num::NonZeroU32::new(1),
-        intersections: None,
         flags: ListFlags::default(),
     });
 
@@ -422,7 +421,6 @@ fn empty_list_singleton_refines_falsy_mixed() {
         element_type: prelude::TYPE_NEVER,
         known_elements: None,
         known_count: None,
-        intersections: None,
         flags: ListFlags::default(),
     });
 

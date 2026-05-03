@@ -21,23 +21,3 @@ pub use self::shape::KnownPropertiesId;
 pub use self::shape::KnownPropertyEntry;
 pub use self::shape::ObjectShapeFlags;
 pub use self::shape::ObjectShapeInfo;
-
-/// Append the `&conjunct` chain for an object-family element's
-/// intersection list to a formatter. Conjuncts that themselves carry
-/// intersections are wrapped in `()`.
-#[inline]
-pub(crate) fn render_intersection_chain(
-    intersections: Option<crate::ElementListId>,
-    f: &mut core::fmt::Formatter<'_>,
-) -> core::fmt::Result {
-    let Some(id) = intersections else { return Ok(()) };
-    for &conjunct in crate::interner::interner().get_element_list(id) {
-        let s = conjunct.to_string();
-        if conjunct.has_intersection_types() {
-            write!(f, "&({s})")?;
-        } else {
-            write!(f, "&{s}")?;
-        }
-    }
-    Ok(())
-}

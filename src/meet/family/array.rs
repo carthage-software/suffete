@@ -41,7 +41,6 @@ pub(in crate::meet) fn list_meet<W: World>(
         element_type,
         known_elements: None,
         known_count: None,
-        intersections: merge_intersections(a_info.intersections, b_info.intersections),
         flags: ListFlags::default().with_non_empty(non_empty),
     };
 
@@ -95,13 +94,8 @@ fn sealed_list_meet<W: World>(
     let non_empty = a_info.flags.non_empty() || b_info.flags.non_empty();
     let known_count = core::num::NonZeroU32::new(merged.len() as u32);
     let element_type = crate::meet::compute(a_info.element_type, b_info.element_type, world, options, report);
-    let merged_info = ListInfo {
-        element_type,
-        known_elements,
-        known_count,
-        intersections: merge_intersections(a_info.intersections, b_info.intersections),
-        flags: ListFlags::default().with_non_empty(non_empty),
-    };
+    let merged_info =
+        ListInfo { element_type, known_elements, known_count, flags: ListFlags::default().with_non_empty(non_empty) };
 
     let result = i.intern_list(merged_info);
 
@@ -157,7 +151,6 @@ pub(in crate::meet) fn keyed_array_meet<W: World>(
         key_param: None,
         value_param: None,
         known_items: Some(known_items),
-        intersections: merge_intersections(a_info.intersections, b_info.intersections),
         flags: KeyedArrayFlags::default().with_non_empty(non_empty),
     };
 
@@ -190,6 +183,7 @@ fn sealed_unsealed_array_meet<W: World>(
             ArrayKey::String(s) => ElementId::string_literal(s.as_str()),
             ArrayKey::Const { .. } => crate::prelude::ARRAY_KEY,
         };
+
         let key_t = i.intern_type(&[key_elem], crate::FlowFlags::EMPTY);
         let key_compatible = key_param.is_none_or(|k| crate::lattice::refines(key_t, k, world, options, report));
         let value = if let Some(vp) = value_param {
@@ -214,34 +208,10 @@ fn sealed_unsealed_array_meet<W: World>(
         key_param: None,
         value_param: None,
         known_items,
-        intersections: merge_intersections(a_info.intersections, b_info.intersections),
         flags: KeyedArrayFlags::default().with_non_empty(non_empty),
     });
 
     if crate::lattice::overlaps::is_uninhabited(result, world) { None } else { Some(result) }
-}
-
-/// Concatenate two intersection-conjunct lists, deduplicating. Result
-/// is `None` when both inputs are `None`, the single non-`None` input
-/// when only one is set, and the merged-and-deduped list otherwise.
-#[inline]
-fn merge_intersections(
-    a: Option<crate::ElementListId>,
-    b: Option<crate::ElementListId>,
-) -> Option<crate::ElementListId> {
-    match (a, b) {
-        (None, None) => None,
-        (Some(id), None) | (None, Some(id)) => Some(id),
-        (Some(a_id), Some(b_id)) if a_id == b_id => Some(a_id),
-        (Some(a_id), Some(b_id)) => {
-            let i = interner();
-            let mut merged: Vec<ElementId> = i.get_element_list(a_id).to_vec();
-            merged.extend_from_slice(i.get_element_list(b_id));
-            merged.sort_unstable();
-            merged.dedup();
-            Some(i.intern_element_list(&merged))
-        }
-    }
 }
 
 /// `list<E> ∧ array<K, V>`: a list is an int-keyed array, so the meet
@@ -297,7 +267,6 @@ pub(in crate::meet) fn list_array_meet<W: World>(
         element_type,
         known_elements: None,
         known_count: None,
-        intersections: None,
         flags: ListFlags::default().with_non_empty(non_empty),
     }))
 }
@@ -354,13 +323,7 @@ pub(in crate::meet) fn iterable_array_meet<W: World>(
         }
     }
 
-    Some(i.intern_array(KeyedArrayInfo {
-        key_param,
-        value_param,
-        known_items,
-        intersections: None,
-        flags: arr_info.flags,
-    }))
+    Some(i.intern_array(KeyedArrayInfo { key_param, value_param, known_items, flags: arr_info.flags }))
 }
 
 /// `iterable<K, V> ∧ list<E>` narrows the list's element type by the
@@ -440,7 +403,6 @@ fn unsealed_keyed_array_meet<W: World>(
         key_param,
         value_param,
         known_items: None,
-        intersections: None,
         flags: KeyedArrayFlags::default().with_non_empty(non_empty),
     }))
 }

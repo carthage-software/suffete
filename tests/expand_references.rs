@@ -27,25 +27,17 @@ use suffete::interner::interner;
 use suffete::prelude;
 
 fn t_reference(name: &str) -> ElementId {
-    interner().intern_reference(SymbolReference { name: atom(name), type_args: None, intersections: None })
+    interner().intern_reference(SymbolReference { name: atom(name), type_args: None })
 }
 
 fn t_reference_generic(name: &str, args: Vec<TypeId>) -> ElementId {
     let i = interner();
-    interner().intern_reference(SymbolReference {
-        name: atom(name),
-        type_args: Some(i.intern_type_list(&args)),
-        intersections: None,
-    })
+    interner().intern_reference(SymbolReference { name: atom(name), type_args: Some(i.intern_type_list(&args)) })
 }
 
 fn t_reference_intersected(name: &str, conjuncts: &[ElementId]) -> ElementId {
-    let i = interner();
-    interner().intern_reference(SymbolReference {
-        name: atom(name),
-        type_args: None,
-        intersections: Some(i.intern_element_list(conjuncts)),
-    })
+    let head = interner().intern_reference(SymbolReference { name: atom(name), type_args: None });
+    ElementId::intersected(head, conjuncts)
 }
 
 fn t_member_ref(class: &str, member: &str) -> ElementId {

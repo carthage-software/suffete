@@ -713,22 +713,12 @@ pub(crate) fn element_refines<W: World>(
     }
 
     if container.kind() == ElementKind::Intersected {
-        let info = *interner().get_intersected(container);
-        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
-            return element_refines(input, reconstructed, world, options, report);
-        }
-
         return refines_container_intersected(input, container, world, options, report);
     }
 
     if input.kind() == ElementKind::Intersected {
         if container.kind() == ElementKind::Mixed {
             return family::mixed::refines(input, container);
-        }
-
-        let info = *interner().get_intersected(input);
-        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
-            return element_refines(reconstructed, container, world, options, report);
         }
 
         return refines_input_intersected(input, container, world, options, report);

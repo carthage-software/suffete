@@ -33,7 +33,7 @@ fn t_variable(name: &str) -> ElementId {
 }
 
 fn t_reference(name: &str) -> ElementId {
-    interner().intern_reference(SymbolReference { name: atom(name), type_args: None, intersections: None })
+    interner().intern_reference(SymbolReference { name: atom(name), type_args: None })
 }
 
 fn t_member_ref(class: &str, member: &str) -> ElementId {

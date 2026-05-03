@@ -1,10 +1,8 @@
 use core::mem::size_of;
 
-use crate::ElementListId;
 use crate::TypeId;
 
-/// `iterable<K, V>`, optionally narrowed by intersection (e.g.
-/// `iterable<int, string>&Countable`).
+/// `iterable<K, V>`.
 ///
 /// `iterable` is its own element because `array <: iterable` and
 /// `Traversable <: iterable` both hold, but `iterable` does not commute with
@@ -14,7 +12,6 @@ use crate::TypeId;
 pub struct IterableInfo {
     pub key_type: TypeId,
     pub value_type: TypeId,
-    pub intersections: Option<ElementListId>,
 }
 
 const _: () = assert!(size_of::<IterableInfo>() <= 24, "size budget exceeded");
@@ -22,18 +19,7 @@ const _: () = assert!(size_of::<IterableInfo>() <= 24, "size budget exceeded");
 impl core::fmt::Display for IterableInfo {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let base = format!("iterable<{}, {}>", self.key_type, self.value_type);
-        if let Some(id) = self.intersections {
-            f.write_str("(")?;
-            f.write_str(&base)?;
-            f.write_str(")")?;
-            for &conjunct in crate::interner::interner().get_element_list(id) {
-                write!(f, "&{conjunct}")?;
-            }
-            Ok(())
-        } else {
-            f.write_str(&base)
-        }
+        write!(f, "iterable<{}, {}>", self.key_type, self.value_type)
     }
 }
 

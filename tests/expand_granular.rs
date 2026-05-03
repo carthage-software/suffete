@@ -150,7 +150,6 @@ fn function_is_final_collapses_static_modality_without_static_class() {
     let static_obj = interner().intern_object(ObjectInfo {
         name: atom("Foo"),
         type_args: None,
-        intersections: None,
         flags: ObjectFlags::default().with_is_static(true),
     });
     let plain = u(t_named("Foo"));
@@ -165,7 +164,6 @@ fn static_modality_preserved_when_function_is_final_off() {
     let static_obj = interner().intern_object(ObjectInfo {
         name: atom("Foo"),
         type_args: None,
-        intersections: None,
         flags: ObjectFlags::default().with_is_static(true),
     });
     let ty = u(static_obj);

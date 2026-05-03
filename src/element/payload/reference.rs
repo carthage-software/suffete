@@ -2,11 +2,10 @@ use core::mem::size_of;
 
 use mago_atom::Atom;
 
-use crate::ElementListId;
 use crate::TypeListId;
 
-/// `Foo`, `Foo<int>`, `Foo<int>&Bar`: an unresolved class-like name with
-/// optional type arguments and intersection partners.
+/// `Foo`, `Foo<int>`: an unresolved class-like name with optional type
+/// arguments.
 ///
 /// Payload of `ElementKind::Reference`. By far the most common indirection
 /// element, which is why it has its own per-kind arena rather than sharing
@@ -15,7 +14,6 @@ use crate::TypeListId;
 pub struct SymbolReference {
     pub name: Atom,
     pub type_args: Option<TypeListId>,
-    pub intersections: Option<ElementListId>,
 }
 
 /// `Foo::CONST`, `Foo::*`, `Foo::PREFIX_*`: a class-like constant reference.
@@ -81,7 +79,7 @@ impl core::fmt::Display for SymbolReference {
             }
             f.write_str(">")?;
         }
-        super::object::render_intersection_chain(self.intersections, f)
+        Ok(())
     }
 }
 

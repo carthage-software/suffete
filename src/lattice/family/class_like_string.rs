@@ -121,9 +121,10 @@ fn name_as_object_type<W: World>(name: mago_atom::Atom, kind: ClassLikeKind, _wo
     let element = match kind {
         ClassLikeKind::Enum => ElementId::enum_any(name.as_str()),
         ClassLikeKind::Class | ClassLikeKind::Interface | ClassLikeKind::Trait => {
-            i.intern_object(ObjectInfo { name, type_args: None, intersections: None, flags: ObjectFlags::default() })
+            i.intern_object(ObjectInfo { name, type_args: None, flags: ObjectFlags::default() })
         }
     };
+
     i.intern_type(&[element], FlowFlags::EMPTY)
 }
 

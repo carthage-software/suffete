@@ -316,12 +316,8 @@ pub fn t_generic_named(name: &str, args: Vec<TypeId>) -> ElementId {
     use suffete::element::payload::ObjectFlags;
     use suffete::element::payload::ObjectInfo;
     let i = interner();
-    let info = ObjectInfo {
-        name: atom(name),
-        type_args: Some(i.intern_type_list(&args)),
-        intersections: None,
-        flags: ObjectFlags::default(),
-    };
+    let info =
+        ObjectInfo { name: atom(name), type_args: Some(i.intern_type_list(&args)), flags: ObjectFlags::default() };
     i.intern_object(info)
 }
 

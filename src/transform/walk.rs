@@ -16,8 +16,9 @@
 //! interned redundantly between levels.
 
 use crate::ElementId;
-use crate::ElementListId;
+use crate::ElementKind;
 use crate::TypeId;
+use crate::element::payload::CallableInfo;
 use crate::element::payload::ClassLikeStringInfo;
 use crate::element::payload::ClassLikeStringSpecifier;
 use crate::element::payload::ConditionalInfo;
@@ -25,6 +26,7 @@ use crate::element::payload::DerivedInfo;
 use crate::element::payload::GenericParameterInfo;
 use crate::element::payload::IterableInfo;
 use crate::element::payload::KeyedArrayInfo;
+use crate::element::payload::KnownElementEntry;
 use crate::element::payload::KnownItemEntry;
 use crate::element::payload::KnownPropertyEntry;
 use crate::element::payload::ListInfo;
@@ -63,6 +65,7 @@ pub(super) fn walk<F: FnMut(ElementId) -> Outcome>(ty: TypeId, f: &mut F) -> Typ
             }
             None => elem,
         };
+
         match f(target) {
             Outcome::Unchanged => new_elements.push(target),
             Outcome::Single(replaced) => {
@@ -82,6 +85,7 @@ pub(super) fn walk<F: FnMut(ElementId) -> Outcome>(ty: TypeId, f: &mut F) -> Typ
     if !changed {
         return ty;
     }
+
     interner().intern_type(&new_elements, ty.flags())
 }
 
@@ -90,7 +94,6 @@ pub(super) fn walk<F: FnMut(ElementId) -> Outcome>(ty: TypeId, f: &mut F) -> Typ
 /// changed, `None` otherwise.
 #[inline]
 fn walk_nested<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
-    use crate::ElementKind;
     match elem.kind() {
         ElementKind::Object => walk_object(elem, f),
         ElementKind::List => walk_list(elem, f),
@@ -135,23 +138,6 @@ fn visit_conjunct<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) ->
 }
 
 #[inline]
-fn walk_intersections<F: FnMut(ElementId) -> Outcome>(
-    intersections: Option<ElementListId>,
-    f: &mut F,
-) -> Option<ElementListId> {
-    let i = interner();
-    intersections.and_then(|id| {
-        let conjuncts = i.get_element_list(id);
-        let walked: Vec<ElementId> = conjuncts.iter().map(|&c| walk_nested(c, f).unwrap_or(c)).collect();
-        if walked.iter().zip(conjuncts.iter()).all(|(w, o)| w == o) {
-            None
-        } else {
-            Some(i.intern_element_list(&walked))
-        }
-    })
-}
-
-#[inline]
 fn walk_object<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
     let i = interner();
     let info = *i.get_object(elem);
@@ -160,27 +146,9 @@ fn walk_object<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Op
         let args = i.get_type_list(id);
         let walked: Vec<TypeId> = args.iter().map(|&a| walk(a, f)).collect();
         if walked.iter().zip(args.iter()).all(|(w, o)| w == o) { None } else { Some(i.intern_type_list(&walked)) }
-    });
+    })?;
 
-    let new_intersections = info.intersections.and_then(|id| {
-        let conjuncts = i.get_element_list(id);
-        let walked: Vec<ElementId> = conjuncts.iter().map(|&c| walk_nested(c, f).unwrap_or(c)).collect();
-        if walked.iter().zip(conjuncts.iter()).all(|(w, o)| w == o) {
-            None
-        } else {
-            Some(i.intern_element_list(&walked))
-        }
-    });
-
-    if new_args.is_none() && new_intersections.is_none() {
-        return None;
-    }
-
-    Some(i.intern_object(ObjectInfo {
-        type_args: new_args.or(info.type_args),
-        intersections: new_intersections.or(info.intersections),
-        ..info
-    }))
+    Some(i.intern_object(ObjectInfo { type_args: Some(new_args), ..info }))
 }
 
 #[inline]
@@ -191,10 +159,8 @@ fn walk_list<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Opti
 
     let new_known = info.known_elements.and_then(|id| {
         let entries = i.get_known_elements(id);
-        let walked: Vec<_> = entries
-            .iter()
-            .map(|entry| crate::element::payload::KnownElementEntry { value: walk(entry.value, f), ..*entry })
-            .collect();
+        let walked: Vec<_> =
+            entries.iter().map(|entry| KnownElementEntry { value: walk(entry.value, f), ..*entry }).collect();
         if walked.iter().zip(entries.iter()).all(|(w, o)| w.value == o.value) {
             None
         } else {
@@ -202,15 +168,12 @@ fn walk_list<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Opti
         }
     });
 
-    let new_intersections = walk_intersections(info.intersections, f);
-
-    if new_elem_t == info.element_type && new_known.is_none() && new_intersections.is_none() {
+    if new_elem_t == info.element_type && new_known.is_none() {
         return None;
     }
     Some(i.intern_list(ListInfo {
         element_type: new_elem_t,
         known_elements: new_known.or(info.known_elements),
-        intersections: new_intersections.or(info.intersections),
         ..info
     }))
 }
@@ -233,18 +196,16 @@ fn walk_keyed_array<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) 
         }
     });
 
-    let new_intersections = walk_intersections(info.intersections, f);
-
     let key_changed = new_key != info.key_param;
     let value_changed = new_value != info.value_param;
-    if !key_changed && !value_changed && new_known.is_none() && new_intersections.is_none() {
+    if !key_changed && !value_changed && new_known.is_none() {
         return None;
     }
+
     Some(i.intern_array(KeyedArrayInfo {
         key_param: new_key,
         value_param: new_value,
         known_items: new_known.or(info.known_items),
-        intersections: new_intersections.or(info.intersections),
         ..info
     }))
 }
@@ -255,15 +216,11 @@ fn walk_iterable<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> 
     let info = *i.get_iterable(elem);
     let new_key = walk(info.key_type, f);
     let new_value = walk(info.value_type, f);
-    let new_intersections = walk_intersections(info.intersections, f);
-    if new_key == info.key_type && new_value == info.value_type && new_intersections.is_none() {
+    if new_key == info.key_type && new_value == info.value_type {
         return None;
     }
-    Some(i.intern_iterable(IterableInfo {
-        key_type: new_key,
-        value_type: new_value,
-        intersections: new_intersections.or(info.intersections),
-    }))
+
+    Some(i.intern_iterable(IterableInfo { key_type: new_key, value_type: new_value }))
 }
 
 #[inline]
@@ -280,38 +237,19 @@ fn walk_object_shape<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F)
         } else {
             Some(i.intern_known_properties(&walked))
         }
-    });
+    })?;
 
-    let new_intersections = walk_intersections(info.intersections, f);
-
-    if new_props.is_none() && new_intersections.is_none() {
-        return None;
-    }
-
-    Some(i.intern_object_shape(ObjectShapeInfo {
-        known_properties: new_props.or(info.known_properties),
-        intersections: new_intersections.or(info.intersections),
-        ..info
-    }))
+    Some(i.intern_object_shape(ObjectShapeInfo { known_properties: Some(new_props), ..info }))
 }
 
 #[inline]
-fn walk_has_method<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
-    let i = interner();
-    let info = *i.get_has_method(elem);
-    let new_intersections = walk_intersections(info.intersections, f)?;
-    Some(i.intern_has_method(crate::element::payload::HasMethodInfo { intersections: Some(new_intersections), ..info }))
+const fn walk_has_method<F: FnMut(ElementId) -> Outcome>(_elem: ElementId, _f: &mut F) -> Option<ElementId> {
+    None
 }
 
 #[inline]
-fn walk_has_property<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
-    let i = interner();
-    let info = *i.get_has_property(elem);
-    let new_intersections = walk_intersections(info.intersections, f)?;
-    Some(i.intern_has_property(crate::element::payload::HasPropertyInfo {
-        intersections: Some(new_intersections),
-        ..info
-    }))
+const fn walk_has_property<F: FnMut(ElementId) -> Outcome>(_elem: ElementId, _f: &mut F) -> Option<ElementId> {
+    None
 }
 
 #[inline]
@@ -335,6 +273,7 @@ fn walk_class_like_string<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &m
         }
         _ => return None,
     };
+
     Some(i.intern_class_like_string(ClassLikeStringInfo { specifier: new_specifier, ..info }))
 }
 
@@ -346,6 +285,7 @@ fn walk_generic_parameter<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &m
     if walked == info.constraint {
         return None;
     }
+
     Some(i.intern_generic_parameter(GenericParameterInfo { constraint: walked, ..info }))
 }
 
@@ -358,26 +298,9 @@ fn walk_reference<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) ->
         let args = i.get_type_list(id);
         let walked: Vec<TypeId> = args.iter().map(|&a| walk(a, f)).collect();
         if walked.iter().zip(args.iter()).all(|(w, o)| w == o) { None } else { Some(i.intern_type_list(&walked)) }
-    });
+    })?;
 
-    let new_intersections = info.intersections.and_then(|id| {
-        let conjuncts = i.get_element_list(id);
-        let walked: Vec<ElementId> = conjuncts.iter().map(|&c| walk_nested(c, f).unwrap_or(c)).collect();
-        if walked.iter().zip(conjuncts.iter()).all(|(w, o)| w == o) {
-            None
-        } else {
-            Some(i.intern_element_list(&walked))
-        }
-    });
-
-    if new_args.is_none() && new_intersections.is_none() {
-        return None;
-    }
-    Some(i.intern_reference(SymbolReference {
-        type_args: new_args.or(info.type_args),
-        intersections: new_intersections.or(info.intersections),
-        ..info
-    }))
+    Some(i.intern_reference(SymbolReference { type_args: Some(new_args), ..info }))
 }
 
 #[inline]
@@ -391,6 +314,7 @@ fn walk_conditional<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) 
     if subject == info.subject && target == info.target && then == info.then && otherwise == info.otherwise {
         return None;
     }
+
     Some(i.intern_conditional(ConditionalInfo { subject, target, then, otherwise, negated: info.negated }))
 }
 
@@ -404,6 +328,7 @@ fn walk_derived<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> O
             if w == t {
                 return None;
             }
+
             DerivedInfo::KeyOf(w)
         }
         DerivedInfo::ValueOf(t) => {
@@ -411,6 +336,7 @@ fn walk_derived<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> O
             if w == t {
                 return None;
             }
+
             DerivedInfo::ValueOf(w)
         }
         DerivedInfo::IndexAccess { target, index } => {
@@ -419,6 +345,7 @@ fn walk_derived<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> O
             if target_w == target && index_w == index {
                 return None;
             }
+
             DerivedInfo::IndexAccess { target: target_w, index: index_w }
         }
         DerivedInfo::PropertiesOf { target, visibility } => {
@@ -434,6 +361,7 @@ fn walk_derived<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> O
             if walked.iter().zip(raw.iter()).all(|(w, o)| w == o) {
                 return None;
             }
+
             DerivedInfo::IntMask(i.intern_type_list(&walked))
         }
         DerivedInfo::IntMaskOf(t) => {
@@ -441,6 +369,7 @@ fn walk_derived<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> O
             if w == t {
                 return None;
             }
+
             DerivedInfo::IntMaskOf(w)
         }
         DerivedInfo::TemplateType { object, class_name, template_name } => {
@@ -457,15 +386,16 @@ fn walk_derived<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> O
             if w == t {
                 return None;
             }
+
             DerivedInfo::New(w)
         }
     };
+
     Some(i.intern_derived(walked))
 }
 
 #[inline]
 fn walk_callable<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
-    use crate::element::payload::CallableInfo;
     let i = interner();
     let info = *i.get_callable(elem);
     let (CallableInfo::Signature(sig_id) | CallableInfo::Closure(sig_id)) = info else {
@@ -490,16 +420,19 @@ fn walk_callable<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> 
     if !return_changed && !throws_changed && new_params.is_none() {
         return None;
     }
+
     let new_sig = i.intern_signature(Signature {
         return_type: new_return,
         throws: new_throws.or(sig.throws),
         parameters: new_params.or(sig.parameters),
         ..sig
     });
+
     let rebuilt = match info {
         CallableInfo::Signature(_) => CallableInfo::Signature(new_sig),
         CallableInfo::Closure(_) => CallableInfo::Closure(new_sig),
         _ => return None,
     };
+
     Some(i.intern_callable(rebuilt))
 }
