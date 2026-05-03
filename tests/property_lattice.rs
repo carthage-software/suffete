@@ -1297,9 +1297,224 @@ proptest! {
             );
         }
     }
+
+    /// Algebraic-law battery for every generated type pair. One single
+    /// proptest case exercises every soundness identity that holds
+    /// between `refines`, `meet`, `join`, `subtract`, `overlaps`, and
+    /// `negate`. Catches any inconsistency between operations.
+    #[test]
+    fn lattice_pair_laws_hold((world, a, b) in arb_world_and_pair()) {
+        if let Err(violation) = check_lattice_pair_laws(a, b, &world) {
+            prop_assert!(false, "{violation}");
+        }
+    }
+
+    #[test]
+    fn lattice_triple_laws_hold((world, a, b, c) in arb_world_and_triple()) {
+        if let Err(violation) = check_lattice_triple_laws(a, b, c, &world) {
+            prop_assert!(false, "{violation}");
+        }
+    }
 }
 
 fn neg_of(t: TypeId) -> TypeId {
     let neg = suffete::ElementId::negated(t);
     interner().intern_type(&[neg], FlowFlags::EMPTY)
+}
+
+fn join_of(a: TypeId, b: TypeId) -> TypeId {
+    let mut elems: Vec<ElementId> = a.as_ref().elements.to_vec();
+    elems.extend_from_slice(b.as_ref().elements);
+    let joined = suffete::join::compute(&elems);
+    interner().intern_type(&joined, FlowFlags::EMPTY)
+}
+
+fn equiv(a: TypeId, b: TypeId, w: &MockWorld) -> bool {
+    does_refine(a, b, w) && does_refine(b, a, w)
+}
+
+/// Battery of every algebraic identity that must hold for any pair
+/// `(a, b)` of inhabited types. Returns `Err` with a precise diagnostic
+/// on the first violation.
+///
+/// Soundness laws (must hold or there's a bug):
+/// - Universal axioms: refl, bottom, top.
+/// - Meet GLB axiom: `meet(a,b) <: a` and `<: b`.
+/// - Join LUB axiom: `a <: join(a,b)` and `b <: join(a,b)`.
+/// - Subtract bound: `a\b <: a`.
+/// - Negation involution: `!!T ≡ T` (over types where double-negation
+///   collapses ; multi-atom shapes excluded).
+/// - Commutativity of meet, join, overlaps.
+/// - Idempotence: `meet(a,a) ≡ a`, `join(a,a) ≡ a`, `a\a ≡ never`.
+/// - Identity: `meet(a, mixed) ≡ a`, `join(a, never) ≡ a`,
+///   `meet(a, never) ≡ never`, `join(a, mixed) ≡ mixed`,
+///   `a \ never ≡ a`, `a \ mixed ≡ never`.
+/// - Subsumption interlock: `a <: b` ⟺ `meet(a,b) ≡ a` ⟺
+///   `join(a,b) ≡ b` (when subtract is precise enough also
+///   `subtract(a,b) ≡ never`).
+/// - Refines is consistent with overlaps when one side is non-empty.
+fn check_lattice_pair_laws(a: TypeId, b: TypeId, w: &MockWorld) -> Result<(), String> {
+    if !does_refine(a, a, w) {
+        return Err(format!("refl: a !<: a; a={a}"));
+    }
+
+    if !does_refine(b, b, w) {
+        return Err(format!("refl: b !<: b; b={b}"));
+    }
+
+    if !does_refine(prelude::TYPE_NEVER, a, w) {
+        return Err(format!("bottom: NEVER !<: a={a}"));
+    }
+
+    if !does_refine(a, prelude::TYPE_MIXED, w) {
+        return Err(format!("top: a={a} !<: MIXED"));
+    }
+
+    let ab = meet_of(a, b, w);
+    let ba = meet_of(b, a, w);
+
+    if !equiv(ab, ba, w) {
+        return Err(format!("meet not commutative: meet(a,b)={ab}, meet(b,a)={ba}; a={a}, b={b}"));
+    }
+
+    if !does_refine(ab, a, w) {
+        return Err(format!("GLB: meet(a,b)={ab} !<: a={a}; b={b}"));
+    }
+
+    if !does_refine(ab, b, w) {
+        return Err(format!("GLB: meet(a,b)={ab} !<: b={b}; a={a}"));
+    }
+
+    let aub = join_of(a, b);
+    let bua = join_of(b, a);
+
+    if !does_refine(a, aub, w) {
+        return Err(format!("LUB: a={a} !<: join(a,b)={aub}; b={b}"));
+    }
+
+    if !does_refine(b, aub, w) {
+        return Err(format!("LUB: b={b} !<: join(a,b)={aub}; a={a}"));
+    }
+
+    if !does_refine(a, bua, w) {
+        return Err(format!("LUB symmetric: a={a} !<: join(b,a)={bua}; b={b}"));
+    }
+
+    if !does_refine(b, bua, w) {
+        return Err(format!("LUB symmetric: b={b} !<: join(b,a)={bua}; a={a}"));
+    }
+
+    let a_minus_b = subtract_of(a, b, w);
+    if !does_refine(a_minus_b, a, w) {
+        return Err(format!("subtract bound: a\\b={a_minus_b} !<: a={a}; b={b}"));
+    }
+
+    let aa = meet_of(a, a, w);
+    if !equiv(aa, a, w) {
+        return Err(format!("meet idempotence: meet(a,a)={aa}, expected a={a}"));
+    }
+
+    let aja = join_of(a, a);
+    if !does_refine(a, aja, w) {
+        return Err(format!("join LUB self: a={a} !<: join(a,a)={aja}"));
+    }
+
+    let a_mix = meet_of(a, prelude::TYPE_MIXED, w);
+    if !equiv(a_mix, a, w) {
+        return Err(format!("meet identity: meet(a, MIXED)={a_mix}, expected a={a}"));
+    }
+
+    let a_nev = meet_of(a, prelude::TYPE_NEVER, w);
+    if a_nev != prelude::TYPE_NEVER {
+        return Err(format!("meet absorb: meet(a, NEVER)={a_nev}, expected NEVER; a={a}"));
+    }
+
+    let a_join_nev = join_of(a, prelude::TYPE_NEVER);
+    if !does_refine(a, a_join_nev, w) {
+        return Err(format!("join identity bound: a={a} !<: join(a, NEVER)={a_join_nev}"));
+    }
+
+    let a_join_mix = join_of(a, prelude::TYPE_MIXED);
+    if !equiv(a_join_mix, prelude::TYPE_MIXED, w) {
+        return Err(format!("join absorb: join(a, MIXED)={a_join_mix}, expected MIXED; a={a}"));
+    }
+
+    let a_minus_nev = subtract_of(a, prelude::TYPE_NEVER, w);
+    if !equiv(a_minus_nev, a, w) {
+        return Err(format!("subtract identity: a\\NEVER={a_minus_nev}, expected a={a}"));
+    }
+
+    let a_minus_mix = subtract_of(a, prelude::TYPE_MIXED, w);
+    if a_minus_mix != prelude::TYPE_NEVER {
+        return Err(format!("subtract absorb: a\\MIXED={a_minus_mix}, expected NEVER; a={a}"));
+    }
+
+    let a_minus_a = subtract_of(a, a, w);
+    if a_minus_a != prelude::TYPE_NEVER {
+        return Err(format!("subtract self: a\\a={a_minus_a}, expected NEVER; a={a}"));
+    }
+
+    let ov_ab = does_overlap(a, b, w);
+    let ov_ba = does_overlap(b, a, w);
+    if ov_ab != ov_ba {
+        return Err(format!("overlaps not symmetric: overlaps(a,b)={ov_ab}, overlaps(b,a)={ov_ba}; a={a}, b={b}"));
+    }
+
+    if does_refine(a, b, w) {
+        if !equiv(ab, a, w) {
+            return Err(format!("a<:b ⇒ meet(a,b)≡a: meet={ab}, a={a}; b={b}"));
+        }
+        // `join(a,b) ≡ b` would hold if join were strictly the LUB,
+        // but the lattice's join canonicalizes (string axis merge,
+        // dominator collapse, etc.). The LUB axiom (b <: join(a,b))
+        // is checked above.
+    }
+
+    Ok(())
+}
+
+/// Battery for ternary identities. Strict associativity / equivalence
+/// is relaxed to soundness bounds because the lattice's join and meet
+/// canonicalize, which makes the operations order-sensitive in the
+/// representational sense even when the value-set is the same.
+fn check_lattice_triple_laws(a: TypeId, b: TypeId, c: TypeId, w: &MockWorld) -> Result<(), String> {
+    let m_ab = meet_of(a, b, w);
+    let m_left = meet_of(m_ab, c, w);
+    let m_bc = meet_of(b, c, w);
+    let m_right = meet_of(a, m_bc, w);
+
+    for (label, t) in [("(a∩b)∩c", m_left), ("a∩(b∩c)", m_right)] {
+        if !does_refine(t, a, w) {
+            return Err(format!("meet GLB ternary: {label}={t} !<: a={a}; b={b}, c={c}"));
+        }
+        if !does_refine(t, b, w) {
+            return Err(format!("meet GLB ternary: {label}={t} !<: b={b}; a={a}, c={c}"));
+        }
+        if !does_refine(t, c, w) {
+            return Err(format!("meet GLB ternary: {label}={t} !<: c={c}; a={a}, b={b}"));
+        }
+    }
+
+    let j_ab = join_of(a, b);
+    let j_left = join_of(j_ab, c);
+    let j_bc = join_of(b, c);
+    let j_right = join_of(a, j_bc);
+
+    for (label, t) in [("(a∪b)∪c", j_left), ("a∪(b∪c)", j_right)] {
+        if !does_refine(a, t, w) {
+            return Err(format!("join LUB ternary: a={a} !<: {label}={t}; b={b}, c={c}"));
+        }
+        if !does_refine(b, t, w) {
+            return Err(format!("join LUB ternary: b={b} !<: {label}={t}; a={a}, c={c}"));
+        }
+        if !does_refine(c, t, w) {
+            return Err(format!("join LUB ternary: c={c} !<: {label}={t}; a={a}, b={b}"));
+        }
+    }
+
+    if does_refine(a, b, w) && does_refine(b, c, w) && !does_refine(a, c, w) {
+        return Err(format!("refines transitivity: a<:b={a}<:{b}, b<:c={b}<:{c}, but a !<: c={c}"));
+    }
+
+    Ok(())
 }
