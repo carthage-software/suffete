@@ -25,11 +25,20 @@
 //! precision (a downstream narrowing returns `never` instead of a real
 //! overlap).
 
+use mago_atom::Atom;
+
 use crate::ElementId;
 use crate::ElementKind;
+use crate::ElementListId;
 use crate::FlowFlags;
 use crate::TypeId;
+use crate::element::payload::DefiningEntity;
+use crate::element::payload::GenericParameterInfo;
+use crate::element::payload::KeyedArrayInfo;
+use crate::element::payload::ListInfo;
 use crate::element::payload::MixedInfo;
+use crate::element::payload::ObjectFlags;
+use crate::element::payload::ObjectInfo;
 use crate::element::payload::Truthiness;
 use crate::element::payload::scalar::IntInfo;
 use crate::interner::interner;
@@ -40,6 +49,7 @@ use crate::lattice::refines::element_refines;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
 use crate::prelude::PLACEHOLDER;
+use crate::world::TemplateParameter;
 use crate::world::Variance;
 use crate::world::World;
 
@@ -291,7 +301,7 @@ fn element_overlaps<W: World>(
 fn object_structural_overlap<W: World>(object: ElementId, structural: ElementId, world: &W) -> bool {
     let i = interner();
     let info = *i.get_object(object);
-    let mut classes: Vec<mago_atom::Atom> = vec![info.name];
+    let mut classes: Vec<Atom> = vec![info.name];
     if let Some(id) = info.intersections {
         for &c in i.get_element_list(id) {
             if c.kind() == ElementKind::Object {
@@ -304,7 +314,7 @@ fn object_structural_overlap<W: World>(object: ElementId, structural: ElementId,
 }
 
 #[inline]
-fn class_satisfies_structural<W: World>(class: mago_atom::Atom, structural: ElementId, world: &W) -> bool {
+fn class_satisfies_structural<W: World>(class: Atom, structural: ElementId, world: &W) -> bool {
     let i = interner();
     let mut conjuncts: Vec<ElementId> = vec![structural];
     let nested = match structural.kind() {
@@ -350,7 +360,7 @@ fn object_overlap<W: World>(
 
     let a_classes = collect_class_names(a, a_info);
     let b_classes = collect_class_names(b, b_info);
-    let combined: Vec<mago_atom::Atom> = a_classes.iter().chain(b_classes.iter()).copied().collect();
+    let combined: Vec<Atom> = a_classes.iter().chain(b_classes.iter()).copied().collect();
     if intersection_uninhabited_under_finality(&combined, world) {
         return false;
     }
@@ -460,7 +470,7 @@ fn object_overlap<W: World>(
 /// instance cannot exist.
 #[inline]
 fn negation_covers_other<W: World>(
-    info: crate::element::payload::ObjectInfo,
+    info: ObjectInfo,
     other: ElementId,
     world: &W,
     options: LatticeOptions,
@@ -483,16 +493,12 @@ fn negation_covers_other<W: World>(
 
 #[inline]
 fn descendant_args_satisfy_ancestor<W: World>(
-    descendant: crate::element::payload::ObjectInfo,
-    ancestor: crate::element::payload::ObjectInfo,
+    descendant: ObjectInfo,
+    ancestor: ObjectInfo,
     world: &W,
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> bool {
-    use crate::element::payload::DefiningEntity;
-    use crate::element::payload::GenericParameterInfo;
-    use crate::world::TemplateParameter;
-
     let i = interner();
     let arity = world.template_parameter_arity(ancestor.name);
     if arity == 0 {
@@ -547,7 +553,7 @@ fn descendant_args_satisfy_ancestor<W: World>(
 /// intersection. Without a final witness we stay open-world
 /// (return `false`).
 #[inline]
-fn intersection_uninhabited_under_finality<W: World>(classes: &[mago_atom::Atom], world: &W) -> bool {
+fn intersection_uninhabited_under_finality<W: World>(classes: &[Atom], world: &W) -> bool {
     classes.iter().any(|&final_candidate| {
         if !world.is_final(final_candidate) {
             return false;
@@ -565,7 +571,7 @@ fn intersection_uninhabited_under_finality<W: World>(classes: &[mago_atom::Atom]
 /// by `object_overlap` to enforce single-inheritance consistency
 /// across the whole intersection (matching the rule in compose).
 #[inline]
-fn collect_class_names(elem: ElementId, info: crate::element::payload::ObjectInfo) -> Vec<mago_atom::Atom> {
+fn collect_class_names(elem: ElementId, info: ObjectInfo) -> Vec<Atom> {
     let i = interner();
     let mut names = vec![info.name];
     if let Some(id) = info.intersections {
@@ -586,120 +592,158 @@ fn collect_class_names(elem: ElementId, info: crate::element::payload::ObjectInf
 /// The lattice can construct these but no runtime value inhabits
 /// them, so `overlap` treats them as bottom.
 #[inline]
+fn list_uninhabited<W: World>(info: &ListInfo, intersections: Option<ElementListId>, world: &W) -> bool {
+    if info.flags.non_empty() && type_is_value_never(info.element_type, world) {
+        return true;
+    }
+
+    if let Some(known_id) = info.known_elements {
+        for entry in interner().get_known_elements(known_id) {
+            if !entry.optional && type_is_value_never(entry.value, world) {
+                return true;
+            }
+        }
+    }
+    let stripped = strip_list_intersections(info);
+    list_array_intersections_uninhabited_components(stripped, intersections, world)
+}
+
+#[inline]
+fn array_uninhabited<W: World>(info: &KeyedArrayInfo, intersections: Option<ElementListId>, world: &W) -> bool {
+    if info.flags.non_empty() {
+        let key_empty = info.key_param.is_some_and(|t| type_is_value_never(t, world));
+        let value_empty = info.value_param.is_some_and(|t| type_is_value_never(t, world));
+        if key_empty || value_empty {
+            return true;
+        }
+    }
+
+    if let Some(known_id) = info.known_items {
+        for entry in interner().get_known_items(known_id) {
+            if !entry.optional && type_is_value_never(entry.value, world) {
+                return true;
+            }
+        }
+    }
+
+    let stripped = strip_array_intersections(info);
+    list_array_intersections_uninhabited_components(stripped, intersections, world)
+}
+
+#[inline]
+fn object_uninhabited<W: World>(info: &ObjectInfo, intersections: Option<ElementListId>, world: &W) -> bool {
+    let i = interner();
+    if let Some(intersections_id) = intersections {
+        let mut classes: Vec<Atom> = vec![info.name];
+        let mut structurals: Vec<ElementId> = Vec::new();
+        let mut negations: Vec<ElementId> = Vec::new();
+        for &conjunct in i.get_element_list(intersections_id) {
+            match conjunct.kind() {
+                ElementKind::Object => classes.push(i.get_object(conjunct).name),
+                ElementKind::HasMethod | ElementKind::HasProperty => structurals.push(conjunct),
+                ElementKind::Negated => negations.push(conjunct),
+                _ => {}
+            }
+        }
+
+        if intersection_uninhabited_under_finality(&classes, world) {
+            return true;
+        }
+
+        for &neg in &negations {
+            let neg_inner = i.get_negated(neg).inner;
+            for &class in &classes {
+                let bare = i.intern_object(ObjectInfo {
+                    name: class,
+                    type_args: None,
+                    intersections: None,
+                    flags: ObjectFlags::default(),
+                });
+                let bare_t = i.intern_type(&[bare], FlowFlags::EMPTY);
+                if crate::lattice::refines(
+                    bare_t,
+                    neg_inner,
+                    world,
+                    LatticeOptions::default(),
+                    &mut LatticeReport::new(),
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        for &class in &classes {
+            if !world.is_final(class) {
+                continue;
+            }
+
+            for &s in &structurals {
+                let satisfied = match s.kind() {
+                    ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(s).method_name),
+                    ElementKind::HasProperty => world.class_has_property(class, i.get_has_property(s).property_name),
+                    _ => true,
+                };
+
+                if !satisfied {
+                    return true;
+                }
+            }
+        }
+    }
+    let Some(args_id) = info.type_args else { return false };
+    let args = i.get_type_list(args_id);
+    args.iter().enumerate().any(|(idx, &arg)| {
+        if !type_is_value_never(arg, world) {
+            return false;
+        }
+
+        let variance = world.template_parameter_at(info.name, idx).map_or(Variance::Contravariant, |p| p.variance);
+        !matches!(variance, Variance::Contravariant)
+    })
+}
+
+#[inline]
+fn strip_list_intersections(info: &ListInfo) -> ElementId {
+    interner().intern_list(ListInfo { intersections: None, ..*info })
+}
+
+#[inline]
+fn strip_array_intersections(info: &KeyedArrayInfo) -> ElementId {
+    interner().intern_array(KeyedArrayInfo { intersections: None, ..*info })
+}
+
+#[inline]
 pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
     let i = interner();
     match elem.kind() {
         ElementKind::List => {
             let info = *i.get_list(elem);
-            if info.flags.non_empty() && type_is_value_never(info.element_type, world) {
-                return true;
-            }
-            if let Some(known_id) = info.known_elements {
-                for entry in i.get_known_elements(known_id) {
-                    if !entry.optional && type_is_value_never(entry.value, world) {
-                        return true;
-                    }
-                }
-            }
-            list_array_intersections_uninhabited(elem, info.intersections, world)
+            list_uninhabited(&info, info.intersections, world)
         }
         ElementKind::Array => {
             let info = *i.get_array(elem);
-            if info.flags.non_empty() {
-                let key_empty = info.key_param.is_some_and(|t| type_is_value_never(t, world));
-                let value_empty = info.value_param.is_some_and(|t| type_is_value_never(t, world));
-                if key_empty || value_empty {
-                    return true;
-                }
-            }
-            if let Some(known_id) = info.known_items {
-                for entry in i.get_known_items(known_id) {
-                    if !entry.optional && type_is_value_never(entry.value, world) {
-                        return true;
-                    }
-                }
-            }
-            list_array_intersections_uninhabited(elem, info.intersections, world)
+            array_uninhabited(&info, info.intersections, world)
         }
         ElementKind::Object => {
             let info = *i.get_object(elem);
-            if let Some(intersections_id) = info.intersections {
-                let mut classes: Vec<mago_atom::Atom> = vec![info.name];
-                let mut structurals: Vec<ElementId> = Vec::new();
-                let mut negations: Vec<ElementId> = Vec::new();
-                for &conjunct in i.get_element_list(intersections_id) {
-                    match conjunct.kind() {
-                        ElementKind::Object => classes.push(i.get_object(conjunct).name),
-                        ElementKind::HasMethod | ElementKind::HasProperty => structurals.push(conjunct),
-                        ElementKind::Negated => negations.push(conjunct),
-                        _ => {}
-                    }
-                }
-
-                if intersection_uninhabited_under_finality(&classes, world) {
-                    return true;
-                }
-
-                // A `Negated` whose inner accepts any positive class in
-                // the intersection makes it uninhabited.
-                for &neg in &negations {
-                    let neg_inner = i.get_negated(neg).inner;
-                    for &class in &classes {
-                        let bare = i.intern_object(crate::element::payload::ObjectInfo {
-                            name: class,
-                            type_args: None,
-                            intersections: None,
-                            flags: crate::element::payload::ObjectFlags::default(),
-                        });
-                        let bare_t = i.intern_type(&[bare], FlowFlags::EMPTY);
-                        if crate::lattice::refines(
-                            bare_t,
-                            neg_inner,
-                            world,
-                            crate::lattice::LatticeOptions::default(),
-                            &mut crate::lattice::LatticeReport::new(),
-                        ) {
-                            return true;
-                        }
-                    }
-                }
-
-                for &class in &classes {
-                    if !world.is_final(class) {
-                        continue;
-                    }
-
-                    for &s in &structurals {
-                        let satisfied = match s.kind() {
-                            ElementKind::HasMethod => world.class_has_method(class, i.get_has_method(s).method_name),
-                            ElementKind::HasProperty => {
-                                world.class_has_property(class, i.get_has_property(s).property_name)
-                            }
-                            _ => true,
-                        };
-
-                        if !satisfied {
-                            return true;
-                        }
-                    }
-                }
-            }
-            let Some(args_id) = info.type_args else { return false };
-            let args = i.get_type_list(args_id);
-            args.iter().enumerate().any(|(idx, &arg)| {
-                if !type_is_value_never(arg, world) {
-                    return false;
-                }
-
-                let variance =
-                    world.template_parameter_at(info.name, idx).map_or(Variance::Contravariant, |p| p.variance);
-                !matches!(variance, Variance::Contravariant)
-            })
+            object_uninhabited(&info, info.intersections, world)
         }
         ElementKind::Intersected => {
             let info = *i.get_intersected(elem);
-            if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
-                return is_uninhabited(reconstructed, world);
+            match info.head.kind() {
+                ElementKind::Object => {
+                    let head_info = *i.get_object(info.head);
+                    return object_uninhabited(&head_info, Some(info.conjuncts), world);
+                }
+                ElementKind::List => {
+                    let head_info = *i.get_list(info.head);
+                    return list_uninhabited(&head_info, Some(info.conjuncts), world);
+                }
+                ElementKind::Array => {
+                    let head_info = *i.get_array(info.head);
+                    return array_uninhabited(&head_info, Some(info.conjuncts), world);
+                }
+                _ => {}
             }
             if is_uninhabited(info.head, world) {
                 return true;
@@ -718,8 +762,8 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                         head_t,
                         inner,
                         world,
-                        crate::lattice::LatticeOptions::default(),
-                        &mut crate::lattice::LatticeReport::new(),
+                        LatticeOptions::default(),
+                        &mut LatticeReport::new(),
                     ) {
                         return true;
                     }
@@ -735,13 +779,8 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                         continue;
                     }
                     let cj_t = i.intern_type(&[cj], FlowFlags::EMPTY);
-                    if crate::lattice::refines(
-                        cj_t,
-                        inner,
-                        world,
-                        crate::lattice::LatticeOptions::default(),
-                        &mut crate::lattice::LatticeReport::new(),
-                    ) {
+                    if crate::lattice::refines(cj_t, inner, world, LatticeOptions::default(), &mut LatticeReport::new())
+                    {
                         return true;
                     }
                 }
@@ -809,33 +848,19 @@ fn string_overlap<W: World>(
 /// stripped head ; in that case the whole intersection is empty.
 /// Mirrors the negated-class arm of [`is_uninhabited`] for objects.
 #[inline]
-fn list_array_intersections_uninhabited<W: World>(
-    elem: ElementId,
-    intersections: Option<crate::ElementListId>,
+fn list_array_intersections_uninhabited_components<W: World>(
+    stripped: ElementId,
+    intersections: Option<ElementListId>,
     world: &W,
 ) -> bool {
     let Some(intersections_id) = intersections else { return false };
     let i = interner();
-    // Stripped head: re-intern without conjuncts so refinement checks see
-    // just the structural shape, not the conjunct chain (which would
-    // otherwise re-enter is_uninhabited and recurse forever).
-    let stripped = match elem.kind() {
-        ElementKind::List => {
-            let info = *i.get_list(elem);
-            i.intern_list(crate::element::payload::ListInfo { intersections: None, ..info })
-        }
-        ElementKind::Array => {
-            let info = *i.get_array(elem);
-            i.intern_array(crate::element::payload::KeyedArrayInfo { intersections: None, ..info })
-        }
-        _ => return false,
-    };
     let stripped_t = i.intern_type(&[stripped], FlowFlags::EMPTY);
-    let opts = crate::lattice::LatticeOptions::default();
+    let opts = LatticeOptions::default();
     for &conjunct in i.get_element_list(intersections_id) {
         if conjunct.kind() == ElementKind::Negated {
             let neg_inner = i.get_negated(conjunct).inner;
-            let mut report = crate::lattice::LatticeReport::new();
+            let mut report = LatticeReport::new();
             if crate::lattice::refines(stripped_t, neg_inner, world, opts, &mut report) {
                 return true;
             }
@@ -849,19 +874,19 @@ fn list_array_intersections_uninhabited<W: World>(
 /// element with its conjunct list cleared. Used by `element_overlaps`
 /// to fold the conjunct chain into pairwise overlaps.
 #[inline]
-fn list_array_intersections(elem: ElementId) -> Option<(ElementId, crate::ElementListId)> {
+fn list_array_intersections(elem: ElementId) -> Option<(ElementId, ElementListId)> {
     let i = interner();
     match elem.kind() {
         ElementKind::List => {
             let info = *i.get_list(elem);
             let conjuncts_id = info.intersections?;
-            let stripped = i.intern_list(crate::element::payload::ListInfo { intersections: None, ..info });
+            let stripped = i.intern_list(ListInfo { intersections: None, ..info });
             Some((stripped, conjuncts_id))
         }
         ElementKind::Array => {
             let info = *i.get_array(elem);
             let conjuncts_id = info.intersections?;
-            let stripped = i.intern_array(crate::element::payload::KeyedArrayInfo { intersections: None, ..info });
+            let stripped = i.intern_array(KeyedArrayInfo { intersections: None, ..info });
             Some((stripped, conjuncts_id))
         }
         _ => None,
