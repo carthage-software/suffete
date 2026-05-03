@@ -123,6 +123,11 @@ pub fn narrow<W: World>(
                 continue;
             }
 
+            if let Some(pieces) = narrowed_mixed_meet_multi(x, y) {
+                atoms.extend(pieces);
+                continue;
+            }
+
             if let Some(m) = atom_meet(x, y, world, options, report) {
                 atoms.push(m);
             }
@@ -375,76 +380,190 @@ fn intersected_atom_meet<W: World>(
 /// `meet(narrowed-mixed, X)` where `narrowed-mixed` is `truthy-mixed`,
 /// `falsy-mixed`, or `non-null-mixed`. Returns `X` filtered by the
 /// flag, expressed via the universal [`Intersected`] / [`Negated`]
-/// machinery.
+/// machinery and PHP truthiness semantics for each element kind.
 #[inline]
 fn narrowed_mixed_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
+    let pieces = narrowed_mixed_meet_multi(a, b)?;
+    match pieces.as_slice() {
+        [] => None,
+        [single] => Some(*single),
+        _ => None,
+    }
+}
+
+/// Multi-atom variant of [`narrowed_mixed_meet`]. Returns `None` when
+/// neither side is a `Mixed` element. Returns `Some(vec![])` for the
+/// empty meet.
+#[inline]
+fn narrowed_mixed_meet_multi(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
+    use crate::element::payload::MixedInfo;
     use crate::element::payload::Truthiness;
+    if a.kind() != ElementKind::Mixed && b.kind() != ElementKind::Mixed {
+        return None;
+    }
     let i = interner();
     if a.kind() == ElementKind::Mixed && b.kind() == ElementKind::Mixed {
         let a_info = *i.get_mixed(a);
         let b_info = *i.get_mixed(b);
         let merged_truthiness = match (a_info.truthiness(), b_info.truthiness()) {
-            (Truthiness::Truthy, Truthiness::Falsy) | (Truthiness::Falsy, Truthiness::Truthy) => return None,
+            (Truthiness::Truthy, Truthiness::Falsy) | (Truthiness::Falsy, Truthiness::Truthy) => {
+                return Some(Vec::new());
+            }
             (Truthiness::Truthy, _) | (_, Truthiness::Truthy) => Truthiness::Truthy,
             (Truthiness::Falsy, _) | (_, Truthiness::Falsy) => Truthiness::Falsy,
             (Truthiness::Undetermined, Truthiness::Undetermined) => Truthiness::Undetermined,
         };
 
-        let merged = crate::element::payload::MixedInfo::EMPTY
+        let merged = MixedInfo::EMPTY
             .with_is_non_null(a_info.is_non_null() || b_info.is_non_null())
             .with_truthiness(merged_truthiness);
 
-        return Some(i.intern_mixed(merged));
+        return Some(vec![i.intern_mixed(merged)]);
     }
 
     let (mixed_atom, other) = if a.kind() == ElementKind::Mixed { (a, b) } else { (b, a) };
     let info = *i.get_mixed(mixed_atom);
-    if info == crate::element::payload::MixedInfo::EMPTY {
-        return Some(other);
+    if info == MixedInfo::EMPTY {
+        return Some(vec![other]);
     }
 
     if info.is_non_null() && other == crate::prelude::NULL {
-        return None;
+        return Some(Vec::new());
     }
 
-    let mut conjuncts: Vec<ElementId> = Vec::new();
-    if info.is_non_null() {
+    let truthy_pieces = narrow_by_truthiness(other, info.truthiness());
+    let with_non_null: Vec<ElementId> = if info.is_non_null() {
         let null_t = i.intern_type(&[crate::prelude::NULL], FlowFlags::EMPTY);
-        conjuncts.push(ElementId::negated(null_t));
-    }
+        let neg_null = ElementId::negated(null_t);
+        truthy_pieces.into_iter().map(|p| ElementId::intersected(p, &[neg_null])).collect()
+    } else {
+        truthy_pieces
+    };
 
-    match info.truthiness() {
-        Truthiness::Truthy => {
-            for &elem in falsy_witnesses(other.kind()) {
-                let t = i.intern_type(&[elem], FlowFlags::EMPTY);
-                conjuncts.push(ElementId::negated(t));
-            }
-        }
-        Truthiness::Falsy => {
-            for &elem in truthy_witnesses(other.kind()) {
-                let t = i.intern_type(&[elem], FlowFlags::EMPTY);
-                conjuncts.push(ElementId::negated(t));
-            }
-        }
-        Truthiness::Undetermined => {}
+    Some(with_non_null)
+}
+
+/// Narrow `other` by PHP truthiness. `Vec::new()` when the kind is
+/// incompatible with the requested truthiness (e.g. `Object` is always
+/// truthy, so falsy narrowing yields the empty set). `vec![other]`
+/// when truthiness is undetermined.
+#[inline]
+fn narrow_by_truthiness(other: ElementId, truthiness: crate::element::payload::Truthiness) -> Vec<ElementId> {
+    use crate::element::payload::Truthiness;
+    if matches!(truthiness, Truthiness::Undetermined) {
+        return vec![other];
     }
-    Some(ElementId::intersected(other, &conjuncts))
+    let i = interner();
+    match (other.kind(), truthiness) {
+        (ElementKind::Null | ElementKind::False, Truthiness::Truthy) => Vec::new(),
+        (ElementKind::True, Truthiness::Falsy) => Vec::new(),
+        (
+            ElementKind::Object
+            | ElementKind::ObjectAny
+            | ElementKind::Enum
+            | ElementKind::ObjectShape
+            | ElementKind::HasMethod
+            | ElementKind::HasProperty
+            | ElementKind::Resource
+            | ElementKind::Callable,
+            Truthiness::Falsy,
+        ) => Vec::new(),
+        (ElementKind::Bool, Truthiness::Truthy) => vec![crate::prelude::TRUE],
+        (ElementKind::Bool, Truthiness::Falsy) => vec![crate::prelude::FALSE],
+        (ElementKind::Int, Truthiness::Truthy) => {
+            let zero_t = i.intern_type(&[crate::prelude::INT_ZERO], FlowFlags::EMPTY);
+            vec![ElementId::intersected(other, &[ElementId::negated(zero_t)])]
+        }
+        (ElementKind::Int, Truthiness::Falsy) => vec![crate::prelude::INT_ZERO],
+        (ElementKind::Float, Truthiness::Truthy) => {
+            let zero = ElementId::float_literal(0.0);
+            let zero_t = i.intern_type(&[zero], FlowFlags::EMPTY);
+            vec![ElementId::intersected(other, &[ElementId::negated(zero_t)])]
+        }
+        (ElementKind::Float, Truthiness::Falsy) => vec![ElementId::float_literal(0.0)],
+        (ElementKind::String, Truthiness::Truthy) => vec![narrow_string_truthy(other)],
+        (ElementKind::String, Truthiness::Falsy) => narrow_string_falsy(other),
+        (ElementKind::List | ElementKind::Array | ElementKind::Iterable, Truthiness::Truthy) => {
+            vec![force_non_empty(other)]
+        }
+        _ => vec![other],
+    }
 }
 
 #[inline]
-const fn falsy_witnesses(kind: ElementKind) -> &'static [ElementId] {
-    match kind {
-        ElementKind::Int => &[crate::prelude::INT_ZERO],
-        ElementKind::Bool => &[crate::prelude::FALSE],
-        _ => &[],
+fn narrow_string_truthy(elem: ElementId) -> ElementId {
+    let i = interner();
+    let info = *i.get_string(elem);
+    let flags = info.flags.with_is_truthy(true).with_is_non_empty(true);
+    i.intern_string(crate::element::payload::scalar::StringInfo { flags, ..info })
+}
+
+#[inline]
+fn narrow_string_falsy(elem: ElementId) -> Vec<ElementId> {
+    use crate::element::payload::scalar::StringLiteral;
+    let i = interner();
+    let info = *i.get_string(elem);
+    if let StringLiteral::Value(v) = info.literal {
+        let s = v.as_str();
+        return if s.is_empty() || s == "0" { vec![elem] } else { Vec::new() };
+    }
+
+    if info.flags.is_non_empty() && !v_zero_compatible(info) {
+        return Vec::new();
+    }
+
+    if info.flags.is_truthy() {
+        return Vec::new();
+    }
+
+    let mut pieces = vec![ElementId::string_literal("")];
+    if !info.flags.is_non_empty() || v_zero_compatible(info) {
+        pieces.push(ElementId::string_literal("0"));
+    }
+
+    pieces.retain(|&p| {
+        let p_info = *i.get_string(p);
+        let StringLiteral::Value(pv) = p_info.literal else { return true };
+        let s = pv.as_str();
+        casing_compatible(info.casing, s) && (!info.flags.is_numeric() || s.parse::<i64>().is_ok())
+    });
+
+    pieces
+}
+
+#[inline]
+fn v_zero_compatible(info: crate::element::payload::scalar::StringInfo) -> bool {
+    if info.flags.is_truthy() {
+        return false;
+    }
+    casing_compatible(info.casing, "0")
+}
+
+#[inline]
+fn casing_compatible(casing: crate::element::payload::scalar::StringCasing, s: &str) -> bool {
+    use crate::element::payload::scalar::StringCasing;
+    let has_lower = s.chars().any(|c| c.is_ascii_lowercase());
+    let has_upper = s.chars().any(|c| c.is_ascii_uppercase());
+    match casing {
+        StringCasing::Unspecified => true,
+        StringCasing::Lowercase => !has_upper,
+        StringCasing::Uppercase => !has_lower,
     }
 }
 
 #[inline]
-const fn truthy_witnesses(kind: ElementKind) -> &'static [ElementId] {
-    match kind {
-        ElementKind::Bool => &[crate::prelude::TRUE],
-        _ => &[],
+fn force_non_empty(elem: ElementId) -> ElementId {
+    let i = interner();
+    match elem.kind() {
+        ElementKind::List => {
+            let info = *i.get_list(elem);
+            i.intern_list(crate::element::payload::ListInfo { flags: info.flags.with_non_empty(true), ..info })
+        }
+        ElementKind::Array => {
+            let info = *i.get_array(elem);
+            i.intern_array(crate::element::payload::KeyedArrayInfo { flags: info.flags.with_non_empty(true), ..info })
+        }
+        _ => elem,
     }
 }
 

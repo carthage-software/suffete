@@ -91,7 +91,7 @@ pub fn refines<W: World>(
                 return true;
             }
 
-            if intersected_partition_covers(*elem, b_type.elements) {
+            if intersected_partition_covers(*elem, b_type.elements, world, options, report) {
                 return true;
             }
 
@@ -132,38 +132,53 @@ fn negation_partition_covers<W: World>(
     false
 }
 
-/// Recognize `Intersected(H, [!X1, ..]) ∪ X1 ∪ .. = H ∪ X1 ∪ ..` in the
-/// container by literal-equality match on the negated inners. Sound,
-/// non-recursive, and covers the common Phase 4 wrap shape.
+/// Recognize the partition identity
+/// `Intersected(H, [!X1, .., !Xn]) ∪ X1 ∪ .. ∪ Xn ≡ H ∪ X1 ∪ .. ∪ Xn`.
+/// When a container atom is `Intersected(H, [!X1, ..])` with all
+/// negated inners `Xi` present elsewhere in the container, the
+/// container's value-set equals the container with the Intersected
+/// replaced by its head. Recurse on that reduced container ; the
+/// number of Intersected atoms strictly decreases each step.
 #[inline]
-fn intersected_partition_covers(input: ElementId, containers: &[ElementId]) -> bool {
+fn intersected_partition_covers<W: World>(
+    input: ElementId,
+    containers: &[ElementId],
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
     let i = interner();
-    for &c in containers {
+    for (idx, &c) in containers.iter().enumerate() {
         if c.kind() != ElementKind::Intersected {
             continue;
         }
         let info = *i.get_intersected(c);
-        if info.head != input {
-            continue;
-        }
         let conjuncts = i.get_element_list(info.conjuncts);
-        let mut all_covered = true;
+        let mut all_negated = true;
+        let mut all_inners_present = true;
         for &cj in conjuncts {
             if cj.kind() != ElementKind::Negated {
-                all_covered = false;
+                all_negated = false;
                 break;
             }
             for &ie in i.get_negated(cj).inner.as_ref().elements {
-                if !containers.iter().any(|&other| other != c && other == ie) {
-                    all_covered = false;
+                if !containers.iter().enumerate().any(|(j, &other)| j != idx && other == ie) {
+                    all_inners_present = false;
                     break;
                 }
             }
-            if !all_covered {
+            if !all_inners_present {
                 break;
             }
         }
-        if all_covered {
+        if !all_negated || !all_inners_present {
+            continue;
+        }
+        let mut reduced: Vec<ElementId> = containers.to_vec();
+        reduced[idx] = info.head;
+        let input_t = i.intern_type(&[input], FlowFlags::EMPTY);
+        let reduced_t = i.intern_type(&reduced, FlowFlags::EMPTY);
+        if refines(input_t, reduced_t, world, options, report) {
             return true;
         }
     }
