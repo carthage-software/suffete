@@ -78,7 +78,32 @@ pub(crate) fn is_non_null(input: ElementId) -> bool {
             let constraint = info.constraint.as_ref();
             constraint.elements.iter().all(|&el| is_non_null(el))
         }
+        ElementKind::Intersected => {
+            let info = interner().get_intersected(input);
+            if is_non_null(info.head) {
+                return true;
+            }
+
+            interner().get_element_list(info.conjuncts).iter().any(|&c| is_non_null(c))
+        }
         _ => true,
+    }
+}
+
+/// `true` iff `conjuncts` (a `Negated` inner type) collectively
+/// exclude every falsy witness for `head`'s element kind.
+#[inline]
+fn conjuncts_exclude_falsy_witnesses(head: ElementId, inner: &[ElementId]) -> bool {
+    match head.kind() {
+        ElementKind::Int => inner.contains(&crate::prelude::INT_ZERO),
+        ElementKind::Float => inner.iter().any(|&e| {
+            if e.kind() != ElementKind::Float {
+                return false;
+            }
+            matches!(*interner().get_float(e), FloatInfo::Literal(lit) if lit.value() == 0.0)
+        }),
+        ElementKind::Bool => inner.contains(&crate::prelude::FALSE),
+        _ => false,
     }
 }
 
@@ -90,11 +115,15 @@ pub(crate) fn truthiness_of(input: ElementId) -> Truthiness {
         ElementKind::True => Truthiness::Truthy,
         ElementKind::False | ElementKind::Null => Truthiness::Falsy,
         ElementKind::Bool => Truthiness::Undetermined,
-
-        ElementKind::ObjectAny | ElementKind::Object | ElementKind::Enum | ElementKind::Resource => Truthiness::Truthy,
-
+        ElementKind::ObjectAny
+        | ElementKind::Object
+        | ElementKind::Enum
+        | ElementKind::Resource
+        | ElementKind::Callable
+        | ElementKind::ObjectShape
+        | ElementKind::HasMethod
+        | ElementKind::HasProperty => Truthiness::Truthy,
         ElementKind::ClassLikeString => Truthiness::Truthy,
-
         ElementKind::Int => match interner().get_int(input) {
             IntInfo::Literal(0) => Truthiness::Falsy,
             IntInfo::Literal(_) => Truthiness::Truthy,
@@ -108,7 +137,6 @@ pub(crate) fn truthiness_of(input: ElementId) -> Truthiness {
             }
             _ => Truthiness::Undetermined,
         },
-
         ElementKind::Float => match interner().get_float(input) {
             FloatInfo::Literal(literal) => {
                 if literal.value() == 0.0 {
@@ -119,15 +147,16 @@ pub(crate) fn truthiness_of(input: ElementId) -> Truthiness {
             }
             _ => Truthiness::Undetermined,
         },
-
         ElementKind::String => {
             if input == crate::prelude::EMPTY_STRING {
                 return Truthiness::Falsy;
             }
+
             let info = interner().get_string(input);
             if info.flags.is_truthy() {
                 return Truthiness::Truthy;
             }
+
             match info.literal {
                 StringLiteral::Value(value) => {
                     let s = value.as_str();
@@ -136,20 +165,74 @@ pub(crate) fn truthiness_of(input: ElementId) -> Truthiness {
                 _ => Truthiness::Undetermined,
             }
         }
-
         ElementKind::Array => {
             if input == crate::prelude::EMPTY_ARRAY {
                 return Truthiness::Falsy;
             }
+
             let info = interner().get_array(input);
-            if info.flags.non_empty() { Truthiness::Truthy } else { Truthiness::Undetermined }
+            if info.flags.non_empty() {
+                return Truthiness::Truthy;
+            }
+
+            if info.key_param == Some(crate::prelude::TYPE_NEVER)
+                && info.value_param == Some(crate::prelude::TYPE_NEVER)
+                && info.known_items.is_none()
+            {
+                return Truthiness::Falsy;
+            }
+
+            Truthiness::Undetermined
         }
         ElementKind::List => {
             let info = interner().get_list(input);
-            if info.flags.non_empty() { Truthiness::Truthy } else { Truthiness::Undetermined }
-        }
+            if info.flags.non_empty() {
+                return Truthiness::Truthy;
+            }
 
-        ElementKind::Mixed => interner().get_mixed(input).truthiness(),
+            if info.element_type == crate::prelude::TYPE_NEVER && info.known_elements.is_none() {
+                return Truthiness::Falsy;
+            }
+
+            Truthiness::Undetermined
+        }
+        ElementKind::Mixed => {
+            let info = interner().get_mixed(input);
+            if info.is_empty() {
+                return Truthiness::Falsy;
+            }
+
+            info.truthiness()
+        }
+        ElementKind::Intersected => {
+            let info = interner().get_intersected(input);
+            let head_truthiness = truthiness_of(info.head);
+            if head_truthiness == Truthiness::Truthy || head_truthiness == Truthiness::Falsy {
+                return head_truthiness;
+            }
+
+            let mut all_truthy_via_excluded_falsy = false;
+            for &conjunct in interner().get_element_list(info.conjuncts) {
+                if conjunct.kind() == ElementKind::Negated {
+                    let neg = interner().get_negated(conjunct);
+                    let inner = neg.inner.as_ref().elements;
+                    if conjuncts_exclude_falsy_witnesses(info.head, inner) {
+                        all_truthy_via_excluded_falsy = true;
+                    }
+                }
+
+                let ct = truthiness_of(conjunct);
+                if ct == Truthiness::Truthy {
+                    return Truthiness::Truthy;
+                }
+
+                if ct == Truthiness::Falsy {
+                    return Truthiness::Falsy;
+                }
+            }
+
+            if all_truthy_via_excluded_falsy { Truthiness::Truthy } else { Truthiness::Undetermined }
+        }
 
         ElementKind::GenericParameter => {
             let info = interner().get_generic_parameter(input);
@@ -163,9 +246,9 @@ pub(crate) fn truthiness_of(input: ElementId) -> Truthiness {
                     _ => return Truthiness::Undetermined,
                 });
             }
+
             acc.unwrap_or(Truthiness::Undetermined)
         }
-
         _ => Truthiness::Undetermined,
     }
 }

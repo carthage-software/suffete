@@ -653,13 +653,20 @@ pub(crate) fn element_refines<W: World>(
         if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
             return element_refines(input, reconstructed, world, options, report);
         }
+
         return refines_container_intersected(input, container, world, options, report);
     }
+
     if input.kind() == ElementKind::Intersected {
+        if container.kind() == ElementKind::Mixed {
+            return family::mixed::refines(input, container);
+        }
+
         let info = *interner().get_intersected(input);
         if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
             return element_refines(reconstructed, container, world, options, report);
         }
+
         return refines_input_intersected(input, container, world, options, report);
     }
 
@@ -694,11 +701,13 @@ fn refines_container_intersected<W: World>(
     if !element_refines(input, info.head, world, options, report) {
         return false;
     }
+
     for &conjunct in interner().get_element_list(info.conjuncts) {
         if !element_refines(input, conjunct, world, options, report) {
             return false;
         }
     }
+
     true
 }
 
@@ -714,11 +723,13 @@ fn refines_input_intersected<W: World>(
     if element_refines(info.head, container, world, options, report) {
         return true;
     }
+
     for &conjunct in interner().get_element_list(info.conjuncts) {
         if element_refines(conjunct, container, world, options, report) {
             return true;
         }
     }
+
     false
 }
 

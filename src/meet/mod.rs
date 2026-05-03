@@ -416,6 +416,8 @@ fn narrowed_mixed_meet_multi(a: ElementId, b: ElementId) -> Option<Vec<ElementId
 
         let merged = MixedInfo::EMPTY
             .with_is_non_null(a_info.is_non_null() || b_info.is_non_null())
+            .with_is_empty(a_info.is_empty() || b_info.is_empty())
+            .with_is_isset_from_loop(a_info.is_isset_from_loop() || b_info.is_isset_from_loop())
             .with_truthiness(merged_truthiness);
 
         return Some(vec![i.intern_mixed(merged)]);
@@ -453,6 +455,7 @@ fn narrow_by_truthiness(other: ElementId, truthiness: crate::element::payload::T
     if matches!(truthiness, Truthiness::Undetermined) {
         return vec![other];
     }
+
     let i = interner();
     match (other.kind(), truthiness) {
         (ElementKind::Null | ElementKind::False, Truthiness::Truthy) => Vec::new(),
@@ -465,7 +468,8 @@ fn narrow_by_truthiness(other: ElementId, truthiness: crate::element::payload::T
             | ElementKind::HasMethod
             | ElementKind::HasProperty
             | ElementKind::Resource
-            | ElementKind::Callable,
+            | ElementKind::Callable
+            | ElementKind::ClassLikeString,
             Truthiness::Falsy,
         ) => Vec::new(),
         (ElementKind::Bool, Truthiness::Truthy) => vec![crate::prelude::TRUE],
@@ -486,14 +490,65 @@ fn narrow_by_truthiness(other: ElementId, truthiness: crate::element::payload::T
         (ElementKind::List | ElementKind::Array | ElementKind::Iterable, Truthiness::Truthy) => {
             vec![force_non_empty(other)]
         }
-        _ => vec![other],
+        (ElementKind::List | ElementKind::Array, Truthiness::Falsy) => match falsy_collection(other) {
+            Some(empty) => vec![empty],
+            None => Vec::new(),
+        },
+        (ElementKind::Iterable, Truthiness::Falsy) => Vec::new(),
+        _ => match (crate::lattice::family::mixed::truthiness_of(other), truthiness) {
+            (Truthiness::Truthy, Truthiness::Falsy) | (Truthiness::Falsy, Truthiness::Truthy) => Vec::new(),
+            _ => vec![other],
+        },
+    }
+}
+
+/// `falsy ∩ list/array<X>` is the empty collection singleton when the
+/// input allows empty (`non_empty=false` and not sealed-non-empty),
+/// otherwise the empty set (non-empty collections are all truthy).
+#[inline]
+fn falsy_collection(elem: ElementId) -> Option<ElementId> {
+    let i = interner();
+    match elem.kind() {
+        ElementKind::List => {
+            let info = *i.get_list(elem);
+            if info.flags.non_empty() {
+                return None;
+            }
+
+            Some(i.intern_list(crate::element::payload::ListInfo {
+                element_type: crate::prelude::TYPE_NEVER,
+                known_elements: None,
+                known_count: None,
+                intersections: None,
+                flags: crate::element::payload::ListFlags::default(),
+            }))
+        }
+        ElementKind::Array => {
+            let info = *i.get_array(elem);
+            if info.flags.non_empty() {
+                return None;
+            }
+
+            Some(crate::prelude::EMPTY_ARRAY)
+        }
+        _ => None,
     }
 }
 
 #[inline]
 fn narrow_string_truthy(elem: ElementId) -> ElementId {
+    use crate::element::payload::scalar::StringLiteral;
     let i = interner();
     let info = *i.get_string(elem);
+    if let StringLiteral::Value(v) = info.literal {
+        let s = v.as_str();
+        if s.is_empty() || s == "0" {
+            return crate::prelude::NEVER;
+        }
+
+        return elem;
+    }
+
     let flags = info.flags.with_is_truthy(true).with_is_non_empty(true);
     i.intern_string(crate::element::payload::scalar::StringInfo { flags, ..info })
 }
@@ -516,8 +571,12 @@ fn narrow_string_falsy(elem: ElementId) -> Vec<ElementId> {
         return Vec::new();
     }
 
-    let mut pieces = vec![ElementId::string_literal("")];
-    if !info.flags.is_non_empty() || v_zero_compatible(info) {
+    let mut pieces: Vec<ElementId> = Vec::new();
+    if !info.flags.is_non_empty() {
+        pieces.push(ElementId::string_literal(""));
+    }
+
+    if v_zero_compatible(info) {
         pieces.push(ElementId::string_literal("0"));
     }
 
