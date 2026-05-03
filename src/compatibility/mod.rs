@@ -94,8 +94,8 @@ fn element_runtime_compatible<W: World>(
         return true;
     }
 
-    let a_obj = is_object_family(a.kind());
-    let b_obj = is_object_family(b.kind());
+    let a_obj = is_object_family_elem(a);
+    let b_obj = is_object_family_elem(b);
     if a_obj && b_obj {
         return objects_runtime_compatible(a, b, world);
     }
@@ -144,6 +144,14 @@ fn nominal_classes(elem: ElementId) -> Vec<Atom> {
             out
         }
         ElementKind::Enum => vec![i.get_enum(elem).name],
+        ElementKind::Intersected => {
+            let info = i.get_intersected(elem);
+            let mut out = nominal_classes(info.head);
+            for &c in i.get_element_list(info.conjuncts) {
+                out.extend(nominal_classes(c));
+            }
+            out
+        }
         _ => Vec::new(),
     }
 }
@@ -159,4 +167,15 @@ const fn is_object_family(kind: ElementKind) -> bool {
             | ElementKind::HasProperty
             | ElementKind::ObjectAny
     )
+}
+
+#[inline]
+fn is_object_family_elem(elem: ElementId) -> bool {
+    if is_object_family(elem.kind()) {
+        return true;
+    }
+    if elem.kind() == ElementKind::Intersected {
+        return is_object_family(interner().get_intersected(elem).head.kind());
+    }
+    false
 }

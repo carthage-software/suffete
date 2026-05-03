@@ -123,6 +123,37 @@ fn element_overlaps<W: World>(
         return surviving != crate::prelude::TYPE_NEVER;
     }
 
+    if a.kind() == ElementKind::Intersected {
+        let info = *interner().get_intersected(a);
+        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
+            return element_overlaps(reconstructed, b, world, options, report);
+        }
+        if !element_overlaps(info.head, b, world, options, report) {
+            return false;
+        }
+        for &conjunct in interner().get_element_list(info.conjuncts) {
+            if !element_overlaps(conjunct, b, world, options, report) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if b.kind() == ElementKind::Intersected {
+        let info = *interner().get_intersected(b);
+        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
+            return element_overlaps(a, reconstructed, world, options, report);
+        }
+        if !element_overlaps(a, info.head, world, options, report) {
+            return false;
+        }
+        for &conjunct in interner().get_element_list(info.conjuncts) {
+            if !element_overlaps(a, conjunct, world, options, report) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // List / Array intersection-conjunct rule: `(H & C₁ & ... & Cₙ)`
     // overlaps `X` iff `H` overlaps `X` AND each `Cᵢ` overlaps `X`.
     // Necessary condition only ; conservative (returns `true` more
@@ -654,6 +685,58 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                     world.template_parameter_at(info.name, idx).map_or(Variance::Contravariant, |p| p.variance);
                 !matches!(variance, Variance::Contravariant)
             })
+        }
+        ElementKind::Intersected => {
+            let info = *i.get_intersected(elem);
+            if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
+                return is_uninhabited(reconstructed, world);
+            }
+            if is_uninhabited(info.head, world) {
+                return true;
+            }
+            let conjuncts = i.get_element_list(info.conjuncts);
+            for &c in conjuncts {
+                if is_uninhabited(c, world) {
+                    return true;
+                }
+            }
+            let head_t = i.intern_type(&[info.head], FlowFlags::EMPTY);
+            for &c in conjuncts {
+                if c.kind() == ElementKind::Negated {
+                    let inner = i.get_negated(c).inner;
+                    if crate::lattice::refines(
+                        head_t,
+                        inner,
+                        world,
+                        crate::lattice::LatticeOptions::default(),
+                        &mut crate::lattice::LatticeReport::new(),
+                    ) {
+                        return true;
+                    }
+                }
+            }
+            for (idx, &ci) in conjuncts.iter().enumerate() {
+                if ci.kind() != ElementKind::Negated {
+                    continue;
+                }
+                let inner = i.get_negated(ci).inner;
+                for (jdx, &cj) in conjuncts.iter().enumerate() {
+                    if idx == jdx {
+                        continue;
+                    }
+                    let cj_t = i.intern_type(&[cj], FlowFlags::EMPTY);
+                    if crate::lattice::refines(
+                        cj_t,
+                        inner,
+                        world,
+                        crate::lattice::LatticeOptions::default(),
+                        &mut crate::lattice::LatticeReport::new(),
+                    ) {
+                        return true;
+                    }
+                }
+            }
+            false
         }
         _ => false,
     }

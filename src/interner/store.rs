@@ -27,6 +27,7 @@ use crate::element::payload::HasMethodInfo;
 use crate::element::payload::HasPropertyInfo;
 use crate::element::payload::IntRange;
 use crate::element::payload::IntRangeId;
+use crate::element::payload::IntersectedInfo;
 use crate::element::payload::IterableInfo;
 use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::KnownElementEntry;
@@ -90,6 +91,7 @@ pub struct Interner {
     conditional: Arena<ConditionalInfo>,
     derived: Arena<DerivedInfo>,
     negated: Arena<NegatedInfo>,
+    intersected: Arena<IntersectedInfo>,
     int_range: Arena<IntRange>,
     defining_entity: Arena<DefiningEntity>,
     signature: Arena<Signature>,
@@ -136,6 +138,7 @@ impl Interner {
             conditional: Arena::new(),
             derived: Arena::new(),
             negated: Arena::new(),
+            intersected: Arena::new(),
             int_range: Arena::new(),
             defining_entity: Arena::new(),
             signature: Arena::new(),
@@ -289,25 +292,104 @@ element_arena_methods! {
     Float,            float,             FloatInfo,            intern_float,             get_float;
     String,           string,            StringInfo,           intern_string,            get_string;
     ClassLikeString,  class_like_string, ClassLikeStringInfo,  intern_class_like_string, get_class_like_string;
-    Object,           object,            ObjectInfo,           intern_object,            get_object;
+    Object,           object,            ObjectInfo,           intern_object_raw,        get_object;
     Enum,             enumeration,       EnumInfo,             intern_enum,              get_enum;
-    ObjectShape,      object_shape,      ObjectShapeInfo,      intern_object_shape,      get_object_shape;
-    HasMethod,        has_method,        HasMethodInfo,        intern_has_method,        get_has_method;
-    HasProperty,      has_property,      HasPropertyInfo,      intern_has_property,      get_has_property;
-    Array,            array,             KeyedArrayInfo,       intern_array,             get_array;
-    List,             list,              ListInfo,             intern_list,              get_list;
-    Iterable,         iterable,          IterableInfo,         intern_iterable,          get_iterable;
+    ObjectShape,      object_shape,      ObjectShapeInfo,      intern_object_shape_raw,  get_object_shape;
+    HasMethod,        has_method,        HasMethodInfo,        intern_has_method_raw,    get_has_method;
+    HasProperty,      has_property,      HasPropertyInfo,      intern_has_property_raw,  get_has_property;
+    Array,            array,             KeyedArrayInfo,       intern_array_raw,         get_array;
+    List,             list,              ListInfo,             intern_list_raw,          get_list;
+    Iterable,         iterable,          IterableInfo,         intern_iterable_raw,      get_iterable;
     Callable,         callable,          CallableInfo,         intern_callable,          get_callable;
     Resource,         resource,          ResourceInfo,         intern_resource,          get_resource;
-    GenericParameter, generic_parameter, GenericParameterInfo, intern_generic_parameter, get_generic_parameter;
+    GenericParameter, generic_parameter, GenericParameterInfo, intern_generic_parameter_raw, get_generic_parameter;
     Variable,         variable,          VariableInfo,         intern_variable,          get_variable;
-    Reference,        reference,         SymbolReference,      intern_reference,         get_reference;
+    Reference,        reference,         SymbolReference,      intern_reference_raw,     get_reference;
     MemberReference,  member_reference,  MemberReference,      intern_member_reference,  get_member_reference;
     GlobalReference,  global_reference,  GlobalReference,      intern_global_reference,  get_global_reference;
     Alias,            alias,             AliasInfo,            intern_alias,             get_alias;
     Conditional,      conditional,       ConditionalInfo,      intern_conditional,       get_conditional;
     Derived,          derived,           DerivedInfo,          intern_derived,           get_derived;
     Negated,          negated,           NegatedInfo,          intern_negated_raw,       get_negated;
+    Intersected,      intersected,       IntersectedInfo,      intern_intersected_raw,   get_intersected;
+}
+
+impl Interner {
+    #[inline]
+    pub fn intern_object(&self, info: ObjectInfo) -> ElementId {
+        self.normalize_intersections(
+            self.intern_object_raw(ObjectInfo { intersections: None, ..info }),
+            info.intersections,
+        )
+    }
+
+    #[inline]
+    pub fn intern_object_shape(&self, info: ObjectShapeInfo) -> ElementId {
+        self.normalize_intersections(
+            self.intern_object_shape_raw(ObjectShapeInfo { intersections: None, ..info }),
+            info.intersections,
+        )
+    }
+
+    #[inline]
+    pub fn intern_has_method(&self, info: HasMethodInfo) -> ElementId {
+        self.normalize_intersections(
+            self.intern_has_method_raw(HasMethodInfo { intersections: None, ..info }),
+            info.intersections,
+        )
+    }
+
+    #[inline]
+    pub fn intern_has_property(&self, info: HasPropertyInfo) -> ElementId {
+        self.normalize_intersections(
+            self.intern_has_property_raw(HasPropertyInfo { intersections: None, ..info }),
+            info.intersections,
+        )
+    }
+
+    #[inline]
+    pub fn intern_array(&self, info: KeyedArrayInfo) -> ElementId {
+        self.normalize_intersections(
+            self.intern_array_raw(KeyedArrayInfo { intersections: None, ..info }),
+            info.intersections,
+        )
+    }
+
+    #[inline]
+    pub fn intern_list(&self, info: ListInfo) -> ElementId {
+        self.normalize_intersections(self.intern_list_raw(ListInfo { intersections: None, ..info }), info.intersections)
+    }
+
+    #[inline]
+    pub fn intern_iterable(&self, info: IterableInfo) -> ElementId {
+        self.normalize_intersections(
+            self.intern_iterable_raw(IterableInfo { intersections: None, ..info }),
+            info.intersections,
+        )
+    }
+
+    #[inline]
+    pub fn intern_generic_parameter(&self, info: GenericParameterInfo) -> ElementId {
+        self.normalize_intersections(
+            self.intern_generic_parameter_raw(GenericParameterInfo { intersections: None, ..info }),
+            info.intersections,
+        )
+    }
+
+    #[inline]
+    pub fn intern_reference(&self, info: SymbolReference) -> ElementId {
+        self.normalize_intersections(
+            self.intern_reference_raw(SymbolReference { intersections: None, ..info }),
+            info.intersections,
+        )
+    }
+
+    #[inline]
+    fn normalize_intersections(&self, bare: ElementId, conjuncts: Option<ElementListId>) -> ElementId {
+        let Some(id) = conjuncts else { return bare };
+        let cs: Vec<ElementId> = self.get_element_list(id).to_vec();
+        ElementId::intersected(bare, &cs)
+    }
 }
 
 impl Interner {

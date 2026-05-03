@@ -87,6 +87,16 @@ fn gap_subtract_numeric_minus_int_yields_float_or_numeric_string() {
 }
 
 #[test]
+fn gap_subtract_string_minus_string_literal_preserves_narrowing() {
+    let cb = empty_world();
+    let s = lattice_subtract(u(t_string()), u(t_lit_string("tbl")), &cb);
+    assert!(does_refine(s, u(t_string()), &cb), "result must refine string (got {s})");
+    let removed = u(t_lit_string("tbl"));
+    let m = lattice_meet(s, removed, &cb);
+    assert_eq!(m, prelude::TYPE_NEVER, "string \\ string('tbl') must be disjoint from string('tbl') (got meet {m})");
+}
+
+#[test]
 fn gap_subtract_b_minus_descendant_a_excludes_a_instances() {
     let mut w = MockWorld::new();
     w.declare("B");
@@ -115,15 +125,13 @@ fn gap_meet_iterable_with_array_yields_array() {
 }
 
 #[test]
-#[ignore = "algorithmic gap: requires non-lowercase-string complement representation"]
 fn gap_refines_string_covered_by_lowercase_and_non_lowercase() {
     let cb = empty_world();
     let s = u(t_string());
-    let split = u_many(vec![t_lower_string(), t_upper_string()]);
-    assert!(
-        does_refine(s, split, &cb),
-        "string should refine lowercase-string | <non-lowercase-complement> once the complement atom exists"
-    );
+    let lower = u(t_lower_string());
+    let non_lower = u(suffete::ElementId::negated(lower));
+    let split = u_many(vec![t_lower_string(), non_lower.as_ref().elements[0]]);
+    assert!(does_refine(s, split, &cb), "string should refine lowercase-string | !lowercase-string");
 }
 
 #[test]

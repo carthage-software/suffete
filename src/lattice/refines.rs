@@ -91,8 +91,83 @@ pub fn refines<W: World>(
                 return true;
             }
 
+            if intersected_partition_covers(*elem, b_type.elements) {
+                return true;
+            }
+
+            if negation_partition_covers(*elem, b_type.elements, world, options, report) {
+                return true;
+            }
+
             generic_parameter_union_covers(*elem, b_type.elements, world, options, report)
         })
+}
+
+/// `T <: X ∪ ¬X` always (the union is `mixed`). Fires when the
+/// container has a `Negated(Y)` atom whose inner `Y` is covered by
+/// some other container atom, making the union `mixed`.
+#[inline]
+fn negation_partition_covers<W: World>(
+    _input: ElementId,
+    containers: &[ElementId],
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    for &c in containers {
+        if c.kind() != ElementKind::Negated {
+            continue;
+        }
+        let inner = i.get_negated(c).inner;
+        let others: Vec<ElementId> = containers.iter().copied().filter(|&e| e != c).collect();
+        if others.is_empty() {
+            continue;
+        }
+        let others_t = i.intern_type(&others, FlowFlags::EMPTY);
+        if refines(inner, others_t, world, options, report) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Recognize `Intersected(H, [!X1, ..]) ∪ X1 ∪ .. = H ∪ X1 ∪ ..` in the
+/// container by literal-equality match on the negated inners. Sound,
+/// non-recursive, and covers the common Phase 4 wrap shape.
+#[inline]
+fn intersected_partition_covers(input: ElementId, containers: &[ElementId]) -> bool {
+    let i = interner();
+    for &c in containers {
+        if c.kind() != ElementKind::Intersected {
+            continue;
+        }
+        let info = *i.get_intersected(c);
+        if info.head != input {
+            continue;
+        }
+        let conjuncts = i.get_element_list(info.conjuncts);
+        let mut all_covered = true;
+        for &cj in conjuncts {
+            if cj.kind() != ElementKind::Negated {
+                all_covered = false;
+                break;
+            }
+            for &ie in i.get_negated(cj).inner.as_ref().elements {
+                if !containers.iter().any(|&other| other != c && other == ie) {
+                    all_covered = false;
+                    break;
+                }
+            }
+            if !all_covered {
+                break;
+            }
+        }
+        if all_covered {
+            return true;
+        }
+    }
+    false
 }
 
 /// True iff a `array<K, V>` input is covered by the union of all
@@ -181,10 +256,14 @@ fn list_union_covers<W: World>(
     let mut element_types: Vec<TypeId> = Vec::new();
     let mut covers_empty = false;
     for &c in containers {
-        if c.kind() != ElementKind::List {
+        let head = if c.kind() == ElementKind::List {
+            c
+        } else if c.kind() == ElementKind::Intersected && i.get_intersected(c).head.kind() == ElementKind::List {
+            i.get_intersected(c).head
+        } else {
             continue;
-        }
-        let c_info = *i.get_list(c);
+        };
+        let c_info = *i.get_list(head);
         if c_info.known_elements.is_some() {
             continue;
         }
@@ -550,6 +629,21 @@ pub(crate) fn element_refines<W: World>(
         return result;
     }
 
+    if container.kind() == ElementKind::Intersected {
+        let info = *interner().get_intersected(container);
+        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
+            return element_refines(input, reconstructed, world, options, report);
+        }
+        return refines_container_intersected(input, container, world, options, report);
+    }
+    if input.kind() == ElementKind::Intersected {
+        let info = *interner().get_intersected(input);
+        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
+            return element_refines(reconstructed, container, world, options, report);
+        }
+        return refines_input_intersected(input, container, world, options, report);
+    }
+
     let result = dispatch_refines(input, container, world, options, report);
 
     #[allow(clippy::else_if_without_else)]
@@ -567,6 +661,46 @@ pub(crate) fn element_refines<W: World>(
     }
 
     result
+}
+
+#[inline]
+fn refines_container_intersected<W: World>(
+    input: ElementId,
+    container: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let info = *interner().get_intersected(container);
+    if !element_refines(input, info.head, world, options, report) {
+        return false;
+    }
+    for &conjunct in interner().get_element_list(info.conjuncts) {
+        if !element_refines(input, conjunct, world, options, report) {
+            return false;
+        }
+    }
+    true
+}
+
+#[inline]
+fn refines_input_intersected<W: World>(
+    input: ElementId,
+    container: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let info = *interner().get_intersected(input);
+    if element_refines(info.head, container, world, options, report) {
+        return true;
+    }
+    for &conjunct in interner().get_element_list(info.conjuncts) {
+        if element_refines(conjunct, container, world, options, report) {
+            return true;
+        }
+    }
+    false
 }
 
 /// `true` for kinds whose values inhabit multiple disjoint sub-families:
@@ -634,7 +768,12 @@ fn dispatch_refines<W: World>(
         | ElementKind::Placeholder
         | ElementKind::True
         | ElementKind::False
-        | ElementKind::Negated => false,
+        | ElementKind::Negated
+        // `Intersected` containers are stripped + re-routed by the
+        // `dispatch_intersected_*` paths above this match ; if we
+        // reach this arm with one, the structural check has already
+        // ruled the input out.
+        | ElementKind::Intersected => false,
     }
 }
 

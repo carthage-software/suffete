@@ -14,6 +14,7 @@ use crate::element::payload::GenericParameterInfo;
 use crate::element::payload::GlobalReference;
 use crate::element::payload::HasMethodInfo;
 use crate::element::payload::HasPropertyInfo;
+use crate::element::payload::IntersectedInfo;
 use crate::element::payload::IterableInfo;
 use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::ListInfo;
@@ -76,6 +77,7 @@ pub enum Element {
     Conditional(&'static ConditionalInfo),
     Derived(&'static DerivedInfo),
     Negated(&'static NegatedInfo),
+    Intersected(&'static IntersectedInfo),
 }
 
 impl Element {
@@ -118,6 +120,7 @@ impl Element {
             Element::Conditional(_) => ElementKind::Conditional,
             Element::Derived(_) => ElementKind::Derived,
             Element::Negated(_) => ElementKind::Negated,
+            Element::Intersected(_) => ElementKind::Intersected,
         }
     }
 }
@@ -161,6 +164,7 @@ impl Display for Element {
             Element::Conditional(info) => Display::fmt(*info, f),
             Element::Derived(info) => Display::fmt(*info, f),
             Element::Negated(info) => Display::fmt(*info, f),
+            Element::Intersected(info) => Display::fmt(*info, f),
         }
     }
 }
@@ -183,6 +187,7 @@ impl Typed for Element {
             Element::Reference(info) => info.pretty_with_indent(indent),
             Element::Conditional(info) => info.pretty_with_indent(indent),
             Element::Derived(info) => info.pretty_with_indent(indent),
+            Element::Intersected(info) => info.pretty_with_indent(indent),
             // All other kinds: identical to Display.
             _ => self.to_string(),
         }
@@ -190,21 +195,8 @@ impl Typed for Element {
 
     #[inline]
     fn intersection_types(&self) -> &'static [ElementId] {
-        let i = crate::interner::interner();
-        let id = match self {
-            Element::Object(info) => info.intersections,
-            Element::Iterable(info) => info.intersections,
-            Element::ObjectShape(info) => info.intersections,
-            Element::HasMethod(info) => info.intersections,
-            Element::HasProperty(info) => info.intersections,
-            Element::GenericParameter(info) => info.intersections,
-            Element::Reference(info) => info.intersections,
-            _ => return &[],
-        };
-        match id {
-            Some(list_id) => i.get_element_list(list_id),
-            None => &[],
-        }
+        let Element::Intersected(info) = self else { return &[] };
+        crate::interner::interner().get_element_list(info.conjuncts)
     }
 
     #[inline]
@@ -214,22 +206,17 @@ impl Typed for Element {
 
     #[inline]
     fn can_be_intersected(&self) -> bool {
-        matches!(
-            self.kind(),
-            ElementKind::Object
-                | ElementKind::Iterable
-                | ElementKind::ObjectShape
-                | ElementKind::HasMethod
-                | ElementKind::HasProperty
-                | ElementKind::GenericParameter
-                | ElementKind::Reference
-        )
+        !matches!(self.kind(), ElementKind::Intersected)
     }
 
     #[inline]
     fn is_complex(&self) -> bool {
         match self {
-            Element::ObjectShape(_) | Element::Array(_) | Element::List(_) | Element::Callable(_) => true,
+            Element::ObjectShape(_)
+            | Element::Array(_)
+            | Element::List(_)
+            | Element::Callable(_)
+            | Element::Intersected(_) => true,
             Element::Object(info) => info.type_args.is_some() || info.intersections.is_some(),
             Element::Reference(info) => info.type_args.is_some() || info.intersections.is_some(),
             Element::Iterable(_) => true,

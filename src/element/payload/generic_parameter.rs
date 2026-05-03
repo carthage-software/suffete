@@ -26,22 +26,6 @@ impl core::fmt::Display for GenericParameterInfo {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let entity = crate::interner::interner().get_defining_entity(self.defining_entity);
-        let base = format!("'{}.{} extends {}", self.name.as_str(), entity, self.constraint);
-        if let Some(id) = self.intersections {
-            f.write_str("(")?;
-            f.write_str(&base)?;
-            f.write_str(")")?;
-            for &conjunct in crate::interner::interner().get_element_list(id) {
-                let s = conjunct.to_string();
-                if conjunct.has_intersection_types() {
-                    write!(f, "&({s})")?;
-                } else {
-                    write!(f, "&{s}")?;
-                }
-            }
-            Ok(())
-        } else {
-            f.write_str(&base)
-        }
+        write!(f, "'{}.{} extends {}", self.name.as_str(), entity, self.constraint)
     }
 }

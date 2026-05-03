@@ -44,8 +44,19 @@ fn descend<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> b
         ElementKind::Conditional => descend_conditional(elem, predicate),
         ElementKind::Derived => descend_derived(elem, predicate),
         ElementKind::Callable => descend_callable(elem, predicate),
+        ElementKind::Intersected => descend_intersected(elem, predicate),
         _ => false,
     }
+}
+
+#[inline]
+fn descend_intersected<F: FnMut(ElementId) -> bool>(elem: ElementId, predicate: &mut F) -> bool {
+    let i = interner();
+    let info = *i.get_intersected(elem);
+    if visit(info.head, predicate) {
+        return true;
+    }
+    i.get_element_list(info.conjuncts).iter().any(|&c| visit(c, predicate))
 }
 
 #[inline]

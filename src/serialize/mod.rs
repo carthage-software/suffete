@@ -214,6 +214,10 @@ pub enum SerializableElement {
     Negated {
         inner: SerializableType,
     },
+    Intersected {
+        head: Box<SerializableElement>,
+        conjuncts: Vec<SerializableElement>,
+    },
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -680,6 +684,13 @@ fn encode_element(elem: ElementId) -> SerializableElement {
             let info = *i.get_negated(elem);
             SerializableElement::Negated { inner: encode_type(info.inner) }
         }
+        ElementKind::Intersected => {
+            let info = *i.get_intersected(elem);
+            SerializableElement::Intersected {
+                head: Box::new(encode_element(info.head)),
+                conjuncts: i.get_element_list(info.conjuncts).iter().map(|&e| encode_element(e)).collect(),
+            }
+        }
     }
 }
 
@@ -1060,6 +1071,11 @@ fn decode_element(elem: &SerializableElement) -> ElementId {
         }
         SerializableElement::Derived(d) => i.intern_derived(decode_derived(d)),
         SerializableElement::Negated { inner } => ElementId::negated(decode_type(inner)),
+        SerializableElement::Intersected { head, conjuncts } => {
+            let head_id = decode_element(head);
+            let conjunct_ids: Vec<ElementId> = conjuncts.iter().map(decode_element).collect();
+            ElementId::intersected(head_id, &conjunct_ids)
+        }
     }
 }
 

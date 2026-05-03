@@ -150,6 +150,7 @@ impl ElementId {
             ElementKind::Conditional => Element::Conditional(interner().get_conditional(self)),
             ElementKind::Derived => Element::Derived(interner().get_derived(self)),
             ElementKind::Negated => Element::Negated(interner().get_negated(self)),
+            ElementKind::Intersected => Element::Intersected(interner().get_intersected(self)),
         }
     }
 
@@ -236,6 +237,52 @@ impl ElementId {
     #[must_use]
     pub fn negated(inner: TypeId) -> Self {
         interner().intern_negated(crate::element::payload::NegatedInfo { inner })
+    }
+
+    /// Intern `head & conj1 & conj2 & …`. Empty conjuncts returns
+    /// `head`; nested `Intersected` heads are flattened; conjuncts are
+    /// sorted+deduped and self-references to `head` are dropped.
+    /// `head & ¬head` (and direct `X & ¬X` pairs) collapse to `never`.
+    #[inline]
+    #[must_use]
+    pub fn intersected(head: ElementId, conjuncts: &[ElementId]) -> Self {
+        if conjuncts.is_empty() {
+            return head;
+        }
+        let i = interner();
+
+        let (real_head, mut all_conjuncts) = if head.kind() == ElementKind::Intersected {
+            let info = *i.get_intersected(head);
+            let mut acc: Vec<ElementId> = i.get_element_list(info.conjuncts).to_vec();
+            acc.extend_from_slice(conjuncts);
+            (info.head, acc)
+        } else {
+            (head, conjuncts.to_vec())
+        };
+
+        all_conjuncts.retain(|c| *c != real_head);
+        all_conjuncts.sort_unstable();
+        all_conjuncts.dedup();
+
+        if all_conjuncts.is_empty() {
+            return real_head;
+        }
+
+        for &c in &all_conjuncts {
+            if c.kind() == ElementKind::Negated {
+                let inner = i.get_negated(c).inner;
+                let inner_elements = inner.as_ref().elements;
+                if inner_elements == [real_head] {
+                    return crate::prelude::NEVER;
+                }
+                if all_conjuncts.iter().any(|&other| other != c && inner_elements == [other]) {
+                    return crate::prelude::NEVER;
+                }
+            }
+        }
+
+        let conjuncts_id = i.intern_element_list(&all_conjuncts);
+        i.intern_intersected_raw(crate::element::payload::IntersectedInfo { head: real_head, conjuncts: conjuncts_id })
     }
 
     /// Intern an enum-case element (`name::case`).
@@ -387,34 +434,18 @@ impl ElementId {
         i.intern_generic_parameter(info)
     }
 
-    /// `&` conjuncts this element is intersected with, if it supports
-    /// intersections. Returns an empty slice for elements that don't
-    /// support intersections, or that support them but have none.
-    ///
-    /// Element kinds that support intersections: `Object`, `Iterable`,
-    /// `ObjectShape`, `HasMethod`, `HasProperty`, `GenericParameter`,
-    /// `Reference`, `List`, `Array`. Everything else returns `&[]`.
+    /// `&` conjuncts this element is intersected with. Returns an empty
+    /// slice unless this is an [`Intersected`](ElementKind::Intersected)
+    /// wrapper. Legacy kinds with a per-payload intersections field are
+    /// normalized to the wrapper at intern time.
     #[inline]
     #[must_use]
     pub fn intersection_types(self) -> &'static [ElementId] {
-        let i = interner();
-        let id = match self.kind() {
-            ElementKind::Object => i.get_object(self).intersections,
-            ElementKind::Iterable => i.get_iterable(self).intersections,
-            ElementKind::ObjectShape => i.get_object_shape(self).intersections,
-            ElementKind::HasMethod => i.get_has_method(self).intersections,
-            ElementKind::HasProperty => i.get_has_property(self).intersections,
-            ElementKind::GenericParameter => i.get_generic_parameter(self).intersections,
-            ElementKind::Reference => i.get_reference(self).intersections,
-            ElementKind::List => i.get_list(self).intersections,
-            ElementKind::Array => i.get_array(self).intersections,
-            _ => return &[],
-        };
-
-        match id {
-            Some(list_id) => i.get_element_list(list_id),
-            None => &[],
+        if self.kind() != ElementKind::Intersected {
+            return &[];
         }
+        let i = interner();
+        i.get_element_list(i.get_intersected(self).conjuncts)
     }
 
     /// `true` iff this element has at least one intersection conjunct.
@@ -424,24 +455,70 @@ impl ElementId {
         !self.intersection_types().is_empty()
     }
 
-    /// `true` iff this element's kind supports intersections at all
-    /// (regardless of whether the current instance has any).
+    /// `true` iff this element can carry conjuncts via the
+    /// [`Intersected`](ElementKind::Intersected) wrapper. False only
+    /// for the wrapper itself (which flattens on re-wrap).
     #[inline]
     #[must_use]
     pub const fn can_be_intersected(self) -> bool {
-        matches!(
-            self.kind(),
-            ElementKind::Object
-                | ElementKind::List
-                | ElementKind::Array
-                | ElementKind::Iterable
-                | ElementKind::ObjectShape
-                | ElementKind::HasMethod
-                | ElementKind::HasProperty
-                | ElementKind::GenericParameter
-                | ElementKind::Reference
-        )
+        !matches!(self.kind(), ElementKind::Intersected)
     }
+}
+
+/// Re-attach `conjuncts` to a legacy kind's per-payload `intersections`
+/// field. `None` for kinds without that field.
+#[inline]
+#[must_use]
+pub fn reconstruct_with_intersections(head: ElementId, conjuncts: ElementListId) -> Option<ElementId> {
+    let i = interner();
+    Some(match head.kind() {
+        ElementKind::Object => {
+            let info = *i.get_object(head);
+            i.intern_object_raw(crate::element::payload::ObjectInfo { intersections: Some(conjuncts), ..info })
+        }
+        ElementKind::List => {
+            let info = *i.get_list(head);
+            i.intern_list_raw(crate::element::payload::ListInfo { intersections: Some(conjuncts), ..info })
+        }
+        ElementKind::Array => {
+            let info = *i.get_array(head);
+            i.intern_array_raw(crate::element::payload::KeyedArrayInfo { intersections: Some(conjuncts), ..info })
+        }
+        ElementKind::Iterable => {
+            let info = *i.get_iterable(head);
+            i.intern_iterable_raw(crate::element::payload::IterableInfo { intersections: Some(conjuncts), ..info })
+        }
+        ElementKind::ObjectShape => {
+            let info = *i.get_object_shape(head);
+            i.intern_object_shape_raw(crate::element::payload::ObjectShapeInfo {
+                intersections: Some(conjuncts),
+                ..info
+            })
+        }
+        ElementKind::HasMethod => {
+            let info = *i.get_has_method(head);
+            i.intern_has_method_raw(crate::element::payload::HasMethodInfo { intersections: Some(conjuncts), ..info })
+        }
+        ElementKind::HasProperty => {
+            let info = *i.get_has_property(head);
+            i.intern_has_property_raw(crate::element::payload::HasPropertyInfo {
+                intersections: Some(conjuncts),
+                ..info
+            })
+        }
+        ElementKind::GenericParameter => {
+            let info = *i.get_generic_parameter(head);
+            i.intern_generic_parameter_raw(crate::element::payload::GenericParameterInfo {
+                intersections: Some(conjuncts),
+                ..info
+            })
+        }
+        ElementKind::Reference => {
+            let info = *i.get_reference(head);
+            i.intern_reference_raw(crate::element::payload::SymbolReference { intersections: Some(conjuncts), ..info })
+        }
+        _ => return None,
+    })
 }
 
 define_handle! {

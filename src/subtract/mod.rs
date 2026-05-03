@@ -235,6 +235,26 @@ pub(in crate::subtract) fn atom_minus<W: World>(
         return Vec::new();
     }
 
+    if a.kind() == ElementKind::Intersected {
+        let info = *interner().get_intersected(a);
+        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
+            return atom_minus(reconstructed, b, world, options, report);
+        }
+
+        let head_pieces = atom_minus(info.head, b, world, options, report);
+        let conjuncts: Vec<ElementId> = interner().get_element_list(info.conjuncts).to_vec();
+        return head_pieces.into_iter().map(|h| ElementId::intersected(h, &conjuncts)).collect();
+    }
+
+    if b.kind() == ElementKind::Intersected {
+        let info = *interner().get_intersected(b);
+        if let Some(reconstructed) = crate::element::reconstruct_with_intersections(info.head, info.conjuncts) {
+            return atom_minus(a, reconstructed, world, options, report);
+        }
+
+        return vec![a];
+    }
+
     // `subtract(X, !T)` ≡ `meet(X, T)` and `subtract(!T, X)` ≡
     // `!(T ∪ X)`. Routing here preserves the duality with meet.
     if b.kind() == ElementKind::Negated {
@@ -246,8 +266,10 @@ pub(in crate::subtract) fn atom_minus<W: World>(
             options,
             report,
         );
+
         return kept.as_ref().elements.to_vec();
     }
+
     if a.kind() == ElementKind::Negated {
         let neg_info = *interner().get_negated(a);
         let mut union_elems: Vec<ElementId> = neg_info.inner.as_ref().elements.to_vec();
@@ -290,12 +312,34 @@ pub(in crate::subtract) fn atom_minus<W: World>(
     if a == MIXED {
         return vec![ElementId::negated(b_t)];
     }
+
     if a == NON_NULL_MIXED {
         let union_ty = interner().intern_type(&[NULL, b], FlowFlags::EMPTY);
         return vec![ElementId::negated(union_ty)];
     }
 
+    if scalar_supports_intersected_subtract(a.kind()) {
+        return vec![ElementId::intersected(a, &[ElementId::negated(b_t)])];
+    }
+
     vec![a]
+}
+
+#[inline]
+const fn scalar_supports_intersected_subtract(kind: ElementKind) -> bool {
+    matches!(
+        kind,
+        ElementKind::String
+            | ElementKind::Int
+            | ElementKind::Float
+            | ElementKind::Bool
+            | ElementKind::Numeric
+            | ElementKind::ArrayKey
+            | ElementKind::ClassLikeString
+            | ElementKind::Resource
+            | ElementKind::Scalar
+            | ElementKind::Enum
+    )
 }
 
 #[inline]
@@ -307,6 +351,7 @@ fn family_atom_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
     if a == crate::prelude::BOOL && b == TRUE {
         return Some(vec![FALSE]);
     }
+
     if a == crate::prelude::BOOL && b == FALSE {
         return Some(vec![TRUE]);
     }

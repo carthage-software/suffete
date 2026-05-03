@@ -11,6 +11,7 @@ pub mod payload;
 
 pub use self::id::ElementId;
 pub use self::id::ElementListId;
+pub use self::id::reconstruct_with_intersections;
 pub use self::kind::ElementKind;
 pub use self::simd::any_of_kind;
 pub use self::simd::contains;

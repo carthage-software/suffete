@@ -196,6 +196,14 @@ fn atom_meet<W: World>(
         return negated_atom_meet(a, b, world, options, report);
     }
 
+    if a.kind() == ElementKind::Intersected || b.kind() == ElementKind::Intersected {
+        return intersected_atom_meet(a, b, world, options, report);
+    }
+
+    if a.kind() == ElementKind::Mixed || b.kind() == ElementKind::Mixed {
+        return narrowed_mixed_meet(a, b);
+    }
+
     let i = interner();
     let a_t = i.intern_type(&[a], FlowFlags::EMPTY);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
@@ -319,6 +327,125 @@ fn negated_atom_meet<W: World>(
     // Conservative drop; the surviving values still flow through
     // the wider `subtract` API for non-meet uses.
     None
+}
+
+#[inline]
+fn intersected_atom_meet<W: World>(
+    a: ElementId,
+    b: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<ElementId> {
+    let i = interner();
+    let a_re = if a.kind() == ElementKind::Intersected {
+        let info = *i.get_intersected(a);
+        crate::element::reconstruct_with_intersections(info.head, info.conjuncts).unwrap_or(a)
+    } else {
+        a
+    };
+
+    let b_re = if b.kind() == ElementKind::Intersected {
+        let info = *i.get_intersected(b);
+        crate::element::reconstruct_with_intersections(info.head, info.conjuncts).unwrap_or(b)
+    } else {
+        b
+    };
+
+    if a_re != a || b_re != b {
+        return atom_meet(a_re, b_re, world, options, report);
+    }
+
+    if a.kind() == ElementKind::Intersected && b.kind() == ElementKind::Intersected {
+        let a_info = *i.get_intersected(a);
+        let b_info = *i.get_intersected(b);
+        let head = atom_meet(a_info.head, b_info.head, world, options, report)?;
+        let mut all_conjuncts: Vec<ElementId> = i.get_element_list(a_info.conjuncts).to_vec();
+        all_conjuncts.extend_from_slice(i.get_element_list(b_info.conjuncts));
+        return Some(ElementId::intersected(head, &all_conjuncts));
+    }
+
+    let (wrapped, other) = if a.kind() == ElementKind::Intersected { (a, b) } else { (b, a) };
+    let info = *i.get_intersected(wrapped);
+    let head = atom_meet(info.head, other, world, options, report)?;
+    let conjuncts: Vec<ElementId> = i.get_element_list(info.conjuncts).to_vec();
+    Some(ElementId::intersected(head, &conjuncts))
+}
+
+/// `meet(narrowed-mixed, X)` where `narrowed-mixed` is `truthy-mixed`,
+/// `falsy-mixed`, or `non-null-mixed`. Returns `X` filtered by the
+/// flag, expressed via the universal [`Intersected`] / [`Negated`]
+/// machinery.
+#[inline]
+fn narrowed_mixed_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
+    use crate::element::payload::Truthiness;
+    let i = interner();
+    if a.kind() == ElementKind::Mixed && b.kind() == ElementKind::Mixed {
+        let a_info = *i.get_mixed(a);
+        let b_info = *i.get_mixed(b);
+        let merged_truthiness = match (a_info.truthiness(), b_info.truthiness()) {
+            (Truthiness::Truthy, Truthiness::Falsy) | (Truthiness::Falsy, Truthiness::Truthy) => return None,
+            (Truthiness::Truthy, _) | (_, Truthiness::Truthy) => Truthiness::Truthy,
+            (Truthiness::Falsy, _) | (_, Truthiness::Falsy) => Truthiness::Falsy,
+            (Truthiness::Undetermined, Truthiness::Undetermined) => Truthiness::Undetermined,
+        };
+
+        let merged = crate::element::payload::MixedInfo::EMPTY
+            .with_is_non_null(a_info.is_non_null() || b_info.is_non_null())
+            .with_truthiness(merged_truthiness);
+
+        return Some(i.intern_mixed(merged));
+    }
+
+    let (mixed_atom, other) = if a.kind() == ElementKind::Mixed { (a, b) } else { (b, a) };
+    let info = *i.get_mixed(mixed_atom);
+    if info == crate::element::payload::MixedInfo::EMPTY {
+        return Some(other);
+    }
+
+    if info.is_non_null() && other == crate::prelude::NULL {
+        return None;
+    }
+
+    let mut conjuncts: Vec<ElementId> = Vec::new();
+    if info.is_non_null() {
+        let null_t = i.intern_type(&[crate::prelude::NULL], FlowFlags::EMPTY);
+        conjuncts.push(ElementId::negated(null_t));
+    }
+
+    match info.truthiness() {
+        Truthiness::Truthy => {
+            for &elem in falsy_witnesses(other.kind()) {
+                let t = i.intern_type(&[elem], FlowFlags::EMPTY);
+                conjuncts.push(ElementId::negated(t));
+            }
+        }
+        Truthiness::Falsy => {
+            for &elem in truthy_witnesses(other.kind()) {
+                let t = i.intern_type(&[elem], FlowFlags::EMPTY);
+                conjuncts.push(ElementId::negated(t));
+            }
+        }
+        Truthiness::Undetermined => {}
+    }
+    Some(ElementId::intersected(other, &conjuncts))
+}
+
+#[inline]
+const fn falsy_witnesses(kind: ElementKind) -> &'static [ElementId] {
+    match kind {
+        ElementKind::Int => &[crate::prelude::INT_ZERO],
+        ElementKind::Bool => &[crate::prelude::FALSE],
+        _ => &[],
+    }
+}
+
+#[inline]
+const fn truthy_witnesses(kind: ElementKind) -> &'static [ElementId] {
+    match kind {
+        ElementKind::Bool => &[crate::prelude::TRUE],
+        _ => &[],
+    }
 }
 
 #[inline]

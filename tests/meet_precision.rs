@@ -291,10 +291,7 @@ fn nonnull_mixed_meet_null_is_never() {
 }
 
 #[test]
-#[ignore = "needs a `non-zero int` representation (positive | negative int union)"]
 fn truthy_mixed_meet_int_is_truthy_int_set() {
-    // truthy_mixed ∧ int admits all non-zero ints. We accept any
-    // result that's a subtype of both inputs and non-empty.
     let w = empty_world();
     let lhs = u(mixed_truthy());
     let rhs = u(t_int());

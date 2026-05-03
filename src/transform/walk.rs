@@ -105,7 +105,32 @@ fn walk_nested<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Op
         ElementKind::Conditional => walk_conditional(elem, f),
         ElementKind::Derived => walk_derived(elem, f),
         ElementKind::Callable => walk_callable(elem, f),
+        ElementKind::Intersected => walk_intersected(elem, f),
         _ => None,
+    }
+}
+
+#[inline]
+fn walk_intersected<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> Option<ElementId> {
+    let i = interner();
+    let info = *i.get_intersected(elem);
+    let new_head = visit_conjunct(info.head, f);
+    let conjuncts = i.get_element_list(info.conjuncts);
+    let walked_conjuncts: Vec<ElementId> = conjuncts.iter().map(|&c| visit_conjunct(c, f)).collect();
+    let conjuncts_changed = walked_conjuncts.iter().zip(conjuncts.iter()).any(|(w, o)| w != o);
+    if new_head == info.head && !conjuncts_changed {
+        return None;
+    }
+
+    Some(ElementId::intersected(new_head, &walked_conjuncts))
+}
+
+#[inline]
+fn visit_conjunct<F: FnMut(ElementId) -> Outcome>(elem: ElementId, f: &mut F) -> ElementId {
+    let target = walk_nested(elem, f).unwrap_or(elem);
+    match f(target) {
+        Outcome::Unchanged | Outcome::Many(_) | Outcome::Drop => target,
+        Outcome::Single(replaced) => replaced,
     }
 }
 

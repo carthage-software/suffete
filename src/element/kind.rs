@@ -46,6 +46,13 @@ pub enum ElementKind {
     /// `!T`, the complement of `T` against the universal type
     /// (`mixed`). Carries a single inner [`TypeId`].
     Negated,
+    /// `head & conj1 & conj2 & ...`. The universal intersection
+    /// wrapper: any element kind can carry conjunct narrowings via
+    /// this element. Carries a `head` [`ElementId`] plus a non-empty
+    /// list of `conjuncts`. The interner enforces canonicalization
+    /// (sorted/deduped conjuncts, head extraction when only one
+    /// element is present, never produced with empty conjuncts).
+    Intersected,
 }
 
 impl ElementKind {

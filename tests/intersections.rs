@@ -26,11 +26,11 @@ use suffete::element::payload::ObjectShapeInfo;
 use suffete::interner::interner;
 
 #[test]
-fn primitive_kinds_have_no_intersections_and_cannot_be_intersected() {
+fn primitive_kinds_have_no_intersections_by_default() {
     for elem in [t_int(), t_string(), t_lit_int(42), null(), t_true(), t_false()] {
         assert_eq!(elem.intersection_types(), &[] as &[suffete::ElementId]);
         assert!(!elem.has_intersection_types());
-        assert!(!elem.can_be_intersected());
+        assert!(elem.can_be_intersected());
     }
 }
 
@@ -46,7 +46,7 @@ fn object_can_be_intersected_but_has_no_intersections_when_unset() {
 fn object_with_intersections_returns_them() {
     let bar = t_named("Bar");
     let foo_and_bar = t_named_intersected("Foo", &[bar]);
-    assert!(foo_and_bar.can_be_intersected());
+    assert_eq!(foo_and_bar.kind(), ElementKind::Intersected);
     assert!(foo_and_bar.has_intersection_types());
     assert_eq!(foo_and_bar.intersection_types(), &[bar]);
 }
@@ -58,7 +58,7 @@ fn has_method_supports_intersections() {
     let conjuncts = i.intern_element_list(&[other]);
     let chained = i.intern_has_method(HasMethodInfo { method_name: atom("foo"), intersections: Some(conjuncts) });
 
-    assert!(chained.can_be_intersected());
+    assert_eq!(chained.kind(), ElementKind::Intersected);
     assert!(chained.has_intersection_types());
     assert_eq!(chained.intersection_types(), &[other]);
 }
@@ -70,7 +70,7 @@ fn has_property_supports_intersections() {
     let conjuncts = i.intern_element_list(&[other]);
     let chained = i.intern_has_property(HasPropertyInfo { property_name: atom("x"), intersections: Some(conjuncts) });
 
-    assert_eq!(chained.kind(), ElementKind::HasProperty);
+    assert_eq!(chained.kind(), ElementKind::Intersected);
     assert!(chained.has_intersection_types());
     assert_eq!(chained.intersection_types(), &[other]);
 }
@@ -88,7 +88,7 @@ fn object_shape_supports_intersections() {
         flags: ObjectShapeFlags::default().with_sealed(true),
     });
 
-    assert!(shape.can_be_intersected());
+    assert_eq!(shape.kind(), ElementKind::Intersected);
     assert_eq!(shape.intersection_types(), &[other]);
 }
 
