@@ -1,0 +1,36 @@
+[book]
+title = "The Suffete Book"
+authors = ["Seifeddine Gmati"]
+description = "A standalone PHP type system for static analysis: representation, comparison, and the operations that move types around the lattice."
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/carthage-software/suffete"
+edit-url-template = "https://github.com/carthage-software/suffete/edit/main/book/{path}"
+default-theme = "ayu"
+preferred-dark-theme = "ayu"
+no-section-label = false
+additional-css = ["theme/custom.css"]
+additional-js = ["theme/mathjax.js", "mermaid.min.js", "mermaid-init.js"]
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
+limit-results = 30
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 2
+boost-paragraph = 1
+
+[output.html.print]
+enable = true
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[rust]
+edition = "2024"

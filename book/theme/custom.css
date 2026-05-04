@@ -1,0 +1,19 @@
+.mermaid {
+    text-align: center;
+    margin: 1.5em 0;
+}
+
+.chapter li.chapter-item {
+    line-height: 1.4;
+}
+
+.MathJax {
+    font-size: 1.05em !important;
+}
+
+blockquote.see-also {
+    border-left: 3px solid var(--links);
+    padding: 0.5em 1em;
+    margin: 1.5em 0 0.5em 0;
+    font-size: 0.95em;
+}

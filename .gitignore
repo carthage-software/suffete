@@ -2,3 +2,6 @@
 /target
 .direnv
 /.claude
+/book/book
+/book/mermaid.min.js
+/book/mermaid-init.js

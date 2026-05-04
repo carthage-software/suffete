@@ -29,16 +29,9 @@ The driving requirement is **completeness**: every PHP type that Mago, PHPStan, 
 
 The long-term goal is for `suffete` to replace the type-system core inside [Mago](https://github.com/carthage-software/mago), the Carthage Software PHP toolchain. Until that migration is feasible, `suffete` lives in its own repository so it can be designed, tested, and benchmarked in isolation, without an analyzer attached to it.
 
-## Type System Documentation
+## Documentation
 
-The [`type-system/`](./type-system/) directory contains a type-theoretic description of the PHP type universe and the operations defined over it. Four chapters:
-
-- [`types.md`](./type-system/types.md): every atom, every refinement axis, what each type denotes.
-- [`comparison.md`](./type-system/comparison.md): the subtyping relation, disjointness, overlap, and admissible coercions.
-- [`combination.md`](./type-system/combination.md): union as least upper bound, absorption rules, generalisation thresholds.
-- [`intersection.md`](./type-system/intersection.md): intersection, difference, and narrowing under assertions.
-
-These chapters describe the contract any implementation must satisfy. They are likely to evolve in detail as the implementation matures, but the shape of the universe is stable.
+The book lives at <https://carthage-software.github.io/suffete>. It covers the PHP type universe, the lattice operations (refines, overlap, meet, join, subtract, narrow), generics, the public Rust API, and a cookbook of common analyzer-side recipes. Source under [`book/`](./book).
 
 ## Getting Started
 

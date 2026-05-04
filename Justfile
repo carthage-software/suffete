@@ -30,6 +30,27 @@ bench:
 clean:
     cargo clean
 
+# Builds the book and serves it locally with live reload on port 4321.
+book:
+    @just _book-install-mermaid
+    cd book && mdbook serve --open --port 4321
+
+# Builds the book once into book/book/ without serving.
+book-build:
+    @just _book-install-mermaid
+    cd book && mdbook build
+
+# Removes the rendered book.
+book-clean:
+    cd book && mdbook clean
+
+# One-time install of mdbook + mdbook-mermaid via cargo, plus the
+# mermaid theme assets the book.toml references.
+_book-install-mermaid:
+    @command -v mdbook >/dev/null         || cargo install mdbook
+    @command -v mdbook-mermaid >/dev/null || cargo install mdbook-mermaid
+    @test -f book/mermaid.min.js          || (cd book && mdbook-mermaid install .)
+
 # Publishes the crate to crates.io.
 publish:
     cargo publish
