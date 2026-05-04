@@ -242,10 +242,6 @@ pub(in crate::subtract) fn atom_minus<W: World>(
         return head_pieces.into_iter().map(|h| ElementId::intersected(h, &conjuncts)).collect();
     }
 
-    if b.kind() == ElementKind::Intersected {
-        return vec![a];
-    }
-
     // `subtract(X, !T)` ≡ `meet(X, T)` and `subtract(!T, X)` ≡
     // `!(T ∪ X)`. Routing here preserves the duality with meet.
     if b.kind() == ElementKind::Negated {
@@ -266,6 +262,16 @@ pub(in crate::subtract) fn atom_minus<W: World>(
         let mut union_elems: Vec<ElementId> = neg_info.inner.as_ref().elements.to_vec();
         union_elems.push(b);
         let union_ty = interner().intern_type(&union_elems, FlowFlags::EMPTY);
+        return vec![ElementId::negated(union_ty)];
+    }
+
+    if a == MIXED {
+        let b_ty = interner().intern_type(&[b], FlowFlags::EMPTY);
+        return vec![ElementId::negated(b_ty)];
+    }
+
+    if a == NON_NULL_MIXED {
+        let union_ty = interner().intern_type(&[NULL, b], FlowFlags::EMPTY);
         return vec![ElementId::negated(union_ty)];
     }
 
@@ -297,16 +303,8 @@ pub(in crate::subtract) fn atom_minus<W: World>(
         return pieces;
     }
 
-    // `mixed \ B` and `nonnull-mixed \ B` collapse to a `Negated`
-    // of the removed set so the difference stays order-independent
-    // across folds.
-    if a == MIXED {
-        return vec![ElementId::negated(b_t)];
-    }
-
-    if a == NON_NULL_MIXED {
-        let union_ty = interner().intern_type(&[NULL, b], FlowFlags::EMPTY);
-        return vec![ElementId::negated(union_ty)];
+    if b.kind() == ElementKind::Intersected {
+        return vec![a];
     }
 
     if scalar_supports_intersected_subtract(a.kind()) {

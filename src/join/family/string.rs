@@ -83,23 +83,34 @@ pub(in crate::join) fn apply_string_axis_merge_in_order(elements: &[ElementId]) 
                             keep_literals.push(*atom);
                             continue;
                         }
+
+                        let literal_casing_is_incompatible = match new_info.casing {
+                            StringCasing::Lowercase if value.chars().any(|c| c.is_ascii_uppercase()) => true,
+                            StringCasing::Uppercase if value.chars().any(|c| c.is_ascii_lowercase()) => true,
+                            _ => false,
+                        };
+
+                        if literal_casing_is_incompatible {
+                            keep_literals.push(*atom);
+                            continue;
+                        }
+
                         new_info.flags =
                             new_info.flags.with_is_numeric(new_info.flags.is_numeric() && str_is_numeric(value));
                         new_info.casing = match new_info.casing {
-                            StringCasing::Lowercase if value.chars().all(|c| !c.is_ascii_uppercase()) => {
-                                StringCasing::Lowercase
-                            }
-                            StringCasing::Uppercase if value.chars().all(|c| !c.is_ascii_lowercase()) => {
-                                StringCasing::Uppercase
-                            }
+                            StringCasing::Lowercase => StringCasing::Lowercase,
+                            StringCasing::Uppercase => StringCasing::Uppercase,
                             _ => StringCasing::Unspecified,
                         };
                     }
+
                     if hit_empty {
                         new_info.casing = StringCasing::Unspecified;
                     }
+
                     literals = keep_literals;
                 }
+
                 general = Some(new_info);
             }
             Some(ref mut existing) => {
