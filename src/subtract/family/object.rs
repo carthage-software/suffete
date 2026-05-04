@@ -40,8 +40,11 @@ pub(in crate::subtract) fn object_descendant_minus<W: World>(
         let head_is_object = info.head.kind() == ElementKind::Object;
         if head_is_object {
             let b_info = *i.get_object(info.head);
-            let descends = a_info.name != b_info.name && world.descends_from(b_info.name, a_info.name);
-            let atom = if descends && b_info.type_args.is_none() { i.intern_object(b_info) } else { info.head };
+            let descends = a_info.name != b_info.name
+                && world.descends_from(b_info.name, a_info.name)
+                && b_info.type_args.is_none();
+
+            let atom = if descends { i.intern_object(b_info) } else { b };
             (Some(info.head), atom)
         } else if matches!(
             info.head.kind(),
