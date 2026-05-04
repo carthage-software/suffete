@@ -532,7 +532,7 @@ fn env_max_global_rejects(cases: u32) -> u32 {
     std::env::var("SUFFETE_PROPTEST_MAX_GLOBAL_REJECTS")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(1024.max(cases.saturating_mul(2)))
+        .unwrap_or_else(|| 1024.max(cases.saturating_mul(2)))
 }
 
 proptest! {
