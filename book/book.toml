@@ -31,6 +31,3 @@ enable = true
 
 [preprocessor.mermaid]
 command = "mdbook-mermaid"
-
-[rust]
-edition = "2024"
