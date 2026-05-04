@@ -236,9 +236,21 @@ pub(in crate::subtract) fn atom_minus<W: World>(
     }
 
     if a.kind() == ElementKind::Intersected {
-        let info = *interner().get_intersected(a);
+        let i = interner();
+        let a_t = i.intern_type(&[a], FlowFlags::EMPTY);
+        let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
+        if refines(a_t, b_t, world, options, report) {
+            return Vec::new();
+        }
+
+        if !overlaps(a_t, b_t, world, options, report) {
+            return vec![a];
+        }
+
+        let info = *i.get_intersected(a);
         let head_pieces = atom_minus(info.head, b, world, options, report);
-        let conjuncts: Vec<ElementId> = interner().get_element_list(info.conjuncts).to_vec();
+        let conjuncts: Vec<ElementId> = i.get_element_list(info.conjuncts).to_vec();
+
         return head_pieces.into_iter().map(|h| ElementId::intersected(h, &conjuncts)).collect();
     }
 
@@ -363,6 +375,11 @@ fn family_atom_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
 
     if a.kind() == ElementKind::Array && b.kind() == ElementKind::Iterable {
         return family::array::array_minus_iterable(a, b);
+    }
+
+    if a.kind() == ElementKind::List && b.kind() == ElementKind::Array {
+        let b_ty = interner().intern_type(&[b], FlowFlags::EMPTY);
+        return Some(vec![ElementId::intersected(a, &[ElementId::negated(b_ty)])]);
     }
 
     if a.kind() == ElementKind::Iterable && b.kind() == ElementKind::Iterable {

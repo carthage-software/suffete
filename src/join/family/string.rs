@@ -67,18 +67,31 @@ pub(in crate::join) fn apply_string_axis_merge_in_order(elements: &[ElementId]) 
                     || new_info.casing != StringCasing::Unspecified
                 {
                     let mut keep_literals: Vec<mago_atom::Atom> = Vec::new();
-                    let mut hit_empty = false;
                     for atom in &literals {
                         let value = atom.as_str();
                         if value.is_empty() {
-                            new_info.flags =
-                                new_info.flags.with_is_non_empty(false).with_is_truthy(false).with_is_numeric(false);
-                            hit_empty = true;
-                            break;
+                            if new_info.flags.is_numeric() {
+                                keep_literals.push(*atom);
+                            } else {
+                                new_info.flags = new_info
+                                    .flags
+                                    .with_is_non_empty(false)
+                                    .with_is_truthy(false)
+                                    .with_is_numeric(false);
+                            }
+
+                            continue;
                         }
+
                         if value == "0" {
+                            if new_info.flags.is_truthy() {
+                                keep_literals.push(*atom);
+                                continue;
+                            }
+
                             new_info.flags = new_info.flags.with_is_truthy(false);
                         }
+
                         if new_info.flags.is_numeric() && !str_is_numeric(value) {
                             keep_literals.push(*atom);
                             continue;
@@ -102,10 +115,6 @@ pub(in crate::join) fn apply_string_axis_merge_in_order(elements: &[ElementId]) 
                             StringCasing::Uppercase => StringCasing::Uppercase,
                             _ => StringCasing::Unspecified,
                         };
-                    }
-
-                    if hit_empty {
-                        new_info.casing = StringCasing::Unspecified;
                     }
 
                     literals = keep_literals;
@@ -142,11 +151,19 @@ fn combine_string_info(a: StringInfo, b: StringInfo) -> StringInfo {
         (StringLiteral::Unspecified, _) | (_, StringLiteral::Unspecified) => StringLiteral::Unspecified,
         _ => StringLiteral::None,
     };
+
+    let a_casing_neutral =
+        matches!(a.literal, StringLiteral::Value(v) if v.as_str().chars().all(|c| !c.is_ascii_alphabetic()));
+    let b_casing_neutral =
+        matches!(b.literal, StringLiteral::Value(v) if v.as_str().chars().all(|c| !c.is_ascii_alphabetic()));
     let casing = match (a.casing, b.casing) {
         (StringCasing::Lowercase, StringCasing::Lowercase) => StringCasing::Lowercase,
         (StringCasing::Uppercase, StringCasing::Uppercase) => StringCasing::Uppercase,
+        (c, StringCasing::Unspecified) if b_casing_neutral => c,
+        (StringCasing::Unspecified, c) if a_casing_neutral => c,
         _ => StringCasing::Unspecified,
     };
+
     StringInfo { literal, casing, flags: a.flags.and(b.flags) }
 }
 

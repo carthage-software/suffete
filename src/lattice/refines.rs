@@ -203,6 +203,52 @@ fn intersected_partition_covers<W: World>(
         }
     }
 
+    // Second pattern: `Intersected(H, [C…, !X]) | Y` where Y refines X
+    // (or Y itself is X's head). The partition `!X | X` covers
+    // everything, so the Intersected can be reduced to H.
+    for (idx, &c) in containers.iter().enumerate() {
+        if c.kind() != ElementKind::Intersected {
+            continue;
+        }
+
+        let info = *i.get_intersected(c);
+        for &cj in i.get_element_list(info.conjuncts) {
+            if cj.kind() != ElementKind::Negated {
+                continue;
+            }
+
+            let inner = i.get_negated(cj).inner;
+            let has_matching = containers.iter().enumerate().any(|(j, &other)| {
+                if j == idx {
+                    return false;
+                }
+
+                if inner.as_ref().elements == [other] {
+                    return true;
+                }
+
+                if other.kind() == ElementKind::Intersected
+                    && i.get_intersected(other).head == inner.as_ref().elements[0]
+                {
+                    return true;
+                }
+
+                let other_t = i.intern_type(&[other], FlowFlags::EMPTY);
+                refines(inner, other_t, world, options, report)
+            });
+
+            if has_matching {
+                let mut reduced: Vec<ElementId> = containers.to_vec();
+                reduced[idx] = info.head;
+                let input_t = i.intern_type(&[input], FlowFlags::EMPTY);
+                let reduced_t = i.intern_type(&reduced, FlowFlags::EMPTY);
+                if refines(input_t, reduced_t, world, options, report) {
+                    return true;
+                }
+            }
+        }
+    }
+
     false
 }
 

@@ -124,7 +124,7 @@ fn lowercase_string_absorbs_lowercase_literal() {
 
 #[test]
 fn lowercase_with_empty_literal_collapses_to_general_string() {
-    assert_combines_to(vec![t_lower_string(), t_lit_string("")], vec![t_string()]);
+    assert_combines_to(vec![t_lower_string(), t_lit_string("")], vec![t_lower_string()]);
 }
 
 #[test]
@@ -145,7 +145,7 @@ fn uppercase_string_absorbs_uppercase_literal() {
 
 #[test]
 fn uppercase_with_empty_literal_collapses_to_general_string() {
-    assert_combines_to(vec![t_upper_string(), t_lit_string("")], vec![t_string()]);
+    assert_combines_to(vec![t_upper_string(), t_lit_string("")], vec![t_upper_string()]);
 }
 
 #[test]
