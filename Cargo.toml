@@ -90,6 +90,7 @@ string_slice = "allow"                     # ASCII-only contexts.
 branches_sharing_code = "allow"            # Sometimes clarity wins.
 same_name_method = "allow"                 # Conscious shadowing of trait methods.
 non_send_fields_in_send_ty = "allow"       # Reviewed at the type definition.
+inline_modules = "allow"                   # Inline test modules
 
 [features]
 default = []
