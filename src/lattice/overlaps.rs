@@ -567,6 +567,11 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
         }
         ElementKind::Intersected => {
             let info = *i.get_intersected(elem);
+
+            if intersected_negated_contradiction(info.head, info.conjuncts, world) {
+                return true;
+            }
+
             match info.head.kind() {
                 ElementKind::Object => {
                     let head_info = *i.get_object(info.head);
@@ -591,37 +596,6 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
                     return true;
                 }
             }
-            let head_t = i.intern_type(&[info.head], FlowFlags::EMPTY);
-            for &c in conjuncts {
-                if c.kind() == ElementKind::Negated {
-                    let inner = i.get_negated(c).inner;
-                    if crate::lattice::refines(
-                        head_t,
-                        inner,
-                        world,
-                        LatticeOptions::default(),
-                        &mut LatticeReport::new(),
-                    ) {
-                        return true;
-                    }
-                }
-            }
-            for (idx, &ci) in conjuncts.iter().enumerate() {
-                if ci.kind() != ElementKind::Negated {
-                    continue;
-                }
-                let inner = i.get_negated(ci).inner;
-                for (jdx, &cj) in conjuncts.iter().enumerate() {
-                    if idx == jdx {
-                        continue;
-                    }
-                    let cj_t = i.intern_type(&[cj], FlowFlags::EMPTY);
-                    if crate::lattice::refines(cj_t, inner, world, LatticeOptions::default(), &mut LatticeReport::new())
-                    {
-                        return true;
-                    }
-                }
-            }
             false
         }
         _ => false,
@@ -641,6 +615,43 @@ pub(crate) fn type_is_value_never<W: World>(t: TypeId, world: &W) -> bool {
         return true;
     }
     elements.iter().all(|e| *e == NEVER || is_uninhabited(*e, world))
+}
+
+/// `true` iff the intersection of `head` with `conjuncts` refines the
+/// inner of any Negated conjunct, making `Intersected(H, C1, …, !T)`
+/// uninhabited.
+#[inline]
+fn intersected_negated_contradiction<W: World>(
+    head: ElementId,
+    conjuncts_id: crate::element::ElementListId,
+    world: &W,
+) -> bool {
+    let i = interner();
+    let conjuncts = i.get_element_list(conjuncts_id);
+
+    let mut non_negated: Vec<ElementId> = Vec::with_capacity(conjuncts.len());
+    for &c in conjuncts {
+        if c.kind() != ElementKind::Negated {
+            non_negated.push(c);
+        }
+    }
+    let positive_elem = if non_negated.is_empty() {
+        head
+    } else {
+        ElementId::intersected(head, &non_negated)
+    };
+    let positive_t = i.intern_type(&[positive_elem], FlowFlags::EMPTY);
+
+    for &c in conjuncts {
+        if c.kind() != ElementKind::Negated {
+            continue;
+        }
+        let inner = i.get_negated(c).inner;
+        if crate::lattice::refines(positive_t, inner, world, LatticeOptions::default(), &mut LatticeReport::new()) {
+            return true;
+        }
+    }
+    false
 }
 
 /// `Callable × Callable` overlap. A function value has a fixed
