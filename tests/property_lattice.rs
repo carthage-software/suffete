@@ -520,11 +520,30 @@ fn subtract_of(a: TypeId, b: TypeId, w: &MockWorld) -> TypeId {
     subtract::compute(a, b, w, LatticeOptions::default(), &mut report)
 }
 
+fn env_cases() -> u32 {
+    std::env::var("SUFFETE_PROPTEST_CASES").ok().and_then(|v| v.parse().ok()).unwrap_or(512)
+}
+
+fn env_max_shrink_iters() -> u32 {
+    std::env::var("SUFFETE_PROPTEST_MAX_SHRINK_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(1000)
+}
+
+fn env_max_global_rejects(cases: u32) -> u32 {
+    std::env::var("SUFFETE_PROPTEST_MAX_GLOBAL_REJECTS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1024.max(cases.saturating_mul(2)))
+}
+
 proptest! {
-    #![proptest_config(ProptestConfig {
-        cases: 512,
-        max_shrink_iters: 1000,
-        ..ProptestConfig::default()
+    #![proptest_config({
+        let cases = env_cases();
+        ProptestConfig {
+            cases,
+            max_shrink_iters: env_max_shrink_iters(),
+            max_global_rejects: env_max_global_rejects(cases),
+            ..ProptestConfig::default()
+        }
     })]
 
     #[test]
