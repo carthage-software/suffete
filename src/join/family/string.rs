@@ -70,16 +70,12 @@ pub(in crate::join) fn apply_string_axis_merge_in_order(elements: &[ElementId]) 
                     for atom in &literals {
                         let value = atom.as_str();
                         if value.is_empty() {
-                            if new_info.flags.is_numeric() {
+                            let has_other_flags = new_info.flags.is_truthy() || new_info.flags.is_numeric();
+                            if has_other_flags {
                                 keep_literals.push(*atom);
                             } else {
-                                new_info.flags = new_info
-                                    .flags
-                                    .with_is_non_empty(false)
-                                    .with_is_truthy(false)
-                                    .with_is_numeric(false);
+                                new_info.flags = new_info.flags.with_is_non_empty(false);
                             }
-
                             continue;
                         }
 
