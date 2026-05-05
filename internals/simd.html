@@ -1,0 +1,334 @@
+<!DOCTYPE HTML>
+<html lang="en" class="ayu" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>SIMD scans - The Suffete Book</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="A standalone PHP type system for static analysis: representation, comparison, and the operations that move types around the lattice.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/custom.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "ayu" : "ayu";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('ayu')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../introduction.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Part I — Foundations</li><li class="chapter-item expanded "><a href="../foundations/what-is-suffete.html"><strong aria-hidden="true">1.</strong> What suffete is</a></li><li class="chapter-item expanded "><a href="../foundations/why.html"><strong aria-hidden="true">2.</strong> Why a separate type system</a></li><li class="chapter-item expanded "><a href="../foundations/quick-tour.html"><strong aria-hidden="true">3.</strong> Quick tour</a></li><li class="chapter-item expanded "><a href="../foundations/glossary.html"><strong aria-hidden="true">4.</strong> Glossary and notation</a></li><li class="chapter-item expanded affix "><li class="part-title">Part II — The Type Universe</li><li class="chapter-item expanded "><a href="../universe/elements.html"><strong aria-hidden="true">5.</strong> Elements: the indivisible types</a></li><li class="chapter-item expanded "><a href="../universe/scalars.html"><strong aria-hidden="true">6.</strong> Scalars</a></li><li class="chapter-item expanded "><a href="../universe/special.html"><strong aria-hidden="true">7.</strong> Special elements</a></li><li class="chapter-item expanded "><a href="../universe/objects.html"><strong aria-hidden="true">8.</strong> Objects, enums, and structural object types</a></li><li class="chapter-item expanded "><a href="../universe/arrays.html"><strong aria-hidden="true">9.</strong> Arrays and lists</a></li><li class="chapter-item expanded "><a href="../universe/iterables-callables.html"><strong aria-hidden="true">10.</strong> Iterables and callables</a></li><li class="chapter-item expanded "><a href="../universe/resources.html"><strong aria-hidden="true">11.</strong> Resources</a></li><li class="chapter-item expanded "><a href="../universe/class-like-string.html"><strong aria-hidden="true">12.</strong> Class-like strings</a></li><li class="chapter-item expanded "><a href="../universe/refinements.html"><strong aria-hidden="true">13.</strong> Refinement axes</a></li><li class="chapter-item expanded "><a href="../universe/wrappers.html"><strong aria-hidden="true">14.</strong> Wrappers: Negated and Intersected</a></li><li class="chapter-item expanded "><a href="../universe/unresolved.html"><strong aria-hidden="true">15.</strong> Unresolved elements</a></li><li class="chapter-item expanded "><a href="../universe/templates.html"><strong aria-hidden="true">16.</strong> Templates and generic parameters</a></li><li class="chapter-item expanded affix "><li class="part-title">Part III — The Lattice</li><li class="chapter-item expanded "><a href="../lattice/refines.html"><strong aria-hidden="true">17.</strong> Subtyping: refines</a></li><li class="chapter-item expanded "><a href="../lattice/overlaps.html"><strong aria-hidden="true">18.</strong> Overlap and disjointness</a></li><li class="chapter-item expanded "><a href="../lattice/meet.html"><strong aria-hidden="true">19.</strong> Greatest lower bound: meet</a></li><li class="chapter-item expanded "><a href="../lattice/join.html"><strong aria-hidden="true">20.</strong> Least upper bound: join</a></li><li class="chapter-item expanded "><a href="../lattice/subtract.html"><strong aria-hidden="true">21.</strong> Set difference: subtract</a></li><li class="chapter-item expanded "><a href="../lattice/narrow.html"><strong aria-hidden="true">22.</strong> Narrowing under assertions</a></li><li class="chapter-item expanded "><a href="../lattice/laws.html"><strong aria-hidden="true">23.</strong> Soundness: the algebraic laws</a></li><li class="chapter-item expanded affix "><li class="part-title">Part IV — Generics</li><li class="chapter-item expanded "><a href="../generics/templates.html"><strong aria-hidden="true">24.</strong> Template parameters in depth</a></li><li class="chapter-item expanded "><a href="../generics/variance.html"><strong aria-hidden="true">25.</strong> Variance</a></li><li class="chapter-item expanded "><a href="../generics/substitute.html"><strong aria-hidden="true">26.</strong> Substitution</a></li><li class="chapter-item expanded "><a href="../generics/standin.html"><strong aria-hidden="true">27.</strong> Inference: standin and infer</a></li><li class="chapter-item expanded "><a href="../generics/specialise.html"><strong aria-hidden="true">28.</strong> Inheritance specialisation</a></li><li class="chapter-item expanded affix "><li class="part-title">Part V — Public API</li><li class="chapter-item expanded "><a href="../api/handles.html"><strong aria-hidden="true">29.</strong> TypeId, ElementId, and identity</a></li><li class="chapter-item expanded "><a href="../api/construction.html"><strong aria-hidden="true">30.</strong> Constructing types: TypeBuilder and prelude</a></li><li class="chapter-item expanded "><a href="../api/predicates.html"><strong aria-hidden="true">31.</strong> Predicates: is_X, contains_X, and friends</a></li><li class="chapter-item expanded "><a href="../api/inspect.html"><strong aria-hidden="true">32.</strong> Inspection: walking the tree</a></li><li class="chapter-item expanded "><a href="../api/transform.html"><strong aria-hidden="true">33.</strong> Transformation: map, flat_map, filter</a></li><li class="chapter-item expanded "><a href="../api/world.html"><strong aria-hidden="true">34.</strong> Hierarchy and World</a></li><li class="chapter-item expanded "><a href="../api/cast-compatibility.html"><strong aria-hidden="true">35.</strong> Casting and runtime compatibility</a></li><li class="chapter-item expanded "><a href="../api/expand.html"><strong aria-hidden="true">36.</strong> Expansion: resolving unresolved elements</a></li><li class="chapter-item expanded "><a href="../api/serialize.html"><strong aria-hidden="true">37.</strong> Serialization</a></li><li class="chapter-item expanded affix "><li class="part-title">Part VI — Cookbook</li><li class="chapter-item expanded "><a href="../cookbook/subtype-question.html"><strong aria-hidden="true">38.</strong> Answering "is A a subtype of B?"</a></li><li class="chapter-item expanded "><a href="../cookbook/union.html"><strong aria-hidden="true">39.</strong> Building a union from scratch</a></li><li class="chapter-item expanded "><a href="../cookbook/instanceof-narrow.html"><strong aria-hidden="true">40.</strong> Narrowing a parameter type from instanceof</a></li><li class="chapter-item expanded "><a href="../cookbook/generic-instance.html"><strong aria-hidden="true">41.</strong> Resolving a generic class against an instance</a></li><li class="chapter-item expanded "><a href="../cookbook/find-classes.html"><strong aria-hidden="true">42.</strong> Walking a type to find every class name</a></li><li class="chapter-item expanded affix "><li class="part-title">Part VII — Internals (optional reading)</li><li class="chapter-item expanded "><a href="../internals/interner.html"><strong aria-hidden="true">43.</strong> Interning and the arenas</a></li><li class="chapter-item expanded "><a href="../internals/element-id-layout.html"><strong aria-hidden="true">44.</strong> The ElementId tag layout</a></li><li class="chapter-item expanded "><a href="../internals/simd.html" class="active"><strong aria-hidden="true">45.</strong> SIMD scans</a></li><li class="chapter-item expanded "><a href="../internals/performance.html"><strong aria-hidden="true">46.</strong> Performance philosophy</a></li><li class="chapter-item expanded affix "><li class="part-title">Part VIII — Reference</li><li class="chapter-item expanded "><a href="../reference/element-kinds.html"><strong aria-hidden="true">47.</strong> Element kinds</a></li><li class="chapter-item expanded "><a href="../reference/options-reports.html"><strong aria-hidden="true">48.</strong> Lattice options and reports</a></li><li class="chapter-item expanded "><a href="../reference/prelude.html"><strong aria-hidden="true">49.</strong> Prelude constants</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../contributing.html">Contributing</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Suffete Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/carthage-software/suffete" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/carthage-software/suffete/edit/main/book/src/internals/simd.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="simd-scans"><a class="header" href="#simd-scans">SIMD scans</a></h1>
+<p>The <code>element::simd</code> module provides SIMD-accelerated scans over <code>&amp;[ElementId]</code> slices. Six primitives, all of them dispatch through scalar fallback / AVX2 (x86_64) / NEON (aarch64), with hand-tuned inline assembly on the AVX2 path.</p>
+<p>This is the lowest level of the crate. The lattice and predicate code consume these primitives; the user-facing API is unaware of them.</p>
+<h2 id="the-primitives"><a class="header" href="#the-primitives">The primitives</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Function</th><th>Returns</th><th>Used by</th></tr></thead><tbody>
+<tr><td><code>contains(slice, needle)</code></td><td><code>bool</code> ; needle anywhere in slice</td><td>join's canonicalize, predicates</td></tr>
+<tr><td><code>position_of(slice, needle)</code></td><td><code>Option&lt;usize&gt;</code> ; first index of needle</td><td>TypeBuilder::remove, TypeBuilder::replace</td></tr>
+<tr><td><code>any_of_kind(slice, kind)</code></td><td><code>bool</code> ; some Element has this kind</td><td>predicates::contains_X, lattice prefilters</td></tr>
+<tr><td><code>all_of_kind(slice, kind)</code></td><td><code>bool</code> ; every Element has this kind (false on empty)</td><td>predicates::is_X</td></tr>
+<tr><td><code>count_of_kind(slice, kind)</code></td><td><code>usize</code> ; count of Elements with this kind</td><td>join's literal-collapse threshold</td></tr>
+<tr><td><code>is_sorted_strict(slice)</code></td><td><code>bool</code> ; slice is strictly increasing under unsigned u32 order</td><td>interner's canonicality fast path</td></tr>
+</tbody></table>
+</div>
+<p>The dispatch:</p>
+<ul>
+<li><strong><code>x86_64</code> + AVX2</strong> (runtime-detected via <code>std::is_x86_feature_detected</code>): 8 lanes (256 bits) per iteration. Hand-rolled inline assembly using FFmpeg's pointer-end trickery (one register holds a negative byte offset that doubles as both the load displacement and the loop counter).</li>
+<li><strong><code>aarch64</code> + NEON</strong> (baseline ISA, no runtime check): 4 lanes (128 bits) per iteration. NEON intrinsics.</li>
+<li><strong>Other architectures or short slices</strong>: tight scalar loop.</li>
+</ul>
+<p>The thresholds are 8 lanes for AVX2 and 4 lanes for NEON. Below that, scalar wins because the SIMD setup outweighs the parallel work.</p>
+<h2 id="why-elementid-as-u32-is-a-perfect-fit"><a class="header" href="#why-elementid-as-u32-is-a-perfect-fit">Why ElementId-as-u32 is a perfect fit</a></h2>
+<p><code>ElementId</code> is a <code>NonZeroU32</code> (<a href="./element-id-layout.html">layout chapter</a>). A slice of <code>ElementId</code> is contiguous 32-bit lanes. Equality scans (<code>contains</code>, <code>position_of</code>) and kind scans (<code>any_of_kind</code>, <code>all_of_kind</code>, <code>count_of_kind</code>) reduce to a per-chunk:</p>
+<ol>
+<li>Load 8 (AVX2) or 4 (NEON) lanes into a SIMD register.</li>
+<li>(For kind scans) Right-shift by 26 to extract the kind tag.</li>
+<li>Compare-equal against a broadcasted needle (or kind value).</li>
+<li>Reduce to a scalar via movemask (AVX2) or maxv/minv (NEON).</li>
+<li>Branch on the reduction.</li>
+</ol>
+<p>The per-chunk cost is constant; the per-iteration overhead is one load, two-to-three SIMD ops, one branch.</p>
+<h2 id="the-ffmpeg-pointer-end-trick"><a class="header" href="#the-ffmpeg-pointer-end-trick">The FFmpeg pointer-end trick</a></h2>
+<p>The AVX2 paths use a register-saving technique borrowed from FFmpeg. Instead of:</p>
+<pre><code class="language-asm">mov  rcx, 0
+.loop:
+  vmovdqu  ymm1, [rsi + rcx*4]
+  ; ... compare ...
+  inc  rcx
+  cmp  rcx, r8        ; r8 = chunk count
+  jb   .loop
+</code></pre>
+<p>The trick is:</p>
+<pre><code class="language-asm">mov  rdi, [end of slice]   ; pointer to end-of-chunked-region
+mov  rcx, -bytes           ; negative byte offset
+.loop:
+  vmovdqu  ymm1, [rdi + rcx]
+  ; ... compare ...
+  add  rcx, 32             ; byte stride = 32 (8 lanes × 4)
+  jl   .loop
+</code></pre>
+<p>The negative offset doubles as the loop counter and the addressing-mode displacement. The loop tail is <code>add + jl</code> (two instructions, one micro-op fusion) instead of <code>inc + cmp + jb</code> (three instructions).</p>
+<p>The savings are small per iteration but real, especially on long slices.</p>
+<h2 id="neon-intrinsics-not-assembly"><a class="header" href="#neon-intrinsics-not-assembly">NEON: intrinsics, not assembly</a></h2>
+<p>NEON lacks a per-lane movemask instruction; the scalar reduction is done with <code>vmaxvq_u32</code> (max across lanes) or <code>vminvq_u32</code> (min across lanes) plus a per-element-position bit-set trick. The intrinsics version is fast enough that hand-rolled assembly doesn't help.</p>
+<p>NEON is <em>baseline</em> on AArch64 (every aarch64 CPU has it). No runtime detection needed; the SIMD path runs whenever the slice is long enough.</p>
+<h2 id="where-the-primitives-are-called-from"><a class="header" href="#where-the-primitives-are-called-from">Where the primitives are called from</a></h2>
+<p>The SIMD primitives are called by hot paths the lattice traverses:</p>
+<ul>
+<li><code>lattice::overlaps</code> and <code>lattice::refines</code> use <code>simd::any_of_kind</code> as a prefilter for the <code>Negated</code>, <code>Intersected</code>, <code>Mixed</code>, <code>Object</code>, etc. families ; "if no Element has this kind, skip the family rule entirely".</li>
+<li><code>lattice::join</code>'s canonicalisation uses <code>simd::contains</code> to detect well-known dominators (<code>MIXED</code>, <code>NEVER</code>, <code>BOOL</code>, <code>RESOURCE</code>, etc.) before applying the rule.</li>
+<li><code>predicates::is_int</code>, <code>is_string</code>, etc. use <code>simd::all_of_kind</code> as their core.</li>
+<li><code>predicates::contains_int</code>, <code>contains_string</code>, etc. use <code>simd::any_of_kind</code>.</li>
+<li><code>intern_type</code>'s slow path uses <code>simd::is_sorted_strict</code> to skip the sort + dedup when the input is already canonical.</li>
+<li><code>TypeBuilder::remove</code> and <code>TypeBuilder::replace</code> use <code>simd::position_of</code>.</li>
+</ul>
+<h2 id="when-the-simd-threshold-isnt-met"><a class="header" href="#when-the-simd-threshold-isnt-met">When the SIMD threshold isn't met</a></h2>
+<p>Most analyser-side unions are small (1-5 Elements). The threshold gates ensure that the SIMD code only runs when there's enough work to pay back the setup. On short slices, the scalar fallback runs ; LLVM autovectorises what it can.</p>
+<h2 id="why-hand-rolled-assembly"><a class="header" href="#why-hand-rolled-assembly">Why hand-rolled assembly</a></h2>
+<p>The autovectoriser generates correct SIMD code, but it doesn't know:</p>
+<ul>
+<li>That the loop bound is the chunk count (not the byte count).</li>
+<li>That the broadcast can be done once outside the loop.</li>
+<li>That <code>vpcmpeqd + vpmovmskb + test + jnz</code> is a tighter early-exit than the equivalent generated code.</li>
+<li>That the FFmpeg pointer-end trick saves one micro-op per iteration.</li>
+</ul>
+<p>For the AVX2 paths, hand-rolled assembly is consistently 10-30% faster than the autovectorised scalar on long slices. For the NEON paths, intrinsics-with-careful-loop are within 5% of hand-rolled assembly, and the maintenance is much lower.</p>
+<h2 id="safety"><a class="header" href="#safety">Safety</a></h2>
+<p>Every SIMD function is marked <code>unsafe fn</code>. The public entry points are safe and gate on the threshold + the runtime feature detection (for AVX2). Inside the SIMD function:</p>
+<ul>
+<li>Unaligned loads (<code>vmovdqu</code>, <code>vld1q_u32</code>) — both architectures support these without alignment.</li>
+<li>Bounds: the function is called only when the slice is at least <code>THRESHOLD</code> lanes; the chunk count is <code>len / lanes_per_chunk</code>, capped to fit.</li>
+<li>Tail handling: each function has a scalar tail loop for the leftover lanes after the chunked region.</li>
+</ul>
+<p>The unsafe blocks are local to each function and have SAFETY comments documenting the invariants.</p>
+<h2 id="performance-numbers"><a class="header" href="#performance-numbers">Performance numbers</a></h2>
+<p>Approximate, on a modern x86_64 desktop, for a slice of 64 Elements:</p>
+<ul>
+<li><code>simd::contains</code> (hit early): ~5ns.</li>
+<li><code>simd::contains</code> (miss to end): ~20ns.</li>
+<li><code>simd::any_of_kind</code> (hit early): ~6ns.</li>
+<li><code>simd::any_of_kind</code> (miss to end): ~25ns.</li>
+<li><code>simd::is_sorted_strict</code> (already sorted, 64 elements): ~30ns.</li>
+<li>Scalar equivalent (64 elements): ~3-5x slower across the board.</li>
+</ul>
+<p>For typical analyser unions (5-10 Elements), the scalar fallback runs and the cost is on the order of the per-Element work itself ; nanoseconds per call.</p>
+<blockquote>
+<p><strong>See also:</strong> <a href="./element-id-layout.html">The ElementId tag layout</a>, <a href="./interner.html">Interning and the arenas</a>, <a href="./performance.html">Performance philosophy</a>.</p>
+</blockquote>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../internals/element-id-layout.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../internals/performance.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../internals/element-id-layout.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../internals/performance.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../theme/mathjax.js"></script>
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

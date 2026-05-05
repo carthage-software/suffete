@@ -1,0 +1,355 @@
+<!DOCTYPE HTML>
+<html lang="en" class="ayu" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Refinement axes - The Suffete Book</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="A standalone PHP type system for static analysis: representation, comparison, and the operations that move types around the lattice.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/custom.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "ayu" : "ayu";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('ayu')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../introduction.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Part I — Foundations</li><li class="chapter-item expanded "><a href="../foundations/what-is-suffete.html"><strong aria-hidden="true">1.</strong> What suffete is</a></li><li class="chapter-item expanded "><a href="../foundations/why.html"><strong aria-hidden="true">2.</strong> Why a separate type system</a></li><li class="chapter-item expanded "><a href="../foundations/quick-tour.html"><strong aria-hidden="true">3.</strong> Quick tour</a></li><li class="chapter-item expanded "><a href="../foundations/glossary.html"><strong aria-hidden="true">4.</strong> Glossary and notation</a></li><li class="chapter-item expanded affix "><li class="part-title">Part II — The Type Universe</li><li class="chapter-item expanded "><a href="../universe/elements.html"><strong aria-hidden="true">5.</strong> Elements: the indivisible types</a></li><li class="chapter-item expanded "><a href="../universe/scalars.html"><strong aria-hidden="true">6.</strong> Scalars</a></li><li class="chapter-item expanded "><a href="../universe/special.html"><strong aria-hidden="true">7.</strong> Special elements</a></li><li class="chapter-item expanded "><a href="../universe/objects.html"><strong aria-hidden="true">8.</strong> Objects, enums, and structural object types</a></li><li class="chapter-item expanded "><a href="../universe/arrays.html"><strong aria-hidden="true">9.</strong> Arrays and lists</a></li><li class="chapter-item expanded "><a href="../universe/iterables-callables.html"><strong aria-hidden="true">10.</strong> Iterables and callables</a></li><li class="chapter-item expanded "><a href="../universe/resources.html"><strong aria-hidden="true">11.</strong> Resources</a></li><li class="chapter-item expanded "><a href="../universe/class-like-string.html"><strong aria-hidden="true">12.</strong> Class-like strings</a></li><li class="chapter-item expanded "><a href="../universe/refinements.html" class="active"><strong aria-hidden="true">13.</strong> Refinement axes</a></li><li class="chapter-item expanded "><a href="../universe/wrappers.html"><strong aria-hidden="true">14.</strong> Wrappers: Negated and Intersected</a></li><li class="chapter-item expanded "><a href="../universe/unresolved.html"><strong aria-hidden="true">15.</strong> Unresolved elements</a></li><li class="chapter-item expanded "><a href="../universe/templates.html"><strong aria-hidden="true">16.</strong> Templates and generic parameters</a></li><li class="chapter-item expanded affix "><li class="part-title">Part III — The Lattice</li><li class="chapter-item expanded "><a href="../lattice/refines.html"><strong aria-hidden="true">17.</strong> Subtyping: refines</a></li><li class="chapter-item expanded "><a href="../lattice/overlaps.html"><strong aria-hidden="true">18.</strong> Overlap and disjointness</a></li><li class="chapter-item expanded "><a href="../lattice/meet.html"><strong aria-hidden="true">19.</strong> Greatest lower bound: meet</a></li><li class="chapter-item expanded "><a href="../lattice/join.html"><strong aria-hidden="true">20.</strong> Least upper bound: join</a></li><li class="chapter-item expanded "><a href="../lattice/subtract.html"><strong aria-hidden="true">21.</strong> Set difference: subtract</a></li><li class="chapter-item expanded "><a href="../lattice/narrow.html"><strong aria-hidden="true">22.</strong> Narrowing under assertions</a></li><li class="chapter-item expanded "><a href="../lattice/laws.html"><strong aria-hidden="true">23.</strong> Soundness: the algebraic laws</a></li><li class="chapter-item expanded affix "><li class="part-title">Part IV — Generics</li><li class="chapter-item expanded "><a href="../generics/templates.html"><strong aria-hidden="true">24.</strong> Template parameters in depth</a></li><li class="chapter-item expanded "><a href="../generics/variance.html"><strong aria-hidden="true">25.</strong> Variance</a></li><li class="chapter-item expanded "><a href="../generics/substitute.html"><strong aria-hidden="true">26.</strong> Substitution</a></li><li class="chapter-item expanded "><a href="../generics/standin.html"><strong aria-hidden="true">27.</strong> Inference: standin and infer</a></li><li class="chapter-item expanded "><a href="../generics/specialise.html"><strong aria-hidden="true">28.</strong> Inheritance specialisation</a></li><li class="chapter-item expanded affix "><li class="part-title">Part V — Public API</li><li class="chapter-item expanded "><a href="../api/handles.html"><strong aria-hidden="true">29.</strong> TypeId, ElementId, and identity</a></li><li class="chapter-item expanded "><a href="../api/construction.html"><strong aria-hidden="true">30.</strong> Constructing types: TypeBuilder and prelude</a></li><li class="chapter-item expanded "><a href="../api/predicates.html"><strong aria-hidden="true">31.</strong> Predicates: is_X, contains_X, and friends</a></li><li class="chapter-item expanded "><a href="../api/inspect.html"><strong aria-hidden="true">32.</strong> Inspection: walking the tree</a></li><li class="chapter-item expanded "><a href="../api/transform.html"><strong aria-hidden="true">33.</strong> Transformation: map, flat_map, filter</a></li><li class="chapter-item expanded "><a href="../api/world.html"><strong aria-hidden="true">34.</strong> Hierarchy and World</a></li><li class="chapter-item expanded "><a href="../api/cast-compatibility.html"><strong aria-hidden="true">35.</strong> Casting and runtime compatibility</a></li><li class="chapter-item expanded "><a href="../api/expand.html"><strong aria-hidden="true">36.</strong> Expansion: resolving unresolved elements</a></li><li class="chapter-item expanded "><a href="../api/serialize.html"><strong aria-hidden="true">37.</strong> Serialization</a></li><li class="chapter-item expanded affix "><li class="part-title">Part VI — Cookbook</li><li class="chapter-item expanded "><a href="../cookbook/subtype-question.html"><strong aria-hidden="true">38.</strong> Answering "is A a subtype of B?"</a></li><li class="chapter-item expanded "><a href="../cookbook/union.html"><strong aria-hidden="true">39.</strong> Building a union from scratch</a></li><li class="chapter-item expanded "><a href="../cookbook/instanceof-narrow.html"><strong aria-hidden="true">40.</strong> Narrowing a parameter type from instanceof</a></li><li class="chapter-item expanded "><a href="../cookbook/generic-instance.html"><strong aria-hidden="true">41.</strong> Resolving a generic class against an instance</a></li><li class="chapter-item expanded "><a href="../cookbook/find-classes.html"><strong aria-hidden="true">42.</strong> Walking a type to find every class name</a></li><li class="chapter-item expanded affix "><li class="part-title">Part VII — Internals (optional reading)</li><li class="chapter-item expanded "><a href="../internals/interner.html"><strong aria-hidden="true">43.</strong> Interning and the arenas</a></li><li class="chapter-item expanded "><a href="../internals/element-id-layout.html"><strong aria-hidden="true">44.</strong> The ElementId tag layout</a></li><li class="chapter-item expanded "><a href="../internals/simd.html"><strong aria-hidden="true">45.</strong> SIMD scans</a></li><li class="chapter-item expanded "><a href="../internals/performance.html"><strong aria-hidden="true">46.</strong> Performance philosophy</a></li><li class="chapter-item expanded affix "><li class="part-title">Part VIII — Reference</li><li class="chapter-item expanded "><a href="../reference/element-kinds.html"><strong aria-hidden="true">47.</strong> Element kinds</a></li><li class="chapter-item expanded "><a href="../reference/options-reports.html"><strong aria-hidden="true">48.</strong> Lattice options and reports</a></li><li class="chapter-item expanded "><a href="../reference/prelude.html"><strong aria-hidden="true">49.</strong> Prelude constants</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../contributing.html">Contributing</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Suffete Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/carthage-software/suffete" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/carthage-software/suffete/edit/main/book/src/universe/refinements.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="refinement-axes"><a class="header" href="#refinement-axes">Refinement axes</a></h1>
+<p>A <em>refinement axis</em> is a boolean (or low-cardinality) property carried directly on a type, not as a separate type. The lattice treats axes as bits on the same form: setting an axis tightens the type without changing what it is.</p>
+<p>Axes are how suffete avoids exploding the universe. There is no separate "non-null mixed" form distinct from <code>mixed</code> ; <code>mixed</code> carries a <code>non-null</code> axis. There is no separate "non-empty string" form distinct from <code>string</code> ; <code>string</code> carries a <code>non-empty</code> axis. The lattice rules work over axes by checking that every axis the container constrains is implied by the input.</p>
+<h2 id="the-general-rule"><a class="header" href="#the-general-rule">The general rule</a></h2>
+<p>Given a form $F$ that carries an axis $a$, and a container of form $F$ with $a$ set:</p>
+<ul>
+<li>An input of the same form $F$ refines the container iff its $a$ is also set.</li>
+<li>An input of a different form $F'$ refines the container iff $F'$ structurally guarantees $a$.</li>
+</ul>
+<p>The "structurally guarantees" half does the work. <code>int</code> structurally guarantees non-null (every integer is not null), so <code>int</code> refines <code>non-null mixed</code> even though <code>int</code> is not <code>mixed</code>.</p>
+<h2 id="axes-on-mixed"><a class="header" href="#axes-on-mixed">Axes on <code>mixed</code></a></h2>
+<p>Four axes:</p>
+<div class="table-wrapper"><table><thead><tr><th>Axis</th><th>PHP-side</th><th>Refinement</th></tr></thead><tbody>
+<tr><td>non-null</td><td><code>non-null mixed</code></td><td>The value is not <code>null</code>.</td></tr>
+<tr><td>truthy</td><td><code>truthy mixed</code></td><td>The value is truthy at runtime.</td></tr>
+<tr><td>falsy</td><td><code>falsy mixed</code></td><td>The value is falsy at runtime.</td></tr>
+<tr><td>empty</td><td>analyser-internal</td><td>The value is <code>falsy</code> (paired with the <code>falsy</code> truthiness).</td></tr>
+<tr><td>isset-from-loop</td><td>analyser-internal</td><td>The value flowed through a loop body.</td></tr>
+</tbody></table>
+</div>
+<p>Combinations are valid. A <code>truthy</code> value cannot be <code>null</code> (PHP), so <code>truthy mixed</code> already implies <code>non-null</code>.</p>
+<h3 id="structural-implications"><a class="header" href="#structural-implications">Structural implications</a></h3>
+<p>What other types satisfy each axis:</p>
+<ul>
+<li><strong>non-null</strong> is implied by every form except <code>null</code>, <code>void</code>, and <code>mixed</code> without the non-null axis. So <code>int</code>, <code>string</code>, <code>Foo</code>, <code>array</code>, <code>list&lt;int&gt;</code>, <code>resource</code>, <code>callable</code> all refine <code>non-null mixed</code>.</li>
+<li><strong>truthy</strong> is implied by:
+<ul>
+<li><code>true</code></li>
+<li>any object (objects are truthy in PHP)</li>
+<li>any resource</li>
+<li>non-zero integer literals; integer ranges that exclude 0</li>
+<li>non-zero float literals</li>
+<li>string literals that are not <code>""</code> or <code>"0"</code></li>
+<li><code>truthy-string</code> and <code>non-empty-string</code> (with the truthy axis explicitly set)</li>
+<li><code>non-empty-array</code>, <code>non-empty-list</code></li>
+</ul>
+</li>
+<li><strong>falsy</strong> is implied by:
+<ul>
+<li><code>false</code>, <code>null</code>, <code>void</code></li>
+<li><code>0</code>, <code>0.0</code> (and <code>-0.0</code>)</li>
+<li><code>""</code> and <code>"0"</code></li>
+<li>the empty array, the empty list</li>
+</ul>
+</li>
+<li><strong>empty</strong> is the same as <strong>falsy</strong> for refinement purposes.</li>
+<li><strong>isset-from-loop</strong> propagates only on <code>mixed</code> itself; no other form structurally implies it.</li>
+</ul>
+<h2 id="axes-on-string"><a class="header" href="#axes-on-string">Axes on <code>string</code></a></h2>
+<p>Five axes:</p>
+<div class="table-wrapper"><table><thead><tr><th>Axis</th><th>PHP-side</th><th>Refinement</th></tr></thead><tbody>
+<tr><td>non-empty</td><td><code>non-empty-string</code></td><td>Length ≥ 1.</td></tr>
+<tr><td>truthy</td><td><code>truthy-string</code></td><td>Truthy at runtime (excludes <code>""</code> and <code>"0"</code>).</td></tr>
+<tr><td>lowercase</td><td><code>lowercase-string</code></td><td>Every character is lowercase.</td></tr>
+<tr><td>uppercase</td><td><code>uppercase-string</code></td><td>Every character is uppercase.</td></tr>
+<tr><td>numeric</td><td><code>numeric-string</code></td><td>Parses as int or float.</td></tr>
+</tbody></table>
+</div>
+<p>Combinations are valid: <code>non-empty-lowercase-string</code> carries both axes.</p>
+<p>Refinement direction: more axes = stricter. <code>non-empty-lowercase-string</code> refines <code>non-empty-string</code>, <code>lowercase-string</code>, and <code>string</code>. The same rule as for <code>mixed</code>: every axis the container constrains must be carried by the input.</p>
+<h3 id="structural-implications-1"><a class="header" href="#structural-implications-1">Structural implications</a></h3>
+<p>A string literal carries every axis it satisfies:</p>
+<ul>
+<li>non-empty iff the literal is not <code>""</code>.</li>
+<li>truthy iff the literal is not <code>""</code> and not <code>"0"</code>.</li>
+<li>lowercase iff every character is lowercase.</li>
+<li>uppercase iff every character is uppercase.</li>
+<li>numeric iff the literal parses as an int or float.</li>
+</ul>
+<h2 id="axes-on-resources"><a class="header" href="#axes-on-resources">Axes on resources</a></h2>
+<p><code>resource</code> carries two refinements:</p>
+<ul>
+<li><strong>state</strong> — <code>Open</code>, <code>Closed</code>, or unspecified.</li>
+<li><strong>kind</strong> — an optional named kind (<code>curl</code>, <code>gd image</code>, ...).</li>
+</ul>
+<p>Subtyping is the conjunction: state must match (or be unspecified on the container) and kind must match (or be unspecified on the container). See <a href="./resources.html">resources</a>.</p>
+<h2 id="axes-on-objects"><a class="header" href="#axes-on-objects">Axes on objects</a></h2>
+<p>A named class carries three modality flags:</p>
+<ul>
+<li><strong><code>$this</code></strong> — the object is exactly the receiver.</li>
+<li><strong><code>static</code></strong> — the object is the late-static class.</li>
+<li>A class can be analyser-known <strong><code>final</code></strong>; the universe does not flag this on the type itself but the lattice consults the analyser at refinement time.</li>
+</ul>
+<p><code>$this</code> implies <code>static</code>. The modality check at refinement time:</p>
+<ul>
+<li>A container marked <code>$this</code> accepts only <code>$this</code> inputs.</li>
+<li>A container marked <code>static</code> accepts <code>static</code> or <code>$this</code> inputs.</li>
+<li>A plain <code>Foo</code> accepts any of the above.</li>
+</ul>
+<p>A structural object shape carries <code>sealed</code> as its main axis (see <a href="./objects.html">objects</a>).</p>
+<h2 id="axes-on-arrays-and-lists"><a class="header" href="#axes-on-arrays-and-lists">Axes on arrays and lists</a></h2>
+<p>Both kinds carry:</p>
+<ul>
+<li><strong>non-empty</strong> — at least one entry.</li>
+<li><strong>sealed</strong> — the shape commits to having no entries beyond those listed.</li>
+</ul>
+<p>Both follow the standard "more axes = stricter" rule.</p>
+<h2 id="why-axes-not-wrappers"><a class="header" href="#why-axes-not-wrappers">Why axes, not wrappers</a></h2>
+<p>A natural alternative would be to wrap a type in a refining wrapper: an outer "non-null" wrapping a <code>mixed</code>. Suffete uses axes for two reasons:</p>
+<ol>
+<li><strong>No rule duplication.</strong> With axes attached to the type, the rule for "does this axis hold?" lives in one place. With wrappers, every other type would need to know how to interact with the wrapper.</li>
+<li><strong>Compactness.</strong> A <code>non-null truthy lowercase string</code> is one type carrying three bits, not a chain of three nested wrappings.</li>
+</ol>
+<p>The trade-off is that the forms carrying axes have more elaborate rules. Those rules are tested against the algebraic-law battery (<a href="../lattice/laws.html">laws</a>) so the elaboration does not introduce soundness drift.</p>
+<h2 id="a-worked-example"><a class="header" href="#a-worked-example">A worked example</a></h2>
+<p>The PHP type <code>truthy lowercase non-empty-string</code> carries three string axes: non-empty, truthy, and lowercase.</p>
+<p>Refinement:</p>
+<ul>
+<li>The literal <code>"foo"</code> refines it ; <code>"foo"</code> is non-empty, truthy, and lowercase.</li>
+<li><code>"FOO"</code> does not — fails lowercase.</li>
+<li><code>""</code> does not — fails non-empty and truthy.</li>
+<li><code>"0"</code> does not — fails truthy.</li>
+<li><code>non-empty-string</code> (only one axis) does not — missing lowercase and truthy.</li>
+<li><code>lowercase-string</code> (only one axis) does not — missing non-empty and truthy.</li>
+</ul>
+<blockquote>
+<p><strong>See also:</strong> <a href="./scalars.html">scalars</a> for the string family in full; <a href="./special.html">special elements</a> for the mixed axes; <a href="../lattice/refines.html">refines</a> for the per-axis lattice rules.</p>
+</blockquote>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../universe/class-like-string.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../universe/wrappers.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../universe/class-like-string.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../universe/wrappers.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../theme/mathjax.js"></script>
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>

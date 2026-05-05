@@ -1,0 +1,349 @@
+<!DOCTYPE HTML>
+<html lang="en" class="ayu" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Predicates: is_X, contains_X, and friends - The Suffete Book</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="A standalone PHP type system for static analysis: representation, comparison, and the operations that move types around the lattice.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/custom.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "ayu" : "ayu";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('ayu')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../introduction.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Part I — Foundations</li><li class="chapter-item expanded "><a href="../foundations/what-is-suffete.html"><strong aria-hidden="true">1.</strong> What suffete is</a></li><li class="chapter-item expanded "><a href="../foundations/why.html"><strong aria-hidden="true">2.</strong> Why a separate type system</a></li><li class="chapter-item expanded "><a href="../foundations/quick-tour.html"><strong aria-hidden="true">3.</strong> Quick tour</a></li><li class="chapter-item expanded "><a href="../foundations/glossary.html"><strong aria-hidden="true">4.</strong> Glossary and notation</a></li><li class="chapter-item expanded affix "><li class="part-title">Part II — The Type Universe</li><li class="chapter-item expanded "><a href="../universe/elements.html"><strong aria-hidden="true">5.</strong> Elements: the indivisible types</a></li><li class="chapter-item expanded "><a href="../universe/scalars.html"><strong aria-hidden="true">6.</strong> Scalars</a></li><li class="chapter-item expanded "><a href="../universe/special.html"><strong aria-hidden="true">7.</strong> Special elements</a></li><li class="chapter-item expanded "><a href="../universe/objects.html"><strong aria-hidden="true">8.</strong> Objects, enums, and structural object types</a></li><li class="chapter-item expanded "><a href="../universe/arrays.html"><strong aria-hidden="true">9.</strong> Arrays and lists</a></li><li class="chapter-item expanded "><a href="../universe/iterables-callables.html"><strong aria-hidden="true">10.</strong> Iterables and callables</a></li><li class="chapter-item expanded "><a href="../universe/resources.html"><strong aria-hidden="true">11.</strong> Resources</a></li><li class="chapter-item expanded "><a href="../universe/class-like-string.html"><strong aria-hidden="true">12.</strong> Class-like strings</a></li><li class="chapter-item expanded "><a href="../universe/refinements.html"><strong aria-hidden="true">13.</strong> Refinement axes</a></li><li class="chapter-item expanded "><a href="../universe/wrappers.html"><strong aria-hidden="true">14.</strong> Wrappers: Negated and Intersected</a></li><li class="chapter-item expanded "><a href="../universe/unresolved.html"><strong aria-hidden="true">15.</strong> Unresolved elements</a></li><li class="chapter-item expanded "><a href="../universe/templates.html"><strong aria-hidden="true">16.</strong> Templates and generic parameters</a></li><li class="chapter-item expanded affix "><li class="part-title">Part III — The Lattice</li><li class="chapter-item expanded "><a href="../lattice/refines.html"><strong aria-hidden="true">17.</strong> Subtyping: refines</a></li><li class="chapter-item expanded "><a href="../lattice/overlaps.html"><strong aria-hidden="true">18.</strong> Overlap and disjointness</a></li><li class="chapter-item expanded "><a href="../lattice/meet.html"><strong aria-hidden="true">19.</strong> Greatest lower bound: meet</a></li><li class="chapter-item expanded "><a href="../lattice/join.html"><strong aria-hidden="true">20.</strong> Least upper bound: join</a></li><li class="chapter-item expanded "><a href="../lattice/subtract.html"><strong aria-hidden="true">21.</strong> Set difference: subtract</a></li><li class="chapter-item expanded "><a href="../lattice/narrow.html"><strong aria-hidden="true">22.</strong> Narrowing under assertions</a></li><li class="chapter-item expanded "><a href="../lattice/laws.html"><strong aria-hidden="true">23.</strong> Soundness: the algebraic laws</a></li><li class="chapter-item expanded affix "><li class="part-title">Part IV — Generics</li><li class="chapter-item expanded "><a href="../generics/templates.html"><strong aria-hidden="true">24.</strong> Template parameters in depth</a></li><li class="chapter-item expanded "><a href="../generics/variance.html"><strong aria-hidden="true">25.</strong> Variance</a></li><li class="chapter-item expanded "><a href="../generics/substitute.html"><strong aria-hidden="true">26.</strong> Substitution</a></li><li class="chapter-item expanded "><a href="../generics/standin.html"><strong aria-hidden="true">27.</strong> Inference: standin and infer</a></li><li class="chapter-item expanded "><a href="../generics/specialise.html"><strong aria-hidden="true">28.</strong> Inheritance specialisation</a></li><li class="chapter-item expanded affix "><li class="part-title">Part V — Public API</li><li class="chapter-item expanded "><a href="../api/handles.html"><strong aria-hidden="true">29.</strong> TypeId, ElementId, and identity</a></li><li class="chapter-item expanded "><a href="../api/construction.html"><strong aria-hidden="true">30.</strong> Constructing types: TypeBuilder and prelude</a></li><li class="chapter-item expanded "><a href="../api/predicates.html" class="active"><strong aria-hidden="true">31.</strong> Predicates: is_X, contains_X, and friends</a></li><li class="chapter-item expanded "><a href="../api/inspect.html"><strong aria-hidden="true">32.</strong> Inspection: walking the tree</a></li><li class="chapter-item expanded "><a href="../api/transform.html"><strong aria-hidden="true">33.</strong> Transformation: map, flat_map, filter</a></li><li class="chapter-item expanded "><a href="../api/world.html"><strong aria-hidden="true">34.</strong> Hierarchy and World</a></li><li class="chapter-item expanded "><a href="../api/cast-compatibility.html"><strong aria-hidden="true">35.</strong> Casting and runtime compatibility</a></li><li class="chapter-item expanded "><a href="../api/expand.html"><strong aria-hidden="true">36.</strong> Expansion: resolving unresolved elements</a></li><li class="chapter-item expanded "><a href="../api/serialize.html"><strong aria-hidden="true">37.</strong> Serialization</a></li><li class="chapter-item expanded affix "><li class="part-title">Part VI — Cookbook</li><li class="chapter-item expanded "><a href="../cookbook/subtype-question.html"><strong aria-hidden="true">38.</strong> Answering "is A a subtype of B?"</a></li><li class="chapter-item expanded "><a href="../cookbook/union.html"><strong aria-hidden="true">39.</strong> Building a union from scratch</a></li><li class="chapter-item expanded "><a href="../cookbook/instanceof-narrow.html"><strong aria-hidden="true">40.</strong> Narrowing a parameter type from instanceof</a></li><li class="chapter-item expanded "><a href="../cookbook/generic-instance.html"><strong aria-hidden="true">41.</strong> Resolving a generic class against an instance</a></li><li class="chapter-item expanded "><a href="../cookbook/find-classes.html"><strong aria-hidden="true">42.</strong> Walking a type to find every class name</a></li><li class="chapter-item expanded affix "><li class="part-title">Part VII — Internals (optional reading)</li><li class="chapter-item expanded "><a href="../internals/interner.html"><strong aria-hidden="true">43.</strong> Interning and the arenas</a></li><li class="chapter-item expanded "><a href="../internals/element-id-layout.html"><strong aria-hidden="true">44.</strong> The ElementId tag layout</a></li><li class="chapter-item expanded "><a href="../internals/simd.html"><strong aria-hidden="true">45.</strong> SIMD scans</a></li><li class="chapter-item expanded "><a href="../internals/performance.html"><strong aria-hidden="true">46.</strong> Performance philosophy</a></li><li class="chapter-item expanded affix "><li class="part-title">Part VIII — Reference</li><li class="chapter-item expanded "><a href="../reference/element-kinds.html"><strong aria-hidden="true">47.</strong> Element kinds</a></li><li class="chapter-item expanded "><a href="../reference/options-reports.html"><strong aria-hidden="true">48.</strong> Lattice options and reports</a></li><li class="chapter-item expanded "><a href="../reference/prelude.html"><strong aria-hidden="true">49.</strong> Prelude constants</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../contributing.html">Contributing</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Suffete Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/carthage-software/suffete" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/carthage-software/suffete/edit/main/book/src/api/predicates.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="predicates-is_x-contains_x-and-friends"><a class="header" href="#predicates-is_x-contains_x-and-friends">Predicates: is_X, contains_X, and friends</a></h1>
+<p>The <code>predicates</code> module is the place for <em>single-call</em> structural questions about a <code>TypeId</code>. Each predicate answers one question and returns a <code>bool</code>. They are pure — no <code>World</code>, no options, no report.</p>
+<pre><code class="language-rust ignore">use suffete::predicates::{
+    is_int, is_string, is_truthy, contains_null, is_singleton, is_constant_foldable,
+    contains_template_anywhere, is_fully_resolved,
+};</code></pre>
+<p>This chapter walks through the naming conventions, the families, and the cost model.</p>
+<h2 id="naming-conventions"><a class="header" href="#naming-conventions">Naming conventions</a></h2>
+<p>The predicate names follow a strict scheme:</p>
+<ul>
+<li><strong><code>is_X(ty)</code></strong> — <em>guaranteed</em>: every Element of <code>ty</code> is in family <code>X</code>. Conservative: <code>false</code> when any Element is outside <code>X</code>, including for <code>never</code> (the all-bottom type).</li>
+<li><strong><code>contains_X(ty)</code></strong> — <em>possible at the top level</em>: at least one top-level Element of <code>ty</code> is in family <code>X</code>.</li>
+<li><strong><code>is_truthy(ty)</code> / <code>is_falsy(ty)</code></strong> — every Element guaranteed truthy / falsy at runtime.</li>
+<li><strong><code>could_be_truthy(ty)</code> / <code>could_be_falsy(ty)</code></strong> — at least one Element could be truthy / falsy.</li>
+<li><strong><code>*_anywhere(ty)</code></strong> — recurses into every nested-type carrier (object args, list element types, callable signatures, etc.). Use these for "does this tree contain any unresolved Element?" or "is there a free template anywhere?".</li>
+</ul>
+<p><code>is_X</code> is <em>false on <code>never</code></em>: <code>is_int(TYPE_NEVER) = false</code>, because the empty type contains no <code>Int</code> Elements (vacuously, also no non-<code>Int</code> Elements). The conservative reading is what most analyser callers want; if you want vacuous-true, check <code>is_X(ty) || ty == TYPE_NEVER</code>.</p>
+<h2 id="kind-family-predicates"><a class="header" href="#kind-family-predicates">Kind-family predicates</a></h2>
+<p>For each PHP type family, an <code>is_X</code> and (where useful) a <code>contains_X</code>:</p>
+<div class="table-wrapper"><table><thead><tr><th><code>is_X</code></th><th><code>contains_X</code></th><th>Family</th></tr></thead><tbody>
+<tr><td><code>is_int</code></td><td><code>contains_int</code></td><td><code>Int</code></td></tr>
+<tr><td><code>is_float</code></td><td><code>contains_float</code></td><td><code>Float</code></td></tr>
+<tr><td><code>is_string</code></td><td><code>contains_string</code></td><td><code>String</code></td></tr>
+<tr><td><code>is_bool</code></td><td><code>contains_bool</code></td><td><code>Bool</code>, <code>True</code>, <code>False</code></td></tr>
+<tr><td><code>is_null</code></td><td><code>contains_null</code></td><td><code>Null</code></td></tr>
+<tr><td><code>is_void</code></td><td><code>contains_void</code></td><td><code>Void</code></td></tr>
+<tr><td><code>is_list</code></td><td>—</td><td><code>List</code></td></tr>
+<tr><td><code>is_keyed_array</code></td><td>—</td><td><code>Array</code></td></tr>
+<tr><td><code>is_array</code></td><td><code>contains_array</code></td><td><code>Array</code>, <code>List</code></td></tr>
+<tr><td><code>is_iterable</code></td><td><code>contains_iterable</code></td><td><code>Iterable</code> (the <code>Iterable</code> kind only ; not arrays/lists)</td></tr>
+<tr><td><code>is_object</code></td><td><code>contains_object</code></td><td><code>Object</code>, <code>Enum</code>, <code>ObjectShape</code>, <code>HasMethod</code>, <code>HasProperty</code>, <code>ObjectAny</code></td></tr>
+<tr><td><code>is_resource</code></td><td><code>contains_resource</code></td><td><code>Resource</code></td></tr>
+<tr><td><code>is_callable</code></td><td><code>contains_callable</code></td><td><code>Callable</code></td></tr>
+<tr><td><code>is_array_key</code></td><td>—</td><td><code>ArrayKey</code></td></tr>
+<tr><td><code>is_scalar</code></td><td>—</td><td><code>Scalar</code>, <code>Int</code>, <code>Float</code>, <code>String</code>, <code>Bool</code>, <code>True</code>, <code>False</code>, <code>ClassLikeString</code>, <code>Numeric</code>, <code>ArrayKey</code></td></tr>
+<tr><td><code>is_numeric</code></td><td>—</td><td><code>Numeric</code>, <code>Int</code>, <code>Float</code></td></tr>
+<tr><td>—</td><td><code>contains_mixed</code></td><td><code>Mixed</code></td></tr>
+</tbody></table>
+</div>
+<p><code>is_X</code> is <code>slice.iter().all(|e| e.kind() in family)</code>. <code>contains_X</code> is <code>slice.iter().any(|e| e.kind() in family)</code>. Single-kind versions of these (<code>is_int</code>, <code>contains_int</code>, etc.) route through SIMD-accelerated <a href="../internals/simd.html">scans</a>; multi-kind versions use the scalar matches.</p>
+<h2 id="truthiness-predicates"><a class="header" href="#truthiness-predicates">Truthiness predicates</a></h2>
+<pre><code class="language-rust ignore">is_truthy(ty)         // every Element guaranteed truthy
+is_falsy(ty)          // every Element guaranteed falsy
+could_be_truthy(ty)   // at least one Element could be truthy
+could_be_falsy(ty)    // at least one Element could be falsy</code></pre>
+<p>The <code>is_*</code> variants are vacuously <code>false</code> for <code>never</code>. The <code>could_be_*</code> variants are also <code>false</code> for <code>never</code> (no Elements, so no possibility).</p>
+<p>The truthiness implications are the same as the <a href="../universe/refinements.html">refinement axes</a> chapter: an Object is always truthy, an empty array is always falsy, <code>int(0)</code> is falsy, <code>int(7)</code> is truthy, <code>int&lt;-∞,-1&gt; | int&lt;1,∞&gt;</code> is truthy, an unconstrained <code>int</code> is <code>could_be</code> both, etc.</p>
+<h2 id="literal-predicates"><a class="header" href="#literal-predicates">Literal predicates</a></h2>
+<pre><code class="language-rust ignore">is_literal(ty)            // every Element is a literal-shaped value
+                          // (specific int/float/string literal, true, false, null, void)
+is_constant_foldable(ty)  // is_literal &amp;&amp; is_singleton
+                          // — most useful "can I constant-fold this?" check</code></pre>
+<p><code>is_literal</code> is true for types like <code>int(7)</code>, <code>"foo" | "bar"</code>, <code>true | false</code>, <code>int(0) | int(1)</code>. It is false for <code>int</code>, <code>non-empty-string</code>, <code>Foo</code>.</p>
+<p><code>is_constant_foldable</code> adds the singleton requirement: exactly one Element. Use this when the analyser wants to know whether the type can be replaced by a concrete value at this program point.</p>
+<h2 id="structural-predicates"><a class="header" href="#structural-predicates">Structural predicates</a></h2>
+<pre><code class="language-rust ignore">is_never(ty)         // ty == TYPE_NEVER
+is_mixed(ty)         // ty == TYPE_MIXED (vanilla, no narrowing)
+is_singleton(ty)     // exactly one Element
+is_union(ty)         // more than one Element</code></pre>
+<p><code>is_mixed</code> is the <em>vanilla</em> mixed test ; it returns <code>false</code> for narrowed mixed variants (<code>non-null mixed</code>, <code>truthy mixed</code>, etc.). To detect any mixed variant, use <code>contains_mixed</code>.</p>
+<h2 id="tree-walking-predicates"><a class="header" href="#tree-walking-predicates">Tree-walking predicates</a></h2>
+<p>Three predicates recurse into every nested-type carrier (using the <a href="./inspect.html">inspect</a> walker):</p>
+<pre><code class="language-rust ignore">contains_mixed_anywhere(ty)         // any Mixed (vanilla or narrowed) anywhere in the tree
+contains_template_anywhere(ty)      // any free GenericParameter anywhere
+contains_placeholder_anywhere(ty)   // any Placeholder anywhere
+contains_unresolved_anywhere(ty)    // Alias, Reference, MemberReference, GlobalReference, Conditional, Derived
+is_fully_resolved(ty)               // negation of contains_unresolved_anywhere</code></pre>
+<p>These are the predicates to call before invoking the lattice on a possibly-unresolved type. The lattice's contract is that it works on resolved inputs; the analyser checks <code>is_fully_resolved</code> and calls <a href="./expand.html"><code>expand</code></a> if not.</p>
+<h2 id="cost-model"><a class="header" href="#cost-model">Cost model</a></h2>
+<p>Predicates are cheap. The dispatch:</p>
+<ul>
+<li>The kind-family <code>is_X</code> / <code>contains_X</code> (single kind) variants use <a href="../internals/simd.html">SIMD scans</a> with thresholds — sub-nanosecond for short slices, <code>O(n / lane_width)</code> for long ones.</li>
+<li>The multi-kind variants (<code>is_bool</code>, <code>is_object</code>, etc.) use scalar <code>matches!</code> with early exit.</li>
+<li>The truthiness predicates iterate Elements once and dispatch per-kind. Per-kind cost is constant (one to three comparisons). Total cost is <code>O(n)</code>.</li>
+<li>The literal predicates iterate Elements once with a per-kind kind-only check. <code>O(n)</code>.</li>
+<li>The tree-walking <code>*_anywhere</code> predicates use the <a href="./inspect.html">inspect</a> walker with a short-circuiting predicate. Cost is <code>O(tree size)</code> worst case, but typical short-circuit on the first hit gives <code>O(small)</code> in practice.</li>
+</ul>
+<p>None of the predicates allocate. None take a <code>&amp;mut</code> argument. They are safe to call from any context.</p>
+<h2 id="a-worked-example"><a class="header" href="#a-worked-example">A worked example</a></h2>
+<pre><code class="language-rust ignore">use suffete::{TypeBuilder, prelude::{INT, STRING, NULL, TRUE}, ElementId};
+use suffete::predicates::{
+    is_int, is_string, is_singleton, contains_null, is_constant_foldable,
+    is_truthy, could_be_falsy,
+};
+
+let int_or_string = TypeBuilder::new().push(INT).push(STRING).build();
+assert!(!is_int(int_or_string));     // mixed kinds, not all int
+assert!(!is_string(int_or_string));  // ditto
+assert!(!is_singleton(int_or_string));
+assert!(!contains_null(int_or_string));
+
+let nullable_int = TypeBuilder::new().push(INT).push(NULL).build();
+assert!(contains_null(nullable_int));
+
+let lit = TypeBuilder::new().push(ElementId::int_literal(7)).build();
+assert!(is_singleton(lit));
+assert!(is_constant_foldable(lit));
+assert!(is_truthy(lit));         // 7 is truthy
+assert!(!could_be_falsy(lit));   // 7 is never falsy
+
+let true_t = TypeBuilder::new().push(TRUE).build();
+assert!(is_truthy(true_t));</code></pre>
+<h2 id="when-you-need-more-than-a-predicate"><a class="header" href="#when-you-need-more-than-a-predicate">When you need more than a predicate</a></h2>
+<p>Predicates answer <em>single</em> yes/no questions. For:</p>
+<ul>
+<li>"Walk the type and collect data" → use <a href="./inspect.html">inspect</a>.</li>
+<li>"Walk the type and produce a new type" → use <a href="./transform.html">transform</a>.</li>
+<li>"Compare two types" → use the <a href="../lattice/refines.html">lattice</a> operations.</li>
+</ul>
+<blockquote>
+<p><strong>See also:</strong> <a href="./inspect.html">Inspection: walking the tree</a> for the underlying walker the <code>*_anywhere</code> predicates use; <a href="../universe/refinements.html">Refinement axes</a> for the truthiness rules; <a href="../universe/special.html">Special elements</a> for the landmark Elements (<code>is_never</code>, <code>is_mixed</code>).</p>
+</blockquote>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../api/construction.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../api/inspect.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../api/construction.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../api/inspect.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../theme/mathjax.js"></script>
+        <script src="../mermaid.min.js"></script>
+        <script src="../mermaid-init.js"></script>
+
+
+    </div>
+    </body>
+</html>
