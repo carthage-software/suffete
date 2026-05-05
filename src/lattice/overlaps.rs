@@ -42,10 +42,12 @@ use crate::element::payload::ObjectInfo;
 use crate::element::payload::Truthiness;
 use crate::element::payload::scalar::IntInfo;
 use crate::interner::interner;
+use crate::lattice;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::family::mixed as mixed_family;
 use crate::lattice::refines::element_refines;
+use crate::prelude;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
 use crate::prelude::PLACEHOLDER;
@@ -130,7 +132,7 @@ fn element_overlaps<W: World>(
         let neg_info = *i.get_negated(negated);
         let other_t = i.intern_type(&[other], FlowFlags::EMPTY);
         let surviving = crate::subtract::compute(other_t, neg_info.inner, world, options, report);
-        return surviving != crate::prelude::TYPE_NEVER;
+        return surviving != prelude::TYPE_NEVER;
     }
 
     if a.kind() == ElementKind::Intersected {
@@ -299,10 +301,7 @@ fn object_overlap<W: World>(
             let a_supplied = i.get_type_list(a_args_id);
             let b_supplied = i.get_type_list(b_args_id);
             let fill = |idx: usize| -> TypeId {
-                world
-                    .template_parameter_at(a_info.name, idx)
-                    .and_then(|p| p.upper_bound)
-                    .unwrap_or(crate::prelude::TYPE_MIXED)
+                world.template_parameter_at(a_info.name, idx).and_then(|p| p.upper_bound).unwrap_or(prelude::TYPE_MIXED)
             };
             for idx in 0..arity {
                 let a_arg = a_supplied.get(idx).copied().unwrap_or_else(|| fill(idx));
@@ -311,8 +310,8 @@ fn object_overlap<W: World>(
                     world.template_parameter_at(a_info.name, idx).map_or(Variance::Invariant, |t| t.variance);
                 match variance {
                     Variance::Invariant => {
-                        let a_refines_b = crate::lattice::refines(a_arg, b_arg, world, options, report);
-                        let b_refines_a = crate::lattice::refines(b_arg, a_arg, world, options, report);
+                        let a_refines_b = lattice::refines(a_arg, b_arg, world, options, report);
+                        let b_refines_a = lattice::refines(b_arg, a_arg, world, options, report);
                         if !a_refines_b || !b_refines_a {
                             return false;
                         }
@@ -394,11 +393,11 @@ fn descendant_args_satisfy_ancestor<W: World>(
             .unwrap_or_default();
         let compatible = match variance {
             Variance::Invariant => {
-                crate::lattice::refines(resolved, ancestor_arg, world, options, report)
-                    && crate::lattice::refines(ancestor_arg, resolved, world, options, report)
+                lattice::refines(resolved, ancestor_arg, world, options, report)
+                    && lattice::refines(ancestor_arg, resolved, world, options, report)
             }
-            Variance::Covariant => crate::lattice::refines(resolved, ancestor_arg, world, options, report),
-            Variance::Contravariant => crate::lattice::refines(ancestor_arg, resolved, world, options, report),
+            Variance::Covariant => lattice::refines(resolved, ancestor_arg, world, options, report),
+            Variance::Contravariant => lattice::refines(ancestor_arg, resolved, world, options, report),
         };
         if !compatible {
             return false;
@@ -462,6 +461,13 @@ fn list_uninhabited<W: World>(info: &ListInfo, intersections: Option<ElementList
 
 #[inline]
 fn array_uninhabited<W: World>(info: &KeyedArrayInfo, intersections: Option<ElementListId>, world: &W) -> bool {
+    if let Some(key_t) = info.key_param {
+        let int_or_string = interner().intern_type(&[prelude::INT, prelude::STRING], FlowFlags::EMPTY);
+        if !lattice::overlaps(key_t, int_or_string, world, LatticeOptions::default(), &mut LatticeReport::new()) {
+            return true;
+        }
+    }
+
     if info.flags.non_empty() {
         let key_empty = info.key_param.is_some_and(|t| type_is_value_never(t, world));
         let value_empty = info.value_param.is_some_and(|t| type_is_value_never(t, world));
@@ -507,13 +513,7 @@ fn object_uninhabited<W: World>(info: &ObjectInfo, intersections: Option<Element
             for &class in &classes {
                 let bare = i.intern_object(ObjectInfo { name: class, type_args: None, flags: ObjectFlags::default() });
                 let bare_t = i.intern_type(&[bare], FlowFlags::EMPTY);
-                if crate::lattice::refines(
-                    bare_t,
-                    neg_inner,
-                    world,
-                    LatticeOptions::default(),
-                    &mut LatticeReport::new(),
-                ) {
+                if lattice::refines(bare_t, neg_inner, world, LatticeOptions::default(), &mut LatticeReport::new()) {
                     return true;
                 }
             }
@@ -607,7 +607,7 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
 /// container element types.
 #[inline]
 pub(crate) fn type_is_value_never<W: World>(t: TypeId, world: &W) -> bool {
-    if t == crate::prelude::TYPE_NEVER {
+    if t == prelude::TYPE_NEVER {
         return true;
     }
     let elements = t.as_ref().elements;
@@ -635,11 +635,8 @@ fn intersected_negated_contradiction<W: World>(
             non_negated.push(c);
         }
     }
-    let positive_elem = if non_negated.is_empty() {
-        head
-    } else {
-        ElementId::intersected(head, &non_negated)
-    };
+
+    let positive_elem = if non_negated.is_empty() { head } else { ElementId::intersected(head, &non_negated) };
     let positive_t = i.intern_type(&[positive_elem], FlowFlags::EMPTY);
 
     for &c in conjuncts {
@@ -647,7 +644,7 @@ fn intersected_negated_contradiction<W: World>(
             continue;
         }
         let inner = i.get_negated(c).inner;
-        if crate::lattice::refines(positive_t, inner, world, LatticeOptions::default(), &mut LatticeReport::new()) {
+        if lattice::refines(positive_t, inner, world, LatticeOptions::default(), &mut LatticeReport::new()) {
             return true;
         }
     }
@@ -709,7 +706,7 @@ fn list_array_intersections_uninhabited_components<W: World>(
         if conjunct.kind() == ElementKind::Negated {
             let neg_inner = i.get_negated(conjunct).inner;
             let mut report = LatticeReport::new();
-            if crate::lattice::refines(stripped_t, neg_inner, world, opts, &mut report) {
+            if lattice::refines(stripped_t, neg_inner, world, opts, &mut report) {
                 return true;
             }
         }
@@ -762,8 +759,8 @@ fn iterable_array_overlap<W: World>(
     if !arr_info.flags.non_empty() {
         return true;
     }
-    let arr_key = arr_info.key_param.unwrap_or(crate::prelude::TYPE_ARRAY_KEY);
-    let arr_value = arr_info.value_param.unwrap_or(crate::prelude::TYPE_MIXED);
+    let arr_key = arr_info.key_param.unwrap_or(prelude::TYPE_ARRAY_KEY);
+    let arr_value = arr_info.value_param.unwrap_or(prelude::TYPE_MIXED);
     overlaps(it_info.key_type, arr_key, world, options, report)
         && overlaps(it_info.value_type, arr_value, world, options, report)
 }
@@ -788,7 +785,7 @@ fn iterable_list_overlap<W: World>(
     let it_info = *i.get_iterable(it_atom);
     let list_info = *i.get_list(list_atom);
 
-    if !crate::lattice::refines(crate::prelude::TYPE_INT, it_info.key_type, world, options, report) {
+    if !lattice::refines(prelude::TYPE_INT, it_info.key_type, world, options, report) {
         return false;
     }
     if !list_info.flags.non_empty() {
@@ -814,11 +811,11 @@ fn list_array_overlap<W: World>(
         return true;
     }
     if let Some(array_key_param) = array_info.key_param
-        && !crate::lattice::refines(crate::prelude::TYPE_INT, array_key_param, world, options, report)
+        && !lattice::refines(prelude::TYPE_INT, array_key_param, world, options, report)
     {
         return false;
     }
-    let array_value = array_info.value_param.unwrap_or(crate::prelude::TYPE_MIXED);
+    let array_value = array_info.value_param.unwrap_or(prelude::TYPE_MIXED);
     overlaps(list_info.element_type, array_value, world, options, report)
 }
 

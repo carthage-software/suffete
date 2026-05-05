@@ -212,12 +212,26 @@ fn intersected_partition_covers<W: World>(
         }
 
         let info = *i.get_intersected(c);
+        // Build the positive side S = Intersected(H, non-negated conjuncts).
+        let mut non_negated: Vec<ElementId> = Vec::new();
+        for &cj in i.get_element_list(info.conjuncts) {
+            if cj.kind() != ElementKind::Negated {
+                non_negated.push(cj);
+            }
+        }
+        let positive_elem =
+            if non_negated.is_empty() { info.head } else { ElementId::intersected(info.head, &non_negated) };
+
         for &cj in i.get_element_list(info.conjuncts) {
             if cj.kind() != ElementKind::Negated {
                 continue;
             }
 
             let inner = i.get_negated(cj).inner;
+            // S ∩ X  (the positive side narrowed by the negated's inner)
+            let s_meet_x =
+                crate::meet::compute(i.intern_type(&[positive_elem], FlowFlags::EMPTY), inner, world, options, report);
+
             let has_matching = containers.iter().enumerate().any(|(j, &other)| {
                 if j == idx {
                     return false;
@@ -234,7 +248,7 @@ fn intersected_partition_covers<W: World>(
                 }
 
                 let other_t = i.intern_type(&[other], FlowFlags::EMPTY);
-                refines(inner, other_t, world, options, report)
+                refines(s_meet_x, other_t, world, options, report)
             });
 
             if has_matching {

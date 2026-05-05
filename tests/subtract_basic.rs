@@ -14,6 +14,7 @@ mod comparator_common;
 
 use comparator_common::*;
 
+use suffete::ElementId;
 use suffete::TypeId;
 use suffete::lattice::LatticeOptions;
 use suffete::lattice::LatticeReport;
@@ -313,4 +314,72 @@ fn same_template_minus_same_template_with_subset_constraint_is_impossible() {
     let lhs = u(t_template_of("C", "T", u(t_int())));
     let rhs = u(t_template_of("C", "T", prelude::TYPE_MIXED));
     assert_eq!(subtract_of(lhs, rhs, &cb), prelude::TYPE_NEVER);
+}
+
+#[test]
+fn class_string_minus_interface_string_narrows_to_intersected() {
+    let w = empty_world();
+    let a = TypeId::union(&[prelude::CLASS_STRING, prelude::INT]);
+    let c = TypeId::union(&[prelude::INTERFACE_STRING]);
+
+    let a_sub_c = subtract_of(a, c, &w);
+
+    assert_ne!(a_sub_c, a, "class-string \\ interface-string must narrow");
+    assert!(a_sub_c.as_ref().elements.contains(&prelude::INT));
+}
+
+#[test]
+fn array_minus_list_removes_empty_array() {
+    let w = empty_world();
+    let arr = ElementId::keyed_unsealed(prelude::TYPE_INT, prelude::TYPE_INT, false);
+    let lst = ElementId::list(prelude::TYPE_NULL, false);
+    let a = TypeId::union(&[arr]);
+
+    let minus_result = subtract_of(a, TypeId::union(&[lst]), &w);
+    let elements = minus_result.as_ref().elements;
+    assert_eq!(elements.len(), 1, "should have one element");
+
+    let i = suffete::interner::interner();
+    let head_elem = if elements[0].kind() == suffete::ElementKind::Intersected {
+        i.get_intersected(elements[0]).head
+    } else {
+        elements[0]
+    };
+    let info = *i.get_array(head_elem);
+    assert!(info.flags.non_empty(), "result should be non-empty-array");
+}
+
+#[test]
+fn list_minus_array_removes_empty_when_array_allows_empty() {
+    let w = empty_world();
+    let lst = ElementId::list(prelude::TYPE_NULL, false);
+    let arr = ElementId::keyed_unsealed(prelude::TYPE_INT, prelude::TYPE_INT, false);
+    let a = TypeId::union(&[lst]);
+
+    let minus_result = subtract_of(a, TypeId::union(&[arr]), &w);
+    let elements = minus_result.as_ref().elements;
+    assert_eq!(elements.len(), 1, "should have one element");
+
+    let i = suffete::interner::interner();
+    let head_elem = if elements[0].kind() == suffete::ElementKind::Intersected {
+        i.get_intersected(elements[0]).head
+    } else {
+        elements[0]
+    };
+
+    let info = *i.get_list(head_elem);
+    assert!(info.flags.non_empty(), "result should be non-empty-list");
+}
+
+#[test]
+fn uninhabited_array_lhs_subtract_is_never() {
+    let w = empty_world();
+    let obj = ElementId::object_named("A");
+    let key_type = TypeId::singleton(obj);
+    let arr = ElementId::keyed_unsealed(key_type, prelude::TYPE_INT, false);
+    let a = TypeId::union(&[arr]);
+    let b = TypeId::union(&[prelude::INT, prelude::STRING]);
+
+    let result = subtract_of(a, b, &w);
+    assert_eq!(result, prelude::TYPE_NEVER, "uninhabited array should subtract to never");
 }

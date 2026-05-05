@@ -192,3 +192,61 @@ fn class_like_string_meet_string_picks_class_like_string() {
     let s = prelude::TYPE_STRING;
     assert_eq!(meet_of(cls, s, &cb), cls);
 }
+
+#[test]
+fn non_empty_lowercase_meet_non_empty_uppercase_is_never() {
+    let cb = empty_world();
+    let i = suffete::interner::interner();
+    use suffete::element::payload::scalar::StringCasing;
+    use suffete::element::payload::scalar::StringInfo;
+    use suffete::element::payload::scalar::StringLiteral;
+    use suffete::element::payload::scalar::StringRefinementFlags;
+    let nel = StringInfo {
+        literal: StringLiteral::None,
+        casing: StringCasing::Lowercase,
+        flags: StringRefinementFlags::EMPTY.with_is_non_empty(true),
+    };
+    let neu = StringInfo {
+        literal: StringLiteral::None,
+        casing: StringCasing::Uppercase,
+        flags: StringRefinementFlags::EMPTY.with_is_non_empty(true),
+    };
+    let a = TypeId::singleton(i.intern_string(nel));
+    let b = TypeId::singleton(i.intern_string(neu));
+
+    assert_eq!(meet_of(a, b, &cb), prelude::TYPE_NEVER);
+}
+
+#[test]
+fn plain_lowercase_meet_uppercase_is_empty_string() {
+    let cb = empty_world();
+    let a = TypeId::union(&[prelude::LOWERCASE_STRING]);
+    let b = TypeId::union(&[prelude::UPPERCASE_STRING]);
+    let m = meet_of(a, b, &cb);
+    assert_eq!(m, TypeId::string_literal(""));
+}
+
+#[test]
+fn intersected_partition_cover_with_shared_head() {
+    use suffete::ElementId;
+
+    let a = ElementId::object_named("A");
+    let d = ElementId::object_named("D");
+    let e = ElementId::object_named("E");
+
+    let a_d = ElementId::intersected(a, &[d]);
+    let a_e = ElementId::intersected(a, &[e]);
+    let a_d_e = ElementId::intersected(a, &[d, e]);
+
+    let neg_a_e = ElementId::negated(TypeId::singleton(a_e));
+    let s = ElementId::intersected(a_d, &[neg_a_e]);
+
+    let union = TypeId::union(&[s, a_d_e]);
+
+    let a_d_type = TypeId::singleton(a_d);
+    let mut report = LatticeReport::new();
+    assert!(
+        refines(a_d_type, union, &empty_world(), LatticeOptions::default(), &mut report),
+        "A&D should refin (A&D & !(A&E)) | (A&D&E)"
+    );
+}

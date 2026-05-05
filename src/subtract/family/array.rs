@@ -65,10 +65,6 @@ fn empty_array(i: &crate::interner::Interner) -> ElementId {
 pub(in crate::subtract) fn array_minus_iterable(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
     let i = interner();
     let a_info = *i.get_array(a);
-    if a_info.flags.non_empty() {
-        return None;
-    }
-
     if a_info.known_items.is_some() {
         return None;
     }

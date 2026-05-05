@@ -47,11 +47,16 @@ use crate::ElementId;
 use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
+use crate::element::payload::KeyedArrayInfo;
+use crate::element::payload::ListInfo;
 use crate::interner::interner;
+use crate::lattice;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::overlaps;
 use crate::lattice::refines;
+use crate::meet;
+use crate::prelude;
 use crate::prelude::FALSE;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
@@ -59,6 +64,16 @@ use crate::prelude::NON_NULL_MIXED;
 use crate::prelude::NULL;
 use crate::prelude::TRUE;
 use crate::prelude::TYPE_NEVER;
+use crate::subtract::family::array;
+use crate::subtract::family::callable;
+use crate::subtract::family::dominator;
+use crate::subtract::family::generic;
+use crate::subtract::family::has_member;
+use crate::subtract::family::int;
+use crate::subtract::family::iterable;
+use crate::subtract::family::list;
+use crate::subtract::family::object;
+use crate::subtract::family::string;
 use crate::world::World;
 
 /// Outcome of [`narrow`], classifying an assertion-driven difference.
@@ -227,11 +242,11 @@ pub(in crate::subtract) fn atom_minus<W: World>(
         return Vec::new();
     }
 
-    if crate::lattice::overlaps::is_uninhabited(b, world) {
+    if lattice::overlaps::is_uninhabited(b, world) {
         return vec![a];
     }
 
-    if crate::lattice::overlaps::is_uninhabited(a, world) {
+    if lattice::overlaps::is_uninhabited(a, world) {
         return Vec::new();
     }
 
@@ -258,13 +273,8 @@ pub(in crate::subtract) fn atom_minus<W: World>(
     // `!(T ∪ X)`. Routing here preserves the duality with meet.
     if b.kind() == ElementKind::Negated {
         let neg_info = *interner().get_negated(b);
-        let kept = crate::meet::compute(
-            interner().intern_type(&[a], FlowFlags::EMPTY),
-            neg_info.inner,
-            world,
-            options,
-            report,
-        );
+        let kept =
+            meet::compute(interner().intern_type(&[a], FlowFlags::EMPTY), neg_info.inner, world, options, report);
 
         return kept.as_ref().elements.to_vec();
     }
@@ -287,6 +297,11 @@ pub(in crate::subtract) fn atom_minus<W: World>(
         return vec![ElementId::negated(union_ty)];
     }
 
+    if a.kind() == ElementKind::ClassLikeString && b.kind() == ElementKind::ClassLikeString && a != b {
+        let b_ty = interner().intern_type(&[b], FlowFlags::EMPTY);
+        return vec![ElementId::intersected(a, &[ElementId::negated(b_ty)])];
+    }
+
     let i = interner();
     let a_t = i.intern_type(&[a], FlowFlags::EMPTY);
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
@@ -300,14 +315,14 @@ pub(in crate::subtract) fn atom_minus<W: World>(
     }
 
     if a.kind() == ElementKind::GenericParameter {
-        return family::generic::generic_parameter_minus(a, b, world, options, report).unwrap_or_else(|| vec![a]);
+        return generic::generic_parameter_minus(a, b, world, options, report).unwrap_or_else(|| vec![a]);
     }
 
-    if let Some(pieces) = family::dominator::true_union_minus(a, b, world, options, report) {
+    if let Some(pieces) = dominator::true_union_minus(a, b, world, options, report) {
         return pieces;
     }
 
-    if let Some(pieces) = family::object::object_descendant_minus(a, b, world) {
+    if let Some(pieces) = object::object_descendant_minus(a, b, world) {
         return pieces;
     }
 
@@ -346,56 +361,79 @@ const fn scalar_supports_intersected_subtract(kind: ElementKind) -> bool {
 #[inline]
 fn family_atom_minus(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
     if a.kind() == ElementKind::Int && b.kind() == ElementKind::Int {
-        return Some(family::int::int_minus(a, b));
+        return Some(int::int_minus(a, b));
     }
 
-    if a == crate::prelude::BOOL && b == TRUE {
+    if a == prelude::BOOL && b == TRUE {
         return Some(vec![FALSE]);
     }
 
-    if a == crate::prelude::BOOL && b == FALSE {
+    if a == prelude::BOOL && b == FALSE {
         return Some(vec![TRUE]);
     }
 
     if a.kind() == ElementKind::String && b.kind() == ElementKind::String {
-        return family::string::string_minus(a, b);
+        return string::string_minus(a, b);
     }
 
     if a.kind() == ElementKind::List && b.kind() == ElementKind::List {
-        return family::list::list_minus(a, b);
+        return list::list_minus(a, b);
     }
 
     if a.kind() == ElementKind::Array && b.kind() == ElementKind::Array {
-        return family::array::array_minus(a, b);
+        return array::array_minus(a, b);
     }
 
     if a.kind() == ElementKind::List && b.kind() == ElementKind::Iterable {
-        return family::list::list_minus_iterable(a, b);
+        return list::list_minus_iterable(a, b);
     }
 
     if a.kind() == ElementKind::Array && b.kind() == ElementKind::Iterable {
-        return family::array::array_minus_iterable(a, b);
+        return array::array_minus_iterable(a, b);
     }
 
     if a.kind() == ElementKind::List && b.kind() == ElementKind::Array {
+        let b_allows_empty = !interner().get_array(b).flags.non_empty();
+        let head = if b_allows_empty {
+            let i = interner();
+            let a_info = *i.get_list(a);
+            i.intern_list(ListInfo { flags: a_info.flags.with_non_empty(true), ..a_info })
+        } else {
+            a
+        };
+
         let b_ty = interner().intern_type(&[b], FlowFlags::EMPTY);
-        return Some(vec![ElementId::intersected(a, &[ElementId::negated(b_ty)])]);
+        return Some(vec![ElementId::intersected(head, &[ElementId::negated(b_ty)])]);
+    }
+
+    if a.kind() == ElementKind::Array && b.kind() == ElementKind::List {
+        let b_allows_empty = !interner().get_list(b).flags.non_empty();
+        let head = if b_allows_empty {
+            let i = interner();
+            let a_info = *i.get_array(a);
+            i.intern_array(KeyedArrayInfo { flags: a_info.flags.with_non_empty(true), ..a_info })
+        } else {
+            a
+        };
+
+        let b_ty = interner().intern_type(&[b], FlowFlags::EMPTY);
+        return Some(vec![ElementId::intersected(head, &[ElementId::negated(b_ty)])]);
     }
 
     if a.kind() == ElementKind::Iterable && b.kind() == ElementKind::Iterable {
-        return family::iterable::iterable_minus(a, b);
+        return iterable::iterable_minus(a, b);
     }
 
     if a.kind() == ElementKind::Callable && b.kind() == ElementKind::Callable {
-        return family::callable::callable_minus(a, b);
+        return callable::callable_minus(a, b);
     }
 
     if a.kind() == ElementKind::HasMethod && b.kind() == ElementKind::HasMethod {
-        return family::has_member::has_method_minus(a, b);
+        return has_member::has_method_minus(a, b);
     }
 
     if a.kind() == ElementKind::HasProperty && b.kind() == ElementKind::HasProperty {
-        return family::has_member::has_property_minus(a, b);
+        return has_member::has_property_minus(a, b);
     }
 
     None

@@ -58,10 +58,14 @@ pub(crate) fn string_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
     };
 
     // Opposite-casing collapse: when neither side fixed a literal value,
-    // the only string in both sets is `""`. With a literal on one side,
-    // fall through ; the literal-vs-flags / literal-vs-casing checks
-    // below will reject it iff the literal violates the casing it carries.
+    // the only string in both sets is `""`. If either side asserts
+    // `is_non_empty`, the meet is empty — the empty string violates
+    // non-empty.
     if opposite_casings && matches!(literal, StringLiteral::None | StringLiteral::Unspecified) {
+        if flags.is_non_empty() {
+            return None;
+        }
+
         return Some(ElementId::string_literal(""));
     }
 
