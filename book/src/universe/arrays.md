@@ -4,8 +4,8 @@ PHP has one runtime collection type — the array — but the type system distin
 
 | PHP-side | Denotes |
 |---|---|
-| `array<K, V>`, `array{a: int, b?: string, ...}`, `array{}` | Keyed array. |
-| `list<T>`, `non-empty-list<T>`, `list{0: int, 1: string, ...}` | Int-keyed contiguous list. |
+| `array<K, V>`, `array{a: int, b?: string, ...<K, V>}`, `array{}` | Keyed array. |
+| `list<T>`, `non-empty-list<T>`, `list{0: int, 1: string, ...<T>}` | Int-keyed contiguous list. |
 
 This chapter describes what each *means*. The lattice rules for subtyping, meet, join, and so on are in [refines](../lattice/refines.md), [meet](../lattice/meet.md), and [join](../lattice/join.md).
 
@@ -15,10 +15,12 @@ A keyed array can be in one of four states:
 
 | State | PHP-side | Notes |
 |---|---|---|
-| **Generic** | `array<K, V>`, `non-empty-array<K, V>` | `K` and `V` are type parameters. Unsealed: any extra entries allowed. |
-| **Open shape** | `array{a: int, ...}` | Specific known entries plus a rest type for unknown entries. |
+| **Generic** | `array<K, V>`, `non-empty-array<K, V>` | `K` and `V` are type parameters. Any entries allowed, all keys constrained by `K`, all values by `V`. |
+| **Unsealed shape** | `array{a: int, ...<K, V>}` | Specific known entries plus a rest type for unknown entries. The bare `...` is shorthand for `...<array-key, mixed>`. |
 | **Sealed shape** | `array{a: int}` | Specific entries; no extras. |
 | **Empty** | `array{}` | The single empty array. |
+
+The unsealed shape's rest parameters constrain the *additional* entries beyond the listed ones ; they say nothing about the listed entries' types. So `array{a: int, ...<string, bool>}` means: the entry `a` is an `int`, and any other entries have `string` keys and `bool` values. The bare `...` form is the common case where the user does not want to constrain the extras and is exactly equivalent to `...<array-key, mixed>`.
 
 ### Known entries
 
@@ -32,10 +34,11 @@ The lattice's [refines](../lattice/refines.md) chapter has the full required-vs-
 
 ### Sealed vs unsealed
 
-A **sealed** shape commits to having no entries beyond those listed. An **unsealed** shape allows additional entries (governed by the rest-type parameters). The lattice consequences:
+A **sealed** shape commits to having no entries beyond those listed. An **unsealed** shape allows additional entries, with their key and value types constrained by the rest parameters (`...<K, V>`, defaulting to `...<array-key, mixed>`). The lattice consequences:
 
 - `array{a: int, b: string}` (sealed) refines `array{a: int}` (sealed) only if the input has *exactly* the keys the container does (extras are forbidden).
 - `array{a: int, b: string}` (sealed) refines `array{a: int, ...}` (unsealed) by ignoring the extras.
+- `array{a: int, b: string}` refines `array{a: int, ...<string, bool>}` only if every extra entry beyond `a` has a `string` key and a `bool` value ; here `b: string` has a string key but a `string` value, so it fails the rest constraint.
 - `array{}` refines every keyed-array container that admits empty (i.e. is not `non-empty-array`).
 
 ### `non-empty-array`
@@ -48,9 +51,10 @@ A list is structurally an int-keyed array with contiguous keys starting at 0. Su
 
 | State | PHP-side | Notes |
 |---|---|---|
-| **Generic** | `list<T>`, `non-empty-list<T>` | Single element type. |
-| **Open with known head** | `list{0: int, ...<T>}` | Sealed prefix plus a rest element type. |
-| **Sealed** | `list{0: int, 1: string}` | Fixed-shape list. |
+| **Generic** | `list<T>`, `non-empty-list<T>` | Single element type. Any number of entries allowed, all values constrained by `T`. |
+| **Unsealed shape** | `list{0: int, ...<T>}` | Known prefix plus a rest element type. The bare `list{0: int, ...}` is shorthand for `...<mixed>`. |
+| **Sealed shape** | `list{0: int, 1: string}` | Fixed-shape list, no extras. |
+| **Empty** | `list{}` | The single empty list (equivalent to `array{}` viewed as a list). |
 
 ### Known elements
 
