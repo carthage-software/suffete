@@ -33,7 +33,7 @@ The canonicalisation rules apply in order:
 
 1. **Top wins**: if `mixed` is in the union, the result is `mixed` and everything else is dropped.
 2. **Bottom is absorbed**: if `never` is in the union, drop it (unless it's the only thing).
-3. **Void absorbs Null when both present**: `void | null` collapses to `null` (PHP runtime: `void` returns produce `null`).
+3. **Void canonicalises to null in non-degenerate unions**: in any union of length > 1, `void` is replaced by `null` (and not duplicated if `null` is already present). PHP runtime: a `void` function returns the value `null` to its caller, so at every value-flow site `void` is observationally `null`. `void` alone is preserved so a `: void` return-type annotation round-trips. Examples: `void | int` collapses to `int | null` ; `void | null` collapses to `null` ; `void | never` collapses to `void` (the `never` is dropped first).
 4. **Bool composition**: `true | false = bool`. `bool | true = bool`. `bool | false = bool`.
 5. **Resource composition**: `open-resource | closed-resource = resource` (when no specific kind).
 6. **Same-kind dominator**: same-kind Elements may collapse to a single range or merged unspecified form.

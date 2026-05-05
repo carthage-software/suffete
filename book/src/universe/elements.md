@@ -42,7 +42,7 @@ See [scalars](./scalars.md) and [class-like strings](./class-like-string.md).
 The well-known landmarks that are not values themselves but anchors in the lattice.
 
 - `null` (the value `null`)
-- `void` (the absence of a return; treated as falsy and not-null per PHP semantics)
+- `void` (the absence of a return; falsy and null-equivalent at value sites — a `void` function returns `null` to its caller, so `void` collapses to `null` in any non-degenerate union)
 - `never` (the empty type, $\bot$ — a function that never returns has return type `never`)
 - `mixed` (the unconstrained universe top, $\top$, plus its narrowed variants carrying truthiness/non-null/non-empty axes)
 - `placeholder` (an inference hole)

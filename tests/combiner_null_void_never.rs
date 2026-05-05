@@ -43,33 +43,33 @@ fn void_or_null_yields_null() {
 }
 
 #[test]
-fn void_kept_alongside_int() {
-    assert_combines_to(vec![void(), t_int()], vec![t_int(), void()]);
-    assert_combines_to(vec![t_int(), void()], vec![t_int(), void()]);
+fn void_becomes_null_alongside_int() {
+    assert_combines_to(vec![void(), t_int()], vec![t_int(), null()]);
+    assert_combines_to(vec![t_int(), void()], vec![t_int(), null()]);
 }
 
 #[test]
-fn void_kept_alongside_string() {
-    assert_combines_to(vec![void(), t_string()], vec![t_string(), void()]);
-    assert_combines_to(vec![t_string(), void()], vec![t_string(), void()]);
+fn void_becomes_null_alongside_string() {
+    assert_combines_to(vec![void(), t_string()], vec![t_string(), null()]);
+    assert_combines_to(vec![t_string(), void()], vec![t_string(), null()]);
 }
 
 #[test]
-fn void_kept_alongside_bool() {
-    assert_combines_to(vec![void(), t_bool()], vec![t_bool(), void()]);
-    assert_combines_to(vec![t_bool(), void()], vec![t_bool(), void()]);
+fn void_becomes_null_alongside_bool() {
+    assert_combines_to(vec![void(), t_bool()], vec![t_bool(), null()]);
+    assert_combines_to(vec![t_bool(), void()], vec![t_bool(), null()]);
 }
 
 #[test]
-fn void_kept_alongside_object() {
-    assert_combines_to(vec![void(), t_object_any()], vec![t_object_any(), void()]);
-    assert_combines_to(vec![void(), t_named("Foo")], vec![t_named("Foo"), void()]);
+fn void_becomes_null_alongside_object() {
+    assert_combines_to(vec![void(), t_object_any()], vec![t_object_any(), null()]);
+    assert_combines_to(vec![void(), t_named("Foo")], vec![t_named("Foo"), null()]);
 }
 
 #[test]
-fn void_kept_alongside_resource() {
-    assert_combines_to(vec![void(), t_resource()], vec![t_resource(), void()]);
-    assert_combines_to(vec![void(), t_open_resource()], vec![t_open_resource(), void()]);
+fn void_becomes_null_alongside_resource() {
+    assert_combines_to(vec![void(), t_resource()], vec![t_resource(), null()]);
+    assert_combines_to(vec![void(), t_open_resource()], vec![t_open_resource(), null()]);
 }
 
 #[test]
@@ -79,11 +79,11 @@ fn void_or_never_keeps_void() {
 }
 
 #[test]
-fn void_kept_with_two_other_types() {
+fn void_becomes_null_with_two_other_types() {
     let r = combine_default(vec![void(), t_int(), t_string()]);
     let mut sorted = r;
     sorted.sort();
-    let mut expected = vec![t_int(), t_string(), void()];
+    let mut expected = vec![t_int(), t_string(), null()];
     expected.sort();
     assert_eq!(sorted, expected);
 }

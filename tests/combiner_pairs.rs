@@ -39,7 +39,7 @@ fn primitive_pairs_int() {
     check("int | array{}", vec![t_int(), t_empty_array()], &[t_empty_array(), t_int()]);
     check("int | class-string", vec![t_int(), t_class_string()], &[t_class_string(), t_int()]);
     check("int | never", vec![t_int(), never()], &[t_int()]);
-    check("int | void", vec![t_int(), void()], &[t_int(), void()]);
+    check("int | void", vec![t_int(), void()], &[t_int(), null()]);
     check("int | mixed", vec![t_int(), mixed()], &[mixed()]);
 }
 
@@ -56,7 +56,7 @@ fn primitive_pairs_string() {
     check("string | array{}", vec![t_string(), t_empty_array()], &[t_empty_array(), t_string()]);
     check("string | class-string", vec![t_string(), t_class_string()], &[t_string()]);
     check("string | never", vec![t_string(), never()], &[t_string()]);
-    check("string | void", vec![t_string(), void()], &[t_string(), void()]);
+    check("string | void", vec![t_string(), void()], &[t_string(), null()]);
     check("string | mixed", vec![t_string(), mixed()], &[mixed()]);
 }
 
@@ -70,7 +70,7 @@ fn primitive_pairs_float() {
     check("float | object", vec![t_float(), t_object_any()], &[t_float(), t_object_any()]);
     check("float | resource", vec![t_float(), t_resource()], &[t_float(), t_resource()]);
     check("float | never", vec![t_float(), never()], &[t_float()]);
-    check("float | void", vec![t_float(), void()], &[t_float(), void()]);
+    check("float | void", vec![t_float(), void()], &[t_float(), null()]);
     check("float | mixed", vec![t_float(), mixed()], &[mixed()]);
 }
 
@@ -87,7 +87,7 @@ fn primitive_pairs_bool() {
     check("bool | false", vec![t_bool(), t_false()], &[t_bool()]);
     check("bool | array{}", vec![t_bool(), t_empty_array()], &[t_empty_array(), t_bool()]);
     check("bool | never", vec![t_bool(), never()], &[t_bool()]);
-    check("bool | void", vec![t_bool(), void()], &[t_bool(), void()]);
+    check("bool | void", vec![t_bool(), void()], &[t_bool(), null()]);
     check("bool | mixed", vec![t_bool(), mixed()], &[mixed()]);
 }
 
@@ -111,15 +111,15 @@ fn primitive_pairs_null() {
 #[test]
 fn primitive_pairs_void() {
     check("void | void", vec![void(), void()], &[void()]);
-    check("void | int", vec![void(), t_int()], &[t_int(), void()]);
-    check("void | string", vec![void(), t_string()], &[t_string(), void()]);
-    check("void | float", vec![void(), t_float()], &[t_float(), void()]);
-    check("void | bool", vec![void(), t_bool()], &[t_bool(), void()]);
+    check("void | int", vec![void(), t_int()], &[t_int(), null()]);
+    check("void | string", vec![void(), t_string()], &[t_string(), null()]);
+    check("void | float", vec![void(), t_float()], &[t_float(), null()]);
+    check("void | bool", vec![void(), t_bool()], &[t_bool(), null()]);
     check("void | null", vec![void(), null()], &[null()]);
-    check("void | object", vec![void(), t_object_any()], &[t_object_any(), void()]);
-    check("void | Foo", vec![void(), t_named("Foo")], &[t_named("Foo"), void()]);
-    check("void | resource", vec![void(), t_resource()], &[t_resource(), void()]);
-    check("void | array{}", vec![void(), t_empty_array()], &[t_empty_array(), void()]);
+    check("void | object", vec![void(), t_object_any()], &[t_object_any(), null()]);
+    check("void | Foo", vec![void(), t_named("Foo")], &[t_named("Foo"), null()]);
+    check("void | resource", vec![void(), t_resource()], &[t_resource(), null()]);
+    check("void | array{}", vec![void(), t_empty_array()], &[t_empty_array(), null()]);
     check("void | never", vec![void(), never()], &[void()]);
     check("void | mixed", vec![void(), mixed()], &[mixed()]);
 }

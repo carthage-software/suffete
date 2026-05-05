@@ -47,11 +47,13 @@ The single value `null`.
 
 ## `void`
 
-The absence of a return value. PHP-side: a function declared with return type `void`. The runtime returns `null` from such a function, but the type system models it as a distinct landmark — assigning the result of a `void` function to a variable is an analyser concern.
+The absence of a return value. PHP-side: a function declared with return type `void`. The runtime returns the value `null` from such a function, so at every value-flow site `void` is observationally `null` ; the distinction is purely a declarative constraint on the function body (a `: void` return forbids `return $expr`).
 
-- Falsy. Treated as not-null per the lattice's own rules (so `void` does not refine `non-null mixed`).
-- Disjoint from `null`.
-- The join `void | T` does not collapse to `T?`; `void` and `null` remain distinct.
+- Falsy. Does not refine `non-null mixed` (because the runtime value is `null`).
+- **Preserved alone:** a singleton union containing only `void` round-trips as `void`, so a `: void` return-type annotation survives interning.
+- **Canonicalised to `null` in any non-degenerate union:** `void | T` (for any value-bearing `T`) becomes `T | null` ; `void | null` becomes `null` ; `void | never` becomes `void` (the `never` is dropped first, leaving `void` alone). This matches PHP runtime semantics: callers of a `void` function see `null`, never a phantom `void` value.
+
+In the original mago bug that prompted this rule, a `match` arm produced `true | void` and the analyser collapsed it to `true`, dropping the null branch entirely. The correct answer is `true | null`, which is what the lattice now produces.
 
 ## `placeholder`
 
@@ -68,7 +70,7 @@ The inference-time hole. Marks a position where the analyser knows a type *will*
 | `mixed` (vanilla) | yes (every value) | $\top$ |
 | `mixed` (narrowed) | yes | between $\top$ and the kinds that imply the axis |
 | `null` | yes (one value) | strict subtype of `mixed` |
-| `void` | yes (one "value") | strict subtype of `mixed`, disjoint from `null` |
+| `void` | yes (the runtime value `null`) | strict subtype of `mixed`; preserved alone, canonicalised to `null` in any union of length > 1 |
 | `placeholder` | by convention, treated as $\top$ | inference-only |
 
 ## Why `mixed` carries axes instead of being wrapped

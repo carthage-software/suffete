@@ -29,7 +29,9 @@
 //! # What this pass does
 //!
 //! - Drops `never` when any non-`never` element exists; collapses an
-//!   all-`never` multiset to `[never]`. Collapses `void | null` to `null`.
+//!   all-`never` multiset to `[never]`. Replaces `void` with `null` in
+//!   any union of length > 1 (PHP semantics: callers see `null` from a
+//!   `void` function); preserves `void` when it is the only Element.
 //! - Lets vanilla `mixed` absorb every other element.
 //! - Merges `true ∨ false → bool`; lets `bool` absorb `true` / `false`.
 //! - Lets `resource` absorb `open-resource` / `closed-resource`; merges
@@ -426,8 +428,12 @@ fn canonicalize(elements: &mut Vec<ElementId>) {
         }
     }
 
-    if element_simd::contains(elements, VOID) && element_simd::contains(elements, NULL) {
+    if element_simd::contains(elements, VOID) && elements.len() > 1 {
         elements.retain(|e| *e != VOID);
+        if !element_simd::contains(elements, NULL) {
+            let pos = elements.binary_search(&NULL).unwrap_or_else(|p| p);
+            elements.insert(pos, NULL);
+        }
     }
 
     let has_bool = element_simd::contains(elements, BOOL);
@@ -543,10 +549,10 @@ mod tests {
 
     #[test]
     #[inline]
-    fn void_is_kept_when_other_elements_exist() {
+    fn void_becomes_null_when_other_elements_exist() {
         let mut out = compute(&[VOID, INT]);
         out.sort();
-        let mut expected = vec![INT, VOID];
+        let mut expected = vec![INT, NULL];
         expected.sort();
         assert_eq!(out, expected);
     }
