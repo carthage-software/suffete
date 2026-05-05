@@ -39,7 +39,7 @@ pub fn refines_container_negated<W: World>(
     let i = interner();
     let info = *i.get_negated(container);
     let input_t = i.intern_type(&[input], crate::FlowFlags::EMPTY);
-    !crate::lattice::overlaps(input_t, info.inner, world, options, report)
+    crate::meet::compute(input_t, info.inner, world, options, report) == crate::prelude::TYPE_NEVER
 }
 
 /// `!T <: X` iff `mixed \ T <: X` iff `T ∪ X ≡ mixed`.

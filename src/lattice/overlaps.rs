@@ -36,7 +36,6 @@ use crate::element::payload::DefiningEntity;
 use crate::element::payload::GenericParameterInfo;
 use crate::element::payload::KeyedArrayInfo;
 use crate::element::payload::ListInfo;
-use crate::element::payload::MixedInfo;
 use crate::element::payload::ObjectFlags;
 use crate::element::payload::ObjectInfo;
 use crate::element::payload::Truthiness;
@@ -508,6 +507,11 @@ fn object_uninhabited<W: World>(info: &ObjectInfo, intersections: Option<Element
             return true;
         }
 
+        // Distinct direct inheritors of the same sealed class are disjoint.
+        if sealed_siblings_disjoint(&classes, world) {
+            return true;
+        }
+
         for &neg in &negations {
             let neg_inner = i.get_negated(neg).inner;
             for &class in &classes {
@@ -550,7 +554,7 @@ fn object_uninhabited<W: World>(info: &ObjectInfo, intersections: Option<Element
 }
 
 #[inline]
-pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
+pub fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
     let i = interner();
     match elem.kind() {
         ElementKind::List => {
@@ -567,6 +571,13 @@ pub(crate) fn is_uninhabited<W: World>(elem: ElementId, world: &W) -> bool {
         }
         ElementKind::Intersected => {
             let info = *i.get_intersected(elem);
+
+            // Sealed-cover uninhabitedness: H & !S1 & !S2 ... where
+            // H is sealed and all inheritors are covered by negations.
+            if info.head.kind() == ElementKind::Object && sealed_cover_fully_excluded(info.head, info.conjuncts, world)
+            {
+                return true;
+            }
 
             if intersected_negated_contradiction(info.head, info.conjuncts, world) {
                 return true;
@@ -649,6 +660,38 @@ fn intersected_negated_contradiction<W: World>(
         }
     }
     false
+}
+
+/// `true` iff `Intersected(H, cogn-juncts)` has a sealed head `H`
+/// and every direct inheritor of `H` is covered by some Negated
+/// conjunct, making the Intersected uninhabited.
+#[inline]
+fn sealed_cover_fully_excluded<W: World>(
+    head: ElementId,
+    conjuncts_id: crate::element::ElementListId,
+    world: &W,
+) -> bool {
+    let i = interner();
+    let conjuncts = i.get_element_list(conjuncts_id);
+    let mut negated_inners: Vec<TypeId> = Vec::with_capacity(conjuncts.len());
+    for &c in conjuncts {
+        if c.kind() == ElementKind::Negated {
+            negated_inners.push(i.get_negated(c).inner);
+        }
+    }
+    if negated_inners.is_empty() {
+        return false;
+    }
+    matches!(
+        crate::lattice::sealed::compute_residual(
+            head,
+            &negated_inners,
+            world,
+            LatticeOptions::default(),
+            &mut LatticeReport::new(),
+        ),
+        crate::lattice::sealed::SealedResidual::FullyCovered
+    )
 }
 
 /// `Callable × Callable` overlap. A function value has a fixed
@@ -974,7 +1017,28 @@ fn mixed_overlap(a: ElementId, b: ElementId) -> bool {
 }
 
 #[inline]
-fn mixed_axes_compatible(info: MixedInfo, other: ElementId) -> bool {
+fn sealed_siblings_disjoint<W: World>(names: &[mago_atom::Atom], world: &W) -> bool {
+    if names.len() < 2 {
+        return false;
+    }
+    for i in 0..names.len() {
+        for j in i + 1..names.len() {
+            if names[i] == names[j] {
+                continue;
+            }
+            // Two distinct names sharing the same sealed parent are disjoint.
+            if let (Some(pa), Some(pb)) = (world.sealed_parent_of(names[i]), world.sealed_parent_of(names[j])) {
+                if pa == pb {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+#[inline]
+fn mixed_axes_compatible(info: crate::element::payload::MixedInfo, other: ElementId) -> bool {
     if info.is_non_null() && !mixed_family::is_non_null(other) {
         return false;
     }

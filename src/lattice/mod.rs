@@ -27,8 +27,10 @@ mod options;
 pub(crate) mod overlaps;
 mod refines;
 mod report;
+pub(crate) mod sealed;
 
 pub use self::options::LatticeOptions;
+pub use self::overlaps::is_uninhabited;
 pub use self::overlaps::overlaps;
 pub(crate) use self::refines::element_refines;
 pub use self::refines::generalizes;

@@ -183,9 +183,15 @@ fn atom_meet<W: World>(
         return None;
     }
     if a == MIXED || a == PLACEHOLDER {
+        if crate::lattice::overlaps::is_uninhabited(b, world) {
+            return None;
+        }
         return Some(b);
     }
     if b == MIXED || b == PLACEHOLDER {
+        if crate::lattice::overlaps::is_uninhabited(a, world) {
+            return None;
+        }
         return Some(a);
     }
 

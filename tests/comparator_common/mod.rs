@@ -78,6 +78,11 @@ pub struct MockWorld {
     class_constants: HashMap<(Atom, Atom), TypeId>,
     /// `name -> constant type` for global constants.
     global_constants: HashMap<Atom, TypeId>,
+    /// `sealed_class -> [direct inheritor, ...]` for classes the world
+    /// treats as sealed. Empty vec means no known inheritors (final).
+    sealed_inheritors: HashMap<Atom, Vec<Atom>>,
+    /// `child -> sealed_parent` reverse map for fast sealed-sibling queries.
+    sealed_parent: HashMap<Atom, Atom>,
 }
 
 impl MockWorld {
@@ -95,6 +100,8 @@ impl MockWorld {
             aliases: HashMap::new(),
             class_constants: HashMap::new(),
             global_constants: HashMap::new(),
+            sealed_inheritors: HashMap::new(),
+            sealed_parent: HashMap::new(),
         }
     }
 
@@ -327,6 +334,21 @@ impl MockWorld {
             }
         }
     }
+
+    /// Mark `class` as sealed with the given direct inheritors.
+    /// Atomically registers `descends_from` edges so the world stays
+    /// internally consistent.
+    pub fn with_sealed(&mut self, class: &str, inheritors: &[&str]) -> &mut Self {
+        let class_atom = atom(class);
+        let inh: Vec<Atom> = inheritors.iter().map(|n| atom(n)).collect();
+        for &i in &inh {
+            self.ancestors.entry(i).or_default().insert(class_atom);
+            self.sealed_parent.insert(i, class_atom);
+        }
+
+        self.sealed_inheritors.insert(class_atom, inh);
+        self
+    }
 }
 
 impl Default for MockWorld {
@@ -450,6 +472,14 @@ impl World for MockWorld {
 
     fn global_constant_type(&self, name: Atom) -> Option<TypeId> {
         self.global_constants.get(&name).copied()
+    }
+
+    fn sealed_direct_inheritors(&self, class_like: Atom) -> Option<&[Atom]> {
+        self.sealed_inheritors.get(&class_like).map(Vec::as_slice)
+    }
+
+    fn sealed_parent_of(&self, child: Atom) -> Option<Atom> {
+        self.sealed_parent.get(&child).copied()
     }
 }
 

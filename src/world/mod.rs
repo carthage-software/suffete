@@ -148,6 +148,27 @@ pub trait World {
     /// closure in declaration order. Used by [`crate::expand`] to
     /// build the shape returned by `properties-of<C>`.
     fn class_property_at(&self, class: Atom, position: usize) -> Option<ClassProperty>;
+
+    /// The closed list of *direct* inheritors of `class_like` when the
+    /// world treats it as sealed; `None` when the world considers
+    /// `class_like` open (anything may extend it).
+    ///
+    /// "Direct" means immediate children only; the lattice walks
+    /// transitive sealing recursively.
+    ///
+    /// PHP examples a stub-loading world typically returns:
+    /// - `Throwable`   → `Some(["Error", "Exception"])`
+    /// - `Traversable` → `Some(["Iterator", "IteratorAggregate"])`
+    ///
+    /// Contract: the inheritors returned must each `descends_from` the
+    /// queried class. Inconsistent worlds produce wrong lattice answers
+    /// the same way an inconsistent `descends_from` does.
+    fn sealed_direct_inheritors(&self, class_like: Atom) -> Option<&[Atom]>;
+
+    /// If `child` is a direct inheritor of a sealed class, returns
+    /// that sealed parent. `None` otherwise. Simple reverse-lookup
+    /// for sealed-sibling disjointness checks.
+    fn sealed_parent_of(&self, child: Atom) -> Option<Atom>;
 }
 
 /// One declared property of a class-like, returned by
@@ -263,6 +284,16 @@ impl World for NullWorld {
 
     #[inline]
     fn class_property_at(&self, _class: Atom, _position: usize) -> Option<ClassProperty> {
+        None
+    }
+
+    #[inline]
+    fn sealed_direct_inheritors(&self, _class_like: Atom) -> Option<&[Atom]> {
+        None
+    }
+
+    #[inline]
+    fn sealed_parent_of(&self, _child: Atom) -> Option<Atom> {
         None
     }
 }

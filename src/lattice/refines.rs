@@ -10,10 +10,12 @@ use crate::element::payload::StringLiteral;
 use crate::element::payload::StringRefinementFlags;
 use crate::element::payload::scalar::IntInfo;
 use crate::interner::interner;
+use crate::lattice;
 use crate::lattice::CoercionCauses;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::family;
+use crate::lattice::sealed::SealedResidual;
 use crate::prelude::FALSE;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
@@ -103,7 +105,15 @@ pub fn refines<W: World>(
                 return true;
             }
 
-            generic_parameter_union_covers(*elem, b_type.elements, world, options, report)
+            if generic_parameter_union_covers(*elem, b_type.elements, world, options, report) {
+                return true;
+            }
+
+            if sealed_survivors_cover(*elem, b_type.elements, world, options, report) {
+                return true;
+            }
+
+            false
         })
 }
 
@@ -496,6 +506,37 @@ fn generic_parameter_union_covers<W: World>(
     refines(input_info.constraint, combined, world, options, report)
 }
 
+/// True iff a sealed named class `input` is covered by the union of
+/// `containers` via its sealed inheritors. For sealed `Foo` with
+/// inheritors `[Bar, Baz]`, `Foo <: containers` when `Bar <: containers`
+/// and `Baz <: containers`.
+#[inline]
+fn sealed_survivors_cover<W: World>(
+    input: ElementId,
+    containers: &[ElementId],
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    if input.kind() != ElementKind::Object {
+        return false;
+    }
+
+    let i = interner();
+    let residual = lattice::sealed::compute_residual(input, &[], world, options, report);
+    let survivors = match residual {
+        SealedResidual::Surviving(s) => s,
+        SealedResidual::FullyCovered => return true,
+        SealedResidual::NotSealed => return false,
+    };
+
+    let containers_t = i.intern_type(containers, FlowFlags::EMPTY);
+    survivors.iter().all(|si| {
+        let si_t = i.intern_type(&[*si], FlowFlags::EMPTY);
+        refines(si_t, containers_t, world, options, report)
+    })
+}
+
 /// True iff the int range / literal `input` is fully covered by the union
 /// of all int elements in `containers`. Used as a precision fallback when
 /// no single container element accepts the input. The `UnspecifiedLiteral`
@@ -742,7 +783,7 @@ pub(crate) fn element_refines<W: World>(
         return true;
     }
 
-    if crate::lattice::overlaps::is_uninhabited(input, world) {
+    if lattice::overlaps::is_uninhabited(input, world) {
         return true;
     }
 
@@ -844,7 +885,51 @@ fn refines_input_intersected<W: World>(
         }
     }
 
+    // Sealed-cover: Intersected(H, [..., negations...]) <: container
+    // when H is sealed and the surviving inheritors all refine container.
+    if sealed_intersected_cover(input, container, world, options, report) {
+        return true;
+    }
+
     false
+}
+
+/// Sealed-cover: `Intersected(H sealed, conjuncts) <: container` when
+/// `H`'s surviving inheritors each refine `container`.
+#[inline]
+fn sealed_intersected_cover<W: World>(
+    input: ElementId,
+    container: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> bool {
+    let i = interner();
+    let info = *i.get_intersected(input);
+    if info.head.kind() != ElementKind::Object {
+        return false;
+    }
+
+    let conjuncts = i.get_element_list(info.conjuncts);
+    let mut negated_inners: Vec<TypeId> = Vec::with_capacity(conjuncts.len());
+    for &c in conjuncts {
+        if c.kind() == ElementKind::Negated {
+            negated_inners.push(i.get_negated(c).inner);
+        }
+    }
+
+    let residual = lattice::sealed::compute_residual(info.head, &negated_inners, world, options, report);
+    let survivors = match residual {
+        SealedResidual::Surviving(s) => s,
+        SealedResidual::FullyCovered => return true,
+        SealedResidual::NotSealed => return false,
+    };
+
+    let container_t = i.intern_type(&[container], FlowFlags::EMPTY);
+    survivors.iter().all(|si| {
+        let si_t = i.intern_type(&[*si], FlowFlags::EMPTY);
+        refines(si_t, container_t, world, options, report)
+    })
 }
 
 /// `true` for kinds whose values inhabit multiple disjoint sub-families:
