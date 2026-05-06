@@ -55,6 +55,8 @@ use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
 use crate::lattice::overlaps;
 use crate::lattice::refines;
+use crate::lattice::sealed;
+use crate::lattice::sealed::SealedResidual;
 use crate::meet;
 use crate::prelude;
 use crate::prelude::FALSE;
@@ -158,8 +160,81 @@ pub fn narrow<W: World>(
         return SubtractOutcome::Impossible;
     }
 
+    canonicalise_sealed_residuals(&mut atoms, world, options, report);
+
     let result = TypeId::union(&atoms);
+
     if result == input { SubtractOutcome::Redundant(input) } else { SubtractOutcome::Narrowed(result) }
+}
+
+#[inline]
+#[allow(clippy::arithmetic_side_effects)]
+fn canonicalise_sealed_residuals<W: World>(
+    atoms: &mut Vec<ElementId>,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) {
+    if atoms.is_empty() {
+        return;
+    }
+
+    let i = interner();
+    let mut idx = 0;
+    while idx < atoms.len() {
+        let elem = atoms[idx];
+        if elem.kind() != ElementKind::Intersected {
+            idx += 1;
+            continue;
+        }
+
+        let info = *i.get_intersected(elem);
+        let conjuncts = i.get_element_list(info.conjuncts);
+        let head_is_object = info.head.kind() == ElementKind::Object;
+        let head_t = if head_is_object { Some(i.intern_type(&[info.head], FlowFlags::EMPTY)) } else { None };
+
+        let mut kept: Vec<ElementId> = Vec::with_capacity(conjuncts.len());
+        let mut negated_inners: Vec<TypeId> = Vec::with_capacity(conjuncts.len());
+        for &c in conjuncts {
+            if c.kind() == ElementKind::Negated {
+                let inner = i.get_negated(c).inner;
+                if let Some(t) = head_t
+                    && !overlaps(t, inner, world, options, report)
+                {
+                    continue;
+                }
+                negated_inners.push(inner);
+            }
+            kept.push(c);
+        }
+
+        if kept.is_empty() {
+            atoms[idx] = info.head;
+            idx += 1;
+            continue;
+        }
+
+        if info.head.kind() == ElementKind::Object && !negated_inners.is_empty() {
+            let residual = sealed::compute_residual(info.head, &negated_inners, world, options, report);
+            match residual {
+                SealedResidual::FullyCovered => {
+                    atoms.remove(idx);
+                    continue;
+                }
+                SealedResidual::Surviving(survivors) if survivors.len() == 1 => {
+                    atoms[idx] = survivors[0];
+                    idx += 1;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+
+        if kept.len() != conjuncts.len() {
+            atoms[idx] = ElementId::intersected(info.head, &kept);
+        }
+        idx += 1;
+    }
 }
 
 /// Compute `A \ B`: the largest representable type whose values are in

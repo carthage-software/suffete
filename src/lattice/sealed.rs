@@ -86,8 +86,12 @@ fn compute_residual_impl<W: World>(
 
         if let Some(grandchildren) = world.sealed_direct_inheritors(si) {
             if visited.contains(&si) {
-                surviving.push(si_elem);
-                continue;
+                // A cycle in the sealing graph is unresolvable. Bail
+                // up to the caller as `NotSealed` rather than emitting
+                // self-referential survivors ; otherwise downstream
+                // refines / overlaps consumers loop forever asking the
+                // same question.
+                return SealedResidual::NotSealed;
             }
             visited.push(si);
 
@@ -107,7 +111,11 @@ fn compute_residual_impl<W: World>(
 
             match sub {
                 SealedResidual::FullyCovered => {}
-                SealedResidual::NotSealed => surviving.push(si_elem),
+                // Recursion bailed (cycle or depth cap). Don't try to
+                // synthesize a partial cover ; propagate the give-up
+                // signal so callers fall back to non-sealed reasoning
+                // rather than looping on a self-referential survivor.
+                SealedResidual::NotSealed => return SealedResidual::NotSealed,
                 SealedResidual::Surviving(children) => surviving.extend(children),
             }
         } else {

@@ -48,10 +48,16 @@ use crate::ElementId;
 use crate::ElementKind;
 use crate::FlowFlags;
 use crate::TypeId;
+use crate::element::payload::MixedInfo;
+use crate::element::payload::Truthiness;
 use crate::interner::interner;
 use crate::lattice::LatticeOptions;
 use crate::lattice::LatticeReport;
+use crate::lattice::overlaps;
 use crate::lattice::refines;
+use crate::lattice::sealed::SealedResidual;
+use crate::lattice::sealed::compute_residual;
+use crate::meet::family::generic;
 use crate::prelude::MIXED;
 use crate::prelude::NEVER;
 use crate::prelude::PLACEHOLDER;
@@ -128,7 +134,7 @@ pub fn narrow<W: World>(
                 continue;
             }
 
-            if any_mixed && let Some(pieces) = narrowed_mixed_meet_multi(x, y) {
+            if any_mixed && let Some(pieces) = narrowed_mixed_meet_multi(x, y, world) {
                 atoms.extend(pieces);
                 continue;
             }
@@ -173,25 +179,31 @@ fn atom_meet<W: World>(
     options: LatticeOptions,
     report: &mut LatticeReport,
 ) -> Option<ElementId> {
-    if crate::lattice::overlaps::is_uninhabited(a, world) || crate::lattice::overlaps::is_uninhabited(b, world) {
+    if overlaps::is_uninhabited(a, world) || overlaps::is_uninhabited(b, world) {
         return None;
     }
+
     if a == b {
         return Some(a);
     }
+
     if a == NEVER || b == NEVER {
         return None;
     }
+
     if a == MIXED || a == PLACEHOLDER {
-        if crate::lattice::overlaps::is_uninhabited(b, world) {
+        if overlaps::is_uninhabited(b, world) {
             return None;
         }
+
         return Some(b);
     }
+
     if b == MIXED || b == PLACEHOLDER {
-        if crate::lattice::overlaps::is_uninhabited(a, world) {
+        if overlaps::is_uninhabited(a, world) {
             return None;
         }
+
         return Some(a);
     }
 
@@ -217,7 +229,7 @@ fn atom_meet<W: World>(
     }
 
     if a.kind() == ElementKind::Mixed || b.kind() == ElementKind::Mixed {
-        return narrowed_mixed_meet(a, b);
+        return normalise_meet_result(narrowed_mixed_meet(a, b, world), world);
     }
 
     let i = interner();
@@ -225,18 +237,29 @@ fn atom_meet<W: World>(
     let b_t = i.intern_type(&[b], FlowFlags::EMPTY);
 
     if refines(a_t, b_t, world, options, report) {
-        return Some(a);
+        return normalise_meet_result(Some(a), world);
     }
 
     if refines(b_t, a_t, world, options, report) {
-        return Some(b);
+        return normalise_meet_result(Some(b), world);
     }
 
     if a.kind() == ElementKind::GenericParameter || b.kind() == ElementKind::GenericParameter {
-        return family::generic::generic_parameter_meet(a, b, world, options, report);
+        return normalise_meet_result(generic::generic_parameter_meet(a, b, world, options, report), world);
     }
 
-    family_atom_meet(a, b, world, options, report)
+    normalise_meet_result(family_atom_meet(a, b, world, options, report), world)
+}
+
+/// If the synthesised element is uninhabited (e.g. sealed-class
+/// intersection with all inheritors negated), collapse to `None`
+/// so the caller treats it as the empty meet.
+#[inline]
+fn normalise_meet_result<W: World>(result: Option<ElementId>, world: &W) -> Option<ElementId> {
+    match result {
+        Some(elem) if overlaps::is_uninhabited(elem, world) => None,
+        other => other,
+    }
 }
 
 /// Cross-dominator pair meet: `(ArrayKey, Numeric)` shares `int`
@@ -370,11 +393,76 @@ fn intersected_atom_meet<W: World>(
         ElementId::intersected(head, &conjuncts)
     };
 
-    if crate::lattice::overlaps::is_uninhabited(result, world) {
+    if let Some(canon) = canonicalise_intersected(result, world, options, report) {
+        return Some(canon);
+    }
+
+    if overlaps::is_uninhabited(result, world) {
         return None;
     }
 
     Some(result)
+}
+
+/// Drop redundant negated conjuncts and collapse sealed-cover residuals.
+/// A negated conjunct `!X` is redundant when `head` is disjoint from `X`
+/// (`!overlaps(head, X)`), meaning the head already satisfies the negation.
+/// After dropping redundancies, a sealed-cover single-survivor residual
+/// replaces the Intersected with the bare inheritor.
+#[inline]
+fn canonicalise_intersected<W: World>(
+    elem: ElementId,
+    world: &W,
+    options: LatticeOptions,
+    report: &mut LatticeReport,
+) -> Option<ElementId> {
+    if elem.kind() != ElementKind::Intersected {
+        return None;
+    }
+    let i = interner();
+    let info = *i.get_intersected(elem);
+
+    let conjuncts = i.get_element_list(info.conjuncts);
+    let head_is_object = info.head.kind() == ElementKind::Object;
+    let head_t = if head_is_object { Some(i.intern_type(&[info.head], FlowFlags::EMPTY)) } else { None };
+
+    let mut kept: Vec<ElementId> = Vec::with_capacity(conjuncts.len());
+    let mut negated_inners: Vec<TypeId> = Vec::with_capacity(conjuncts.len());
+    for &c in conjuncts {
+        if c.kind() == ElementKind::Negated {
+            let inner = i.get_negated(c).inner;
+            if let Some(t) = head_t
+                && !overlaps(t, inner, world, options, report)
+            {
+                continue;
+            }
+            negated_inners.push(inner);
+        }
+        kept.push(c);
+    }
+
+    if kept.is_empty() {
+        return Some(info.head);
+    }
+
+    if info.head.kind() == ElementKind::Object && !negated_inners.is_empty() {
+        let residual = compute_residual(info.head, &negated_inners, world, options, report);
+        match residual {
+            SealedResidual::Surviving(survivors) if survivors.len() == 1 => {
+                return Some(survivors[0]);
+            }
+            SealedResidual::FullyCovered => {
+                return Some(crate::prelude::NEVER);
+            }
+            _ => {}
+        }
+    }
+
+    if kept.len() == conjuncts.len() {
+        return None;
+    }
+
+    Some(ElementId::intersected(info.head, &kept))
 }
 
 /// `meet(narrowed-mixed, X)` where `narrowed-mixed` is `truthy-mixed`,
@@ -382,8 +470,8 @@ fn intersected_atom_meet<W: World>(
 /// flag, expressed via the universal [`Intersected`] / [`Negated`]
 /// machinery and PHP truthiness semantics for each element kind.
 #[inline]
-fn narrowed_mixed_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
-    let pieces = narrowed_mixed_meet_multi(a, b)?;
+fn narrowed_mixed_meet<W: World>(a: ElementId, b: ElementId, world: &W) -> Option<ElementId> {
+    let pieces = narrowed_mixed_meet_multi(a, b, world)?;
     match pieces.as_slice() {
         [] => None,
         [single] => Some(*single),
@@ -395,9 +483,7 @@ fn narrowed_mixed_meet(a: ElementId, b: ElementId) -> Option<ElementId> {
 /// neither side is a `Mixed` element. Returns `Some(vec![])` for the
 /// empty meet.
 #[inline]
-fn narrowed_mixed_meet_multi(a: ElementId, b: ElementId) -> Option<Vec<ElementId>> {
-    use crate::element::payload::MixedInfo;
-    use crate::element::payload::Truthiness;
+fn narrowed_mixed_meet_multi<W: World>(a: ElementId, b: ElementId, world: &W) -> Option<Vec<ElementId>> {
     if a.kind() != ElementKind::Mixed && b.kind() != ElementKind::Mixed {
         return None;
     }
@@ -426,6 +512,10 @@ fn narrowed_mixed_meet_multi(a: ElementId, b: ElementId) -> Option<Vec<ElementId
     let (mixed_atom, other) = if a.kind() == ElementKind::Mixed { (a, b) } else { (b, a) };
     let info = *i.get_mixed(mixed_atom);
     if info == MixedInfo::EMPTY {
+        if overlaps::is_uninhabited(other, world) {
+            return Some(Vec::new());
+        }
+
         return Some(vec![other]);
     }
 

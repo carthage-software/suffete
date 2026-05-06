@@ -376,7 +376,7 @@ fn uninhabited_array_lhs_subtract_is_never() {
     let w = empty_world();
     let obj = ElementId::object_named("A");
     let key_type = TypeId::singleton(obj);
-    let arr = ElementId::keyed_unsealed(key_type, prelude::TYPE_INT, false);
+    let arr = ElementId::keyed_unsealed(key_type, prelude::TYPE_INT, true);
     let a = TypeId::union(&[arr]);
     let b = TypeId::union(&[prelude::INT, prelude::STRING]);
 

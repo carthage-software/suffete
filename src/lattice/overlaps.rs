@@ -288,6 +288,15 @@ fn object_overlap<W: World>(
         return false;
     }
 
+    if a_info.name != b_info.name
+        && let (Some(pa), Some(pb)) = (world.sealed_parent_of(a_info.name), world.sealed_parent_of(b_info.name))
+        && pa == pb
+        && !world.descends_from(a_info.name, b_info.name)
+        && !world.descends_from(b_info.name, a_info.name)
+    {
+        return false;
+    }
+
     if a_info.name == b_info.name
         && let (Some(a_args_id), Some(b_args_id)) = (a_info.type_args, b_info.type_args)
     {
@@ -460,14 +469,14 @@ fn list_uninhabited<W: World>(info: &ListInfo, intersections: Option<ElementList
 
 #[inline]
 fn array_uninhabited<W: World>(info: &KeyedArrayInfo, intersections: Option<ElementListId>, world: &W) -> bool {
-    if let Some(key_t) = info.key_param {
-        let int_or_string = interner().intern_type(&[prelude::INT, prelude::STRING], FlowFlags::EMPTY);
-        if !lattice::overlaps(key_t, int_or_string, world, LatticeOptions::default(), &mut LatticeReport::new()) {
-            return true;
-        }
-    }
-
     if info.flags.non_empty() {
+        if let Some(key_t) = info.key_param {
+            let int_or_string = interner().intern_type(&[prelude::INT, prelude::STRING], FlowFlags::EMPTY);
+            if !lattice::overlaps(key_t, int_or_string, world, LatticeOptions::default(), &mut LatticeReport::new()) {
+                return true;
+            }
+        }
+
         let key_empty = info.key_param.is_some_and(|t| type_is_value_never(t, world));
         let value_empty = info.value_param.is_some_and(|t| type_is_value_never(t, world));
         if key_empty || value_empty {

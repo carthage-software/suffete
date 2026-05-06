@@ -8,7 +8,8 @@
     clippy::missing_assert_message,
     clippy::std_instead_of_alloc,
     clippy::std_instead_of_core,
-    clippy::arithmetic_side_effects
+    clippy::arithmetic_side_effects,
+    clippy::integer_division_remainder_used
 )]
 
 mod comparator_common;
@@ -74,8 +75,10 @@ fn arb_world() -> impl Strategy<Value = WorldHandle> {
     let properties_strat = proptest::collection::vec(any::<bool>(), CLASSES.len() * PROPERTIES.len());
     let finals_strat = proptest::collection::vec(any::<bool>(), CLASSES.len());
 
-    (class_templates_strat, edges_strat, methods_strat, properties_strat, finals_strat).prop_map(
-        |(templates, edges, methods, properties, finals)| {
+    let sealed_strat = proptest::collection::vec(proptest::option::weighted(0.999, any::<u8>()), CLASSES.len());
+
+    (class_templates_strat, edges_strat, methods_strat, properties_strat, finals_strat, sealed_strat).prop_map(
+        |(templates, edges, methods, properties, finals, sealed_markers)| {
             let mut w = MockWorld::new();
 
             for (idx, class) in CLASSES.iter().enumerate() {
@@ -140,6 +143,46 @@ fn arb_world() -> impl Strategy<Value = WorldHandle> {
                     CLASSES.iter().any(|other| *other != *class && w.descends_from(mago_atom::atom(other), class_atom));
                 if !has_descendants {
                     w.with_final(class);
+                }
+            }
+
+            for (i, class) in CLASSES.iter().enumerate() {
+                let marker = match sealed_markers[i] {
+                    Some(m) if m < 64 => m,
+                    _ => continue,
+                };
+                let class_atom = mago_atom::atom(class);
+                // Pick direct children only ; a class is a direct child if it
+                // descends from `class` and no other descendant of `class` sits
+                // between them. This matches PHP's sealed-class semantics
+                // (sealed types list immediate inheritors, not transitive ones).
+                let direct_children: Vec<&str> = CLASSES
+                    .iter()
+                    .filter(|&&c| {
+                        if c == *class {
+                            return false;
+                        }
+                        let c_atom = mago_atom::atom(c);
+                        if !w.descends_from(c_atom, class_atom) {
+                            return false;
+                        }
+                        !CLASSES.iter().any(|&intermediate| {
+                            intermediate != *class
+                                && intermediate != c
+                                && w.descends_from(c_atom, mago_atom::atom(intermediate))
+                                && w.descends_from(mago_atom::atom(intermediate), class_atom)
+                        })
+                    })
+                    .copied()
+                    .collect();
+                if direct_children.len() < 2 {
+                    continue;
+                }
+                let n = (marker as usize % 3) + 1;
+                let inheritors: Vec<&str> =
+                    direct_children.iter().take(n.min(direct_children.len())).copied().collect();
+                if inheritors.len() >= 2 {
+                    w.with_sealed(class, &inheritors);
                 }
             }
 
@@ -1336,6 +1379,41 @@ proptest! {
     fn lattice_triple_laws_hold((world, a, b, c) in arb_world_and_triple()) {
         if let Err(violation) = check_lattice_triple_laws(a, b, c, &world) {
             prop_assert!(false, "{violation}");
+        }
+    }
+
+    #[test]
+    fn sealed_full_cover_subtract_is_never((world, a) in arb_world_and_type()) {
+        let _ = a;
+
+        for &class_name in CLASSES {
+            let name_atom = mago_atom::atom(class_name);
+            let inheritors = match world.sealed_direct_inheritors(name_atom) {
+                Some(inh) => inh.to_vec(),
+                None => continue,
+            };
+
+            if inheritors.is_empty() {
+                continue;
+            }
+
+            let head = ElementId::object_named(class_name);
+            let negations: Vec<ElementId> = inheritors
+                .iter()
+                .map(|&inh| {
+                    let inh_elem = ElementId::object_named(inh.as_str());
+                    ElementId::negated(TypeId::singleton(inh_elem))
+                })
+                .collect();
+
+            let sealed_no_inheritors = ElementId::intersected(head, &negations);
+            let m = meet_of(TypeId::singleton(sealed_no_inheritors), prelude::TYPE_MIXED, &world);
+            prop_assert_eq!(
+                m,
+                prelude::TYPE_NEVER,
+                "sealed full cover must be never for {}",
+                class_name
+            );
         }
     }
 }
